@@ -1,0 +1,87 @@
+[gd_scene format=3 uid="uid://8h65e52ha8rc"]
+
+[ext_resource type="Script" uid="uid://d3yk1dyid6fkn" path="res://scripts/inicializar_quarto.gd" id="1_init"]
+[ext_resource type="Script" uid="uid://bjpbgoqjrk81g" path="res://scripts/camera_cadeira.gd" id="2_cam"]
+[ext_resource type="Script" uid="uid://b6vgly7k0uohb" path="res://scripts/ciclo_dia_noite.gd" id="3_sol"]
+[ext_resource type="Script" uid="uid://cp34lednt4d25" path="res://scripts/tinta_secando.gd" id="4_tinta"]
+
+[node name="Quarto" type="Node3D" unique_id=181275854]
+script = ExtResource("1_init")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=946520751]
+
+[node name="Sol" type="DirectionalLight3D" parent="." unique_id=637477824]
+transform = Transform3D(0.866025, -0.433013, 0.25, 0, 0.5, 0.866025, -0.5, -0.75, 0.433013, 0, 8, 0)
+light_energy = 1.5
+shadow_enabled = true
+script = ExtResource("3_sol")
+duracao_dia_segundos = 10.0
+
+[node name="LuzNoite" type="OmniLight3D" parent="." unique_id=1615089129]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 0)
+light_color = Color(0.3, 0.35, 0.6, 1)
+light_energy = 0.08
+omni_range = 12.0
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=660135362]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 1.2, 0.5)
+script = ExtResource("2_cam")
+
+[node name="ChaoQP" type="MeshInstance3D" parent="." unique_id=1658286424]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, -1)
+
+[node name="ChaoPX" type="MeshInstance3D" parent="." unique_id=1837450353]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, -0.1, -5.25)
+
+[node name="TetoQP" type="MeshInstance3D" parent="." unique_id=1965655218]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.1, -1)
+
+[node name="TetoPX" type="MeshInstance3D" parent="." unique_id=1106702278]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 3.1, -5.25)
+
+[node name="ParedeNorteSolida" type="MeshInstance3D" parent="." unique_id=325702829]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.5, 1.5, -4)
+script = ExtResource("4_tinta")
+tempo_secagem_segundos = 5.0
+
+[node name="ParedeNorteAberturaAcima" type="MeshInstance3D" parent="." unique_id=796237683]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 2.55, -4)
+
+[node name="ParedeSul" type="MeshInstance3D" parent="." unique_id=1615072001]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 2)
+
+[node name="ParedeOesteNorte" type="MeshInstance3D" parent="." unique_id=1872741563]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 1.5, -2.5)
+
+[node name="ParedeOesteSul" type="MeshInstance3D" parent="." unique_id=767032305]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 1.5, 1.5)
+
+[node name="ParedeOesteAcima" type="MeshInstance3D" parent="." unique_id=1944643393]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 2.5, 0)
+
+[node name="ParedeOesteAbaixo" type="MeshInstance3D" parent="." unique_id=372275550]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 0.4, 0)
+
+[node name="Janela" type="MeshInstance3D" parent="." unique_id=29798466]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 1.4, 0)
+
+[node name="ParedeLesteNorte" type="MeshInstance3D" parent="." unique_id=1265925856]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 1.5, -2.25)
+
+[node name="ParedeLesteSul" type="MeshInstance3D" parent="." unique_id=459245049]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 1.5, 1.25)
+
+[node name="ParedeLesteAcima" type="MeshInstance3D" parent="." unique_id=286120380]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 2.55, 0)
+
+[node name="Porta" type="MeshInstance3D" parent="." unique_id=118936835]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.46, 1.05, 0)
+
+[node name="ParedeLestePX" type="MeshInstance3D" parent="." unique_id=237889176]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 1.5, -5.25)
+
+[node name="ParedeNortePX" type="MeshInstance3D" parent="." unique_id=1524883091]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 1.5, -6.5)
+
+[node name="ParedeInternaOeste" type="MeshInstance3D" parent="." unique_id=1063540488]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 1.5, -5.25)
