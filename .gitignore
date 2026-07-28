@@ -1,3 +1,8 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+
+# Config local do Claude Code + symlinks pra .agents/skills (que esse sim vai
+# versionado). Symlink em repo dá dor de cabeça no Windows, e settings.local
+# é da máquina, não do projeto.
+.claude/
