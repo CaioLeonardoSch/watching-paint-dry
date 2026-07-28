@@ -1,0 +1,18 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/porta.gd" id="1_porta"]
+
+[node name="Porta" type="Node3D"]
+script = ExtResource("1_porta")
+
+[node name="PivoFolha" type="Node3D" parent="."]
+
+[node name="Folha" type="MeshInstance3D" parent="PivoFolha"]
+
+[node name="Macaneta" type="Node3D" parent="PivoFolha/Folha"]
+
+[node name="BatenteNorte" type="MeshInstance3D" parent="."]
+
+[node name="BatenteSul" type="MeshInstance3D" parent="."]
+
+[node name="BatenteTopo" type="MeshInstance3D" parent="."]

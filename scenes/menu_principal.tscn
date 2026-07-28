@@ -1,0 +1,92 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/menu_principal.gd" id="1_menu"]
+
+[node name="MenuPrincipal" type="Control"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_menu")
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="PainelTitulo" type="PanelContainer" parent="CenterContainer"]
+layout_mode = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer/PainelTitulo"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="CenterContainer/PainelTitulo/VBoxContainer"]
+layout_mode = 2
+text = "Watching Paint Dry"
+horizontal_alignment = 1
+
+[node name="BotaoContinuar" type="Button" parent="CenterContainer/PainelTitulo/VBoxContainer"]
+visible = false
+layout_mode = 2
+text = "Continuar"
+
+[node name="BotaoJogar" type="Button" parent="CenterContainer/PainelTitulo/VBoxContainer"]
+layout_mode = 2
+text = "Jogar"
+
+[node name="BotaoConquistas" type="Button" parent="CenterContainer/PainelTitulo/VBoxContainer"]
+layout_mode = 2
+text = "Conquistas"
+
+[node name="BotaoSair" type="Button" parent="CenterContainer/PainelTitulo/VBoxContainer"]
+layout_mode = 2
+text = "Sair"
+
+[node name="PainelModo" type="PanelContainer" parent="CenterContainer"]
+visible = false
+layout_mode = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer/PainelModo"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="CenterContainer/PainelModo/VBoxContainer"]
+layout_mode = 2
+text = "Escolha o modo"
+horizontal_alignment = 1
+
+[node name="BotaoRapido" type="Button" parent="CenterContainer/PainelModo/VBoxContainer"]
+layout_mode = 2
+text = "Rápido"
+
+[node name="BotaoNormal" type="Button" parent="CenterContainer/PainelModo/VBoxContainer"]
+layout_mode = 2
+text = "Normal"
+
+[node name="BotaoRealista" type="Button" parent="CenterContainer/PainelModo/VBoxContainer"]
+layout_mode = 2
+text = "Realista"
+
+[node name="BotaoVoltar" type="Button" parent="CenterContainer/PainelModo/VBoxContainer"]
+layout_mode = 2
+text = "Voltar"
+
+[node name="PainelConquistas" type="PanelContainer" parent="CenterContainer"]
+visible = false
+layout_mode = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer/PainelConquistas"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="CenterContainer/PainelConquistas/VBoxContainer"]
+layout_mode = 2
+text = "Conquistas"
+horizontal_alignment = 1
+
+[node name="ScrollContainer" type="ScrollContainer" parent="CenterContainer/PainelConquistas/VBoxContainer"]
+custom_minimum_size = Vector2(360, 260)
+layout_mode = 2
+
+[node name="ListaConquistas" type="VBoxContainer" parent="CenterContainer/PainelConquistas/VBoxContainer/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="BotaoVoltarConquistas" type="Button" parent="CenterContainer/PainelConquistas/VBoxContainer"]
+layout_mode = 2
+text = "Voltar"
