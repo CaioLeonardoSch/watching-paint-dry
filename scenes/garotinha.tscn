@@ -1,22 +1,9 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/garotinha.gd" id="1_garotinha"]
+[ext_resource type="PackedScene" path="res://models/garotinha_modelo.tscn" id="2_modelo"]
 
 [node name="Garotinha" type="Node3D"]
 script = ExtResource("1_garotinha")
 
-[node name="Corpo" type="MeshInstance3D" parent="."]
-
-[node name="Cabeca" type="MeshInstance3D" parent="."]
-
-[node name="PernaEsquerda" type="MeshInstance3D" parent="."]
-
-[node name="PernaDireita" type="MeshInstance3D" parent="."]
-
-[node name="PivoBracoEsquerdo" type="Node3D" parent="."]
-
-[node name="BracoEsquerdo" type="MeshInstance3D" parent="PivoBracoEsquerdo"]
-
-[node name="PivoBracoDireito" type="Node3D" parent="."]
-
-[node name="BracoDireito" type="MeshInstance3D" parent="PivoBracoDireito"]
+[node name="Modelo" parent="." instance=ExtResource("2_modelo")]
