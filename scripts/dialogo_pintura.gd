@@ -60,7 +60,7 @@ func _montar_botoes_paleta(cor_atual: CorTinta) -> void:
 		if cor_atual and cor.nome == cor_atual.nome:
 			continue
 		var botao := Button.new()
-		botao.text = cor.nome
+		botao.text = tr(cor.nome)
 		botao.custom_minimum_size = Vector2(90, 40)
 
 		var estilo := StyleBoxFlat.new()

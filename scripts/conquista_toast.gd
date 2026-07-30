@@ -37,7 +37,7 @@ func _mostrar_proxima() -> void:
 
 	_mostrando = true
 	var id: String = _fila.pop_front()
-	_label.text = "Conquista desbloqueada:\n%s" % Conquistas.TEXTOS.get(id, id)
+	_label.text = tr("Conquista desbloqueada:\n%s") % tr(Conquistas.TEXTOS.get(id, id))
 
 	var tw := create_tween()
 	tw.tween_property(_painel, "modulate:a", 1.0, DURACAO_FADE)

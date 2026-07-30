@@ -1,12 +1,33 @@
-[gd_scene format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/menu_principal.gd" id="1_menu"]
 [ext_resource type="PackedScene" path="res://scenes/painel_opcoes.tscn" id="2_opcoes"]
+[ext_resource type="PackedScene" path="res://scenes/fundo_menu.tscn" id="3_fundo"]
+[ext_resource type="Shader" path="res://shaders/blur_fundo.gdshader" id="4_blur"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_blur"]
+shader = ExtResource("4_blur")
+shader_parameter/raio = 0.01
+shader_parameter/amostras = 3
+shader_parameter/tingimento = Color(0, 0, 0, 0.25)
 
 [node name="MenuPrincipal" type="Control"]
 anchor_right = 1.0
 anchor_bottom = 1.0
 script = ExtResource("1_menu")
+
+[node name="FundoViewportContainer" type="SubViewportContainer" parent="."]
+material = SubResource("ShaderMaterial_blur")
+anchor_right = 1.0
+anchor_bottom = 1.0
+stretch = true
+
+[node name="FundoViewport" type="SubViewport" parent="FundoViewportContainer"]
+handle_input_locally = false
+size = Vector2i(960, 540)
+render_target_update_mode = 4
+
+[node name="FundoMenu" parent="FundoViewportContainer/FundoViewport" instance=ExtResource("3_fundo")]
 
 [node name="CenterContainer" type="CenterContainer" parent="."]
 anchor_right = 1.0
@@ -23,10 +44,19 @@ layout_mode = 2
 text = "Watching Paint Dry"
 horizontal_alignment = 1
 
-[node name="BotaoContinuar" type="Button" parent="CenterContainer/PainelTitulo/VBoxContainer"]
+[node name="LinhaContinuar" type="HBoxContainer" parent="CenterContainer/PainelTitulo/VBoxContainer"]
 visible = false
 layout_mode = 2
+
+[node name="BotaoContinuar" type="Button" parent="CenterContainer/PainelTitulo/VBoxContainer/LinhaContinuar"]
+layout_mode = 2
+size_flags_horizontal = 3
 text = "Continuar"
+
+[node name="BotaoExcluirSave" type="Button" parent="CenterContainer/PainelTitulo/VBoxContainer/LinhaContinuar"]
+layout_mode = 2
+tooltip_text = "Apagar save"
+text = "🗑"
 
 [node name="BotaoJogar" type="Button" parent="CenterContainer/PainelTitulo/VBoxContainer"]
 layout_mode = 2
@@ -99,3 +129,38 @@ text = "Voltar"
 [node name="PainelOpcoes" parent="CenterContainer" instance=ExtResource("2_opcoes")]
 visible = false
 layout_mode = 2
+
+[node name="PainelConfirmarExclusao" type="PanelContainer" parent="CenterContainer"]
+visible = false
+layout_mode = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer/PainelConfirmarExclusao"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="CenterContainer/PainelConfirmarExclusao/VBoxContainer"]
+layout_mode = 2
+text = "Apagar o save? A partida em andamento se perde (conquistas ficam salvas)."
+horizontal_alignment = 1
+autowrap_mode = 2
+custom_minimum_size = Vector2(280, 0)
+
+[node name="HBoxContainer" type="HBoxContainer" parent="CenterContainer/PainelConfirmarExclusao/VBoxContainer"]
+layout_mode = 2
+alignment = 1
+
+[node name="BotaoConfirmarExclusao" type="Button" parent="CenterContainer/PainelConfirmarExclusao/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+text = "Apagar"
+
+[node name="BotaoCancelarExclusao" type="Button" parent="CenterContainer/PainelConfirmarExclusao/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+text = "Cancelar"
+
+[node name="SeletorIdioma" type="OptionButton" parent="."]
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -184.0
+offset_top = 16.0
+offset_right = -16.0
+offset_bottom = 47.0
+grow_horizontal = 0

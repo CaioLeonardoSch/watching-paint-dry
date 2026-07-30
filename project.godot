@@ -33,6 +33,11 @@ enabled=PackedStringArray("res://addons/godot_mcp/plugin.cfg")
 
 theme/custom="res://resources/ui/theme_principal.tres"
 
+[internationalization]
+
+locale/translations=PackedStringArray("res://resources/localizacao/textos.pt_BR.translation", "res://resources/localizacao/textos.en.translation")
+locale/fallback="pt_BR"
+
 [physics]
 
 3d/physics_engine="Jolt Physics"

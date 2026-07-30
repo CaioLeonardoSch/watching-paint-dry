@@ -82,6 +82,32 @@ disciplina de sempre.
   extrair numa variável tipada antes
 - Referências entre nós usam caminho relativo (`$"../Nome"`), **não** `%NomeUnico` — nome único já
   resolveu pra `null` sem motivo claro neste projeto mais de uma vez
+- **Pipeline Blender → Godot** (modelos rigados, `res://models/`): três armadilhas reais de
+  keyframe/export/import documentadas na Fase 1.2 (seção 4) — ordem de `keyframe_insert` vs.
+  `frame_set`, `export_optimize_animation_size` quebrando loops perfeitos, e
+  `GLTFDocument.generate_scene()` deixando `ImporterMeshInstance3D` em vez de `MeshInstance3D`.
+  Ler antes de mexer em modelo/animação de personagem de novo
+- `execute_editor_script` do Godot MCP tem regex ingênua pra `print()`: qualquer parêntese
+  aninhado dentro do `print(...)` (ex: `print(str(x))`, `print(a.metodo())`) quebra o parse do
+  script gerado. Sempre extrair pra variável antes: `var t = str(x); print(t)`
+- **`execute_editor_script` não suporta `await`** — qualquer `await` no código, mesmo sozinho
+  (`await get_tree().process_frame`), quebra o parse (erro 43) do script que o addon gera por
+  baixo. Também não dá pra testar em duas chamadas separadas: cada chamada roda num nó temporário
+  que é destruído (`queue_free`) no fim dela mesma, então nada adicionado à árvore numa chamada
+  sobrevive pra próxima. E carregamento de shader (`ShaderMaterial` + `load(".gdshader")`) dentro
+  de uma chamada trava silenciosamente sem erro nenhum (suspeita: addon processa comando fora da
+  main thread, e RenderingServer não gosta). Na prática: pra código que depende de `_ready()`
+  rodar (construção procedural de geometria, por exemplo), só dá pra confiar em teste estrutural
+  (a cena carrega sem erro) — o comportamento de verdade só se confirma jogando o jogo
+- **Localização**: `resources/localizacao/textos.csv` (chave = texto PT-BR, colunas por idioma),
+  importado pelo Godot como um `Translation` por idioma com conteúdo (hoje só `pt_BR` e `en` têm
+  texto real — `es`/`fr`/`zh_CN`/`ja`/`de` existem como coluna vazia na Fase 1.4, sem tradução
+  ainda). Registrado em `project.godot::[internationalization]`
+  (`locale/translations` + `locale/fallback="pt_BR"`). UI estática (`text = "..."` no `.tscn`)
+  traduz sozinha (Godot usa o próprio texto como chave); texto setado via código precisa de `tr()`
+  explícito (ver `menu_principal.gd`, `dialogo_pintura.gd`, `conquista_toast.gd`) — não confiar só
+  no auto-translate de propriedade pra string dinâmica. Trocar idioma: `Opcoes.definir_idioma(codigo)`
+  (autoload, persiste em `config.cfg`, aplica `TranslationServer.set_locale`)
 
 ### Sistema de skills de gamedev
 
@@ -112,9 +138,11 @@ status `[ ]`/`[x]` conforme instalar cada uma.
   ler cena atual, listar nós, propriedades, executar script no editor
 - `[ ]` **Figma MCP** — pra desenhar telas de UI/menu visualmente antes de virar código Godot.
   Ainda não configurado.
-- `[ ]` **Blender MCP** — só necessário se decidirmos sair de cápsula geométrica pra modelo 3D
-  rigado. Decisão ainda pendente (ver seção 4, item de animação de personagens) — mas não é mais
-  bloqueada por convenção do projeto, já que asset externo passou a ser opção válida.
+- `[x]` **Blender MCP** — Blender 5.2.0 instalado via `winget` (`BlenderFoundation.Blender`),
+  addon oficial (`ahujasid/blender-mcp`) instalado e ativado, servidor MCP registrado (`claude mcp
+  add blender-mcp -s user -- uvx blender-mcp`, escopo `user`, mesmo padrão do `godot-mcp`), e
+  "Start Server" já clicado no painel BlenderMCP dentro do Blender — conexão de ponta a ponta
+  confirmada, pronta pra uso
 - `[ ]` **GodotSteam** — GDExtension pra Steamworks (achievements, etc.). Vem mais pra frente,
   junto da integração Steam.
 - `[ ]` **ProtonScatter** (addon Godot, Asset Library) — espalha árvores/props em regra. Candidato
@@ -138,8 +166,9 @@ estão **completas**, mais uma rodada de refinamento pós-roadmap:
   da 3ª demão, UI (`dialogo_pintura.gd`) pergunta se ela gostou — "gostei" encerra o ciclo,
   "trocar" abre paleta (`cor_tinta.gd` + `.tres` em `resources/cores/`) e reinicia com cor nova.
   Azul é a cor inicial da abertura (fora da rotação de conquista); vermelho/laranja/amarelo/verde/
-  violeta/rosa são as 6 que batem com as conquistas de cor. Personagens são bonecos placeholder
-  geométricos (cápsulas/esfera, sem asset externo, sem rig), animados com `Tween`
+  violeta/rosa são as 6 que batem com as conquistas de cor. Personagens têm modelo rigado (Blender,
+  Fase 1.2 — ver seção 4), animados por `AnimationPlayer` (clipes `andar`/`pintar_braco`) em vez do
+  boneco procedural original
 - **Fase 2 — ambientação:** ciclo de dia e noite (`ciclo_dia_noite.gd`) — sol e lua giram em lados
   opostos, cor da luz/céu seguem `Gradient`s com paradas densas perto do nascer/pôr do sol, nuvens
   via `sky_cover` com alfa por `color_ramp`; cenário externo pela janela (`cenario_externo.gd`) —
@@ -200,7 +229,20 @@ posição dele, bastaria o mesh; o desenho na parede já acompanharia.
 
 ## 4. O que fazer agora
 
-Plano de polish rumo à Steam, em 4 fases. Fases 0 e 1 acontecem no Cowork (comigo). Fase 2 é
+### Rodada atual: overhaul do miolo (parede, tinta, secagem, animação do tio)
+
+Plano completo em **`PLANO-OVERHAUL-TINTA.md`** (documento próprio, não inflar este aqui). Resumo
+da decisão: a tinta deixa de ser função da posição no shader e passa a ser uma **máscara carimbada
+pelo trajeto real do rolo**; o tio ganha rig novo com cotovelo/joelho/coluna e **IK nativa do Godot
+4.6+**; direção de arte vira **low-poly assumida**. As duas peças de engine que viabilizam isso
+(`DrawableTexture2D` no 4.7 e o retorno da IK no 4.6) chegaram depois deste projeto ser arquitetado.
+
+Isso reabre a Fase 1.2 abaixo (o rig de 7 ossos com braço de 1 osso só não sustenta agachar/esticar)
+e adiciona uma frente nova de material/shader que o roadmap original não previa.
+
+### Plano de polish rumo à Steam
+
+Em 4 fases. Fases 0 e 1 acontecem no Cowork (comigo). Fase 2 é
 handoff pro Claude Code. Fase 3 mistura as duas. Prioridade das 3 frentes de polish (já decidida):
 **menu/UI → animação de personagens → mundo externo**. Deliberadamente fora desta rodada: base
 técnica de exportação Steam antes da Fase 3, trilha sonora, localização, título definitivo.
@@ -209,7 +251,7 @@ técnica de exportação Steam antes da Fase 3, trilha sonora, localização, t�
 
 - `[x]` Godot MCP instalado (`addons/godot_mcp/` + permissões em `.claude/settings.local.json`)
 - `[ ]` Criar conta Figma e instalar o MCP server oficial (remoto, pra começar)
-- `[ ]` Blender MCP — só se a Fase 1.2 decidir por modelo rigado
+- `[x]` Blender MCP — instalado e conectado de ponta a ponta (ver detalhe na seção 2)
 - `[ ]` `ProtonScatter` — instalar quando chegar na Fase 1.3
 - `[ ]` `Dialogue Manager` — só se a Fase 1.1/1.2 decidir expandir diálogo
 - `[ ]` GodotSteam — deixar pra perto da Fase 3 (requer conta Steamworks, taxa única de US$100)
@@ -228,14 +270,71 @@ técnica de exportação Steam antes da Fase 3, trilha sonora, localização, t�
   sentido separar) e tela cheia
 
 **1.2 Animação de personagens** (prioridade 2)
-- `[ ]` Decisão principal: manter procedural (pivô de quadril por perna + Tween, mesmo esquema dos
-  braços) ou migrar pra modelo rigado via Blender? Procedural é mais rápido e barato de iterar;
-  Blender é mais rico visualmente mas exige o workflow
-  Blender MCP → `.glb` → import Godot → re-testar câmera/colisão. Nenhuma das duas quebra convenção
-  do projeto — asset externo já é opção válida
-- `[ ]` Se procedural: especificar ângulo do pivô e timing sincronizado com
-  `ir_ate()`/`pintar_varrendo()`
-- `[ ]` Se Blender: listar o que precisa ser modelado e o nível de rig necessário
+- `[x]` Decisão: modelo rigado via Blender — confirmado explicitamente, contra a recomendação
+  inicial (procedural seria mais rápido/barato de iterar). Trade-off aceito conscientemente: mais
+  trabalho de pipeline em troca de visual mais rico
+- `[x]` Setup: Blender + Blender MCP instalados e conectados (ver Fase 0) — pronto pra modelar
+- `[x]` Modelagem — os 2 personagens modelados no Blender (6 partes cada: torso, cabeça, 2 pernas,
+  2 braços), silhueta validada por screenshot contra o placeholder:
+  - Tio: torso (cápsula raio 0.22, altura 0.7), cabeça (esfera raio 0.15), 2 pernas (raio 0.12,
+    altura 0.9), 2 braços (raio 0.08, altura 0.5, pivô no ombro em y=1.35). Roupa
+    Color(0.32, 0.42, 0.52), pele Color(0.85, 0.68, 0.52)
+  - Garotinha: medidas próprias de `garotinha.gd` (não é simples Tio×0.78 — proporção de criança,
+    cabeça relativamente maior), vestido Color(0.85, 0.55, 0.62)
+- `[x]` Rig — hierarquia de 7 ossos (raiz Quadril + 6), posições em Y recalculadas a partir da
+  cápsulas em `tio.gd` (garotinha é a mesma hierarquia × `ESCALA_CRIANCA` 0.78). **Correção**: a
+  versão anterior deste diagrama usava y=0.45 pro quadril — esse valor é o *centro* da cápsula da
+  perna (`position` no código), não a altura do quadril. A perna (raio 0.12, altura 0.9, centro
+  y=0.45) vai do chão até y=0.9, então o quadril de verdade fica em y≈0.85 (onde perna encontra a
+  base do torso). Corrigido e já validado visualmente no Blender (modelo montado bate com o
+  placeholder atual):
+  ```
+  Quadril (raiz, y=0.85 — topo da perna/base do torso)
+  ├── Coluna (y=0.85 até y=1.35 — do quadril até a altura do ombro, bate com o pivô de braço atual)
+  │   ├── Cabeça (y=1.35 até y=1.8 — ombro até o topo da cabeça atual)
+  │   ├── Braço_Esquerdo (nasce em x=-0.28, y=1.35 — mesmo ponto do PivoBracoEsquerdo hoje)
+  │   └── Braço_Direito (nasce em x=0.28, y=1.35 — mesmo ponto do PivoBracoDireito hoje)
+  ├── Perna_Esquerda (nasce em x=-0.12, y=0.85, desce até y=0 — chão)
+  └── Perna_Direita (nasce em x=0.12, y=0.85, desce até y=0 — chão)
+  ```
+  Sem coluna curvando (1 osso é suficiente, torso não se dobra hoje) e sem cotovelo/pulso (braço é
+  1 osso só, mesmo nível de detalhe do pivô atual). Pele (skinning/weight paint) é peso 1.0 por
+  vértice pro osso mais próximo — sem necessidade de blend entre ossos, as peças não se sobrepõem
+- `[x]` Animações — `andar` (loop, pernas, ~25° alternado) e `pintar_braco` (loop, braço direito,
+  -0.9 a 0.1 rad) exportadas como clipes reais do `AnimationPlayer`. `pintar_varrendo()` toca as
+  duas ao mesmo tempo — decisão de blend resolvida com **dois `AnimationPlayer`** compartilhando a
+  mesma `AnimationLibrary` (um só pra pernas, outro só pro braço); como os clipes não tocam osso
+  em comum, não precisou de `AnimationTree`. `sentar` da garotinha continua sendo só o Tween de
+  posição Y de sempre (não virou clipe — janela de visibilidade curta demais pra valer a pena)
+- `[x]` Pipeline executado via Blender MCP + Godot MCP, direto por mim (Claude Code) nesta sessão.
+  **Três armadilhas reais encontradas, documentadas aqui pra não repetir**:
+  - **Ordem de `keyframe_insert` importa.** `bpy.context.scene.frame_set(frame)` chamado *depois*
+    de setar o valor e *antes* do `keyframe_insert()` reavalia o depsgraph e reescreve o valor pro
+    que já existia na curva (efeito: toda chave nova virava cópia da primeira). Correto é setar o
+    valor e inserir com `frame=` explícito, sem tocar o frame atual da cena
+  - **`export_optimize_animation_size` (Blender, default `true`) quebra loops perfeitos.** Quando a
+    entrada e a saída do range voltam pro mesmo valor (caso de qualquer clipe cíclico), o otimizador
+    às vezes descarta o meio e vira `STEP` com 2 chaves idênticas. Desligar
+    (`export_optimize_animation_size=False`) no `export_scene.gltf`
+  - **`GLTFDocument.generate_scene()` deixa `ImporterMeshInstance3D`, não `MeshInstance3D`.** É um
+    nó só de editor, não renderiza em jogo de verdade — o import padrão (`.glb` direto, sem passar
+    por `GLTFDocument` manual) já faz essa conversão sozinho. Ao gerar cena via `GLTFDocument`
+    (necessário aqui pra plugar o segundo `AnimationPlayer`), converter manualmente: criar
+    `MeshInstance3D`, copiar `mesh.get_mesh()` / `skin` / `skeleton_path→skeleton` / `layers`
+  - Menor: um `Tio_Armature.location.x = -2.0` deixado no Blender (deslocado só pra abrir espaço de
+    visualização ao lado da Garotinha) foi parar no `.glb` exportado e bagunçou a AABB do
+    personagem — resetado antes do export final. Checar `location` do objeto armadura antes de
+    exportar se ele foi movido durante a modelagem
+- `[x]` Câmeras/colisão — não precisou mexer. AABB do modelo final bate exatamente com o
+  placeholder antigo (Tio 1.8m de altura centrado em X=0, Garotinha idem em escala), porque as
+  medidas de modelagem foram copiadas direto do código existente. Footprint espacial idêntico,
+  câmera de cutscene/cadeira e colisão de porta/cadeira continuam válidas sem ajuste
+- Arquivos gerados: `res://models/tio.glb`/`garotinha.glb` (export bruto do Blender, com as
+  animações), `res://models/tio_modelo.tscn`/`garotinha_modelo.tscn` (cena Godot final, gerada via
+  `GLTFDocument` + conversão manual de mesh — é isso que `tio.tscn`/`garotinha.tscn` instanciam,
+  não o `.glb` direto), `res://models/fonte_blender/personagens.blend` (arquivo-fonte editável,
+  os dois personagens rigados — abrir esse pra ajustar modelo/rig/animação no futuro em vez de
+  remodelar do zero)
 
 **1.3 Mundo externo** (prioridade 3)
 - `[x]` Nova escala do jardim — 20×16 → 220×220 (`cenario_externo.gd::ALCANCE_JARDIM`). Não usou
@@ -246,9 +345,35 @@ técnica de exportação Steam antes da Fase 3, trilha sonora, localização, t�
 - `[x]` Mais casas — 2 casas + 10 árvores extras em profundidade variável
   (`cenario_externo.gd::_criar_decoracao_distante`), seed fixa (4477)
 
-**1.4 Branding pra loja Steam** (relevante aqui, decisão adiada no geral)
+**1.4 Branding pra loja Steam / polish final de menu**
 - `[ ]` Título definitivo — "Watching Paint Dry" fica irônico ou vira nome de loja de verdade?
-- `[ ]` Ícone, capa e screenshots (podem nascer do que sair do Figma na 1.1)
+- `[ ]` Ícone, capa e screenshots — usuário vai procurar no Design do Claude antes, decisão adiada
+  por enquanto
+- `[ ]` Botão de créditos — pedido explicitamente pra depois ("futuramente"), não é desta rodada
+- `[x]` **"Continuar" com save local** — já existia (não foi criado agora): `EstadoJogo`/
+  `DadosSalvos` salvam em `user://save.tres`, botão só aparece com `EstadoJogo.existe_save()`
+  (`menu_principal.gd`). Confirmado com o usuário que é isso mesmo que ele queria
+- `[x]` **Fundo do menu**: cena do jogo borrada, câmera girando devagar. Decisão: cena dedicada
+  leve (não o `quarto.tscn` de verdade rodando) — `scenes/fundo_menu.tscn` +
+  `scripts/fundo_menu.gd` herda `inicializar_quarto.gd` via `extends
+  "res://scripts/inicializar_quarto.gd"` (reusa toda a geometria estática: chão, teto, paredes,
+  janela, lâmpada, cadeira — nada de `_process`, sem tinta/personagens/ciclo dia-noite), e pinta as
+  paredes com a cor azul seca (senão ficam sem material, já que normalmente é
+  `tinta_secando.gd` quem cuida disso). `camera_orbital_menu.gd` orbita devagar (2.5°/s, ~144s por
+  volta, raio 2.3 pra não atravessar parede). Renderizado num `SubViewport` (960×540) dentro de
+  `menu_principal.tscn`, com `shaders/blur_fundo.gdshader` (box blur + tingimento escuro) aplicado
+  via `material` do `SubViewportContainer`
+- `[x]` **Seletor de idioma**, canto superior direito do menu principal (`OptionButton`
+  `SeletorIdioma`). Ver seção 2 pra detalhe do sistema de localização (arquitetura, armadilhas de
+  teste, e o que falta traduzir)
+- `[ ]` Opções — usuário confirmou que o conteúdo básico atual (volume mestre + tela cheia) já
+  serve por enquanto, nada extra a fazer aqui nesta rodada
+- `[x]` **Apagar save** — lixeira (`BotaoExcluirSave`, texto "🗑") do lado do "Continuar", só some
+  se tiver save; abre `PainelConfirmarExclusao` (mesmo padrão de crossfade dos outros painéis) com
+  Apagar/Cancelar. `EstadoJogo.apagar_save()` **preserva conquistas e histórico de cores vistas**
+  (`conquistas_desbloqueadas`, `cores_completas_*`) — decisão não pedida explicitamente, mas
+  pareceu o padrão mais são: "apagar save" normalmente significa "recomeçar a partida", não "perder
+  progresso permanente". Se não for isso que o usuário quer, é só falar que muda
 
 ### Fase 2 — Codificação (Claude Code)
 
