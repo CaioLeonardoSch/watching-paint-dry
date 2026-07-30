@@ -18,14 +18,14 @@ const NOMES: Dictionary = {
 
 ## Segundos de secagem por demão, em cada modo.
 const TEMPO_SECAGEM: Dictionary = {
-	Modo.RAPIDO:   20.0,
+	Modo.RAPIDO:   60.0,
 	Modo.NORMAL:   300.0,    # 5 minutos
 	Modo.REALISTA: 7200.0,   # 2 horas de verdade
 }
 
 ## Segundos por dia completo (dia/noite), em cada modo.
 const DURACAO_DIA: Dictionary = {
-	Modo.RAPIDO:   120.0,    # 2 minutos
+	Modo.RAPIDO:   360.0,    # 6 minutos
 	Modo.NORMAL:   1200.0,   # 20 minutos
 	Modo.REALISTA: 86400.0,  # 24 horas de verdade
 }

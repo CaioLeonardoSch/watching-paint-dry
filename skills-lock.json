@@ -55,11 +55,23 @@
       "skillPath": "skills/caveman-stats/SKILL.md",
       "computedHash": "331f720e2fa97b68cacdae44384878071e8cac6013479edea68f4c8eca308852"
     },
+    "dialogue-systems": {
+      "source": "gamedev-skills/awesome-gamedev-agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/disciplines/dialogue-systems/SKILL.md",
+      "computedHash": "6fd94d6c147785f30ce12afd7ee72ec434b2367456de85cadf16735874e2832b"
+    },
     "game-feel": {
       "source": "gamedev-skills/awesome-gamedev-agent-skills",
       "sourceType": "github",
       "skillPath": "skills/disciplines/game-feel/SKILL.md",
       "computedHash": "85fbc6ee90b5ea10e6f085fa09027c140788c75789f943f33bdab3579e09f002"
+    },
+    "game-ui-ux": {
+      "source": "gamedev-skills/awesome-gamedev-agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/disciplines/game-ui-ux/SKILL.md",
+      "computedHash": "63b4cbefc49de3c92020fc47cbad97cf5be1b05077514e03c4dc032756f47c29"
     },
     "godot-3d-essentials": {
       "source": "gamedev-skills/awesome-gamedev-agent-skills",
@@ -78,6 +90,12 @@
       "sourceType": "github",
       "skillPath": "skills/godot/godot-audio/SKILL.md",
       "computedHash": "cd78fa9518744af2e3d5b721d0c8c210dfa58d9d72b094720f502acf3d5634f2"
+    },
+    "godot-export": {
+      "source": "gamedev-skills/awesome-gamedev-agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/godot/godot-export/SKILL.md",
+      "computedHash": "67c447bd9ca18a22ee96a5b172c617f6f022299633ef2ad9e55e13fe35748e78"
     },
     "godot-gdscript": {
       "source": "gamedev-skills/awesome-gamedev-agent-skills",
@@ -121,6 +139,12 @@
       "skillPath": "skills/disciplines/level-design/SKILL.md",
       "computedHash": "1e4025f059ba7f368d16736c48906bbd111c5f1ed6263223742914f0f55af794"
     },
+    "procedural-gen": {
+      "source": "gamedev-skills/awesome-gamedev-agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/disciplines/procedural-gen/SKILL.md",
+      "computedHash": "0c56ecd5185800b36fdae23e03b88ae752ca5d8253182ce406972bc4479c4f4f"
+    },
     "prototype-fast": {
       "source": "gamedev-skills/awesome-gamedev-agent-skills",
       "sourceType": "github",
@@ -138,6 +162,18 @@
       "sourceType": "github",
       "skillPath": "skills/disciplines/save-systems/SKILL.md",
       "computedHash": "35e081fe6e2166f79bfae772bdbc39e07e024623c8aec5cae3fcfd1248a44952"
+    },
+    "shader-programming": {
+      "source": "gamedev-skills/awesome-gamedev-agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/disciplines/shader-programming/SKILL.md",
+      "computedHash": "02bd53f76a98fca65945c5dcc7192d5794f1342c9fea82837a3250a8616b1f16"
+    },
+    "steam-publish": {
+      "source": "gamedev-skills/awesome-gamedev-agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/workflows/steam-publish/SKILL.md",
+      "computedHash": "f0c95cdfdaa94662ba747d98050459d2db68ab4ffcafaf62e6340aacb21edd6a"
     }
   }
 }

@@ -17,6 +17,12 @@ extends Node3D
 const PAREDE_OESTE_X: float = -3.5  # plano da parede com a janela
 
 
+## Alcance do jardim em X, além da parede — bem maior que o necessário pro
+## enquadramento perto da janela, pra empurrar a borda do plano pra dentro
+## da névoa (ver quarto.tscn::Environment e ciclo_dia_noite.gd::_atualizar_luz).
+const ALCANCE_JARDIM: float = 220.0
+
+
 func _ready() -> void:
 	_criar_jardim()
 	# Uma perto e centrada na janela (visível de propósito), outras duas
@@ -25,7 +31,8 @@ func _ready() -> void:
 	_criar_arvore(Vector3(PAREDE_OESTE_X - 3.0, 0.0, -3.2), 0.8)
 	_criar_arvore(Vector3(PAREDE_OESTE_X - 5.5, 0.0, 3.0), 1.15)
 	_criar_rua()
-	_criar_casa()
+	_criar_casa(Vector3(PAREDE_OESTE_X - 11.5, 0.0, 0.0))
+	_criar_decoracao_distante()
 
 
 func _criar_jardim() -> void:
@@ -33,9 +40,9 @@ func _criar_jardim() -> void:
 	add_child(chao)
 
 	var box := BoxMesh.new()
-	box.size = Vector3(20.0, 0.2, 16.0)
+	box.size = Vector3(ALCANCE_JARDIM, 0.2, ALCANCE_JARDIM)
 	chao.mesh = box
-	chao.position = Vector3(PAREDE_OESTE_X - 10.0, -0.1, 0.0)
+	chao.position = Vector3(PAREDE_OESTE_X - ALCANCE_JARDIM * 0.5, -0.1, 0.0)
 
 	# Grama: relevo bem alto e de frequência alta — moitinha irregular, não tapete
 	var ruido  := MateriaisProcedurais.criar_textura_ruido(0.08, 512)
@@ -108,10 +115,10 @@ func _criar_rua() -> void:
 	rua.set_surface_override_material(0, mat)
 
 
-func _criar_casa() -> void:
+func _criar_casa(pos: Vector3) -> void:
 	var casa := Node3D.new()
 	add_child(casa)
-	casa.position = Vector3(PAREDE_OESTE_X - 11.5, 0.0, 0.0)
+	casa.position = pos
 
 	var corpo := MeshInstance3D.new()
 	casa.add_child(corpo)
@@ -141,3 +148,20 @@ func _criar_casa() -> void:
 	var mat_telhado    := MateriaisProcedurais.criar_material_texturizado(
 		Color(0.4, 0.22, 0.18), 0.85, ruido_telhado, Vector3(2.0, 2.0, 6.0), normal_telhado, 1.5)
 	telhado.set_surface_override_material(0, mat_telhado)
+
+
+## Espalha mais árvores e casas em profundidade variável (além do grupo
+## próximo da janela), pra quebrar a sensação de vazio antes da névoa cobrir
+## o resto. Seed fixa — decoração, não precisa variar entre execuções.
+func _criar_decoracao_distante() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4477
+
+	for i in range(10):
+		var x: float = PAREDE_OESTE_X - rng.randf_range(20.0, ALCANCE_JARDIM - 15.0)
+		var z: float = rng.randf_range(-80.0, 80.0)
+		var escala: float = rng.randf_range(0.7, 1.3)
+		_criar_arvore(Vector3(x, 0.0, z), escala)
+
+	_criar_casa(Vector3(PAREDE_OESTE_X - 35.0, 0.0, -18.0))
+	_criar_casa(Vector3(PAREDE_OESTE_X - 55.0, 0.0, 22.0))

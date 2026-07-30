@@ -1,6 +1,7 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/menu_principal.gd" id="1_menu"]
+[ext_resource type="PackedScene" path="res://scenes/painel_opcoes.tscn" id="2_opcoes"]
 
 [node name="MenuPrincipal" type="Control"]
 anchor_right = 1.0
@@ -34,6 +35,10 @@ text = "Jogar"
 [node name="BotaoConquistas" type="Button" parent="CenterContainer/PainelTitulo/VBoxContainer"]
 layout_mode = 2
 text = "Conquistas"
+
+[node name="BotaoOpcoes" type="Button" parent="CenterContainer/PainelTitulo/VBoxContainer"]
+layout_mode = 2
+text = "Opções"
 
 [node name="BotaoSair" type="Button" parent="CenterContainer/PainelTitulo/VBoxContainer"]
 layout_mode = 2
@@ -90,3 +95,7 @@ size_flags_horizontal = 3
 [node name="BotaoVoltarConquistas" type="Button" parent="CenterContainer/PainelConquistas/VBoxContainer"]
 layout_mode = 2
 text = "Voltar"
+
+[node name="PainelOpcoes" parent="CenterContainer" instance=ExtResource("2_opcoes")]
+visible = false
+layout_mode = 2

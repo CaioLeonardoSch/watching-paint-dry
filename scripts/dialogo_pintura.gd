@@ -9,6 +9,8 @@ class_name DialogoPintura
 #  o jogador clicar (via sinal interno) e devolvem a escolha.
 # ─────────────────────────────────────────────
 
+const DURACAO_FADE: float = 0.15
+
 signal _resposta_pergunta(gostou: bool)
 signal _cor_escolhida(cor: CorTinta)
 
@@ -76,12 +78,12 @@ func _montar_botoes_paleta(cor_atual: CorTinta) -> void:
 ## Mostra "gostou da cor?" e devolve true (gostou) / false (quer trocar).
 func perguntar_gostou() -> bool:
 	visible = true
-	_painel_pergunta.show()
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	await _fade_in(_painel_pergunta)
 
 	var gostou: bool = await _resposta_pergunta
 
-	_painel_pergunta.hide()
+	await _fade_out(_painel_pergunta)
 	visible = false
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	return gostou
@@ -92,12 +94,28 @@ func perguntar_gostou() -> bool:
 func escolher_cor(cor_atual: CorTinta) -> CorTinta:
 	_montar_botoes_paleta(cor_atual)
 	visible = true
-	_painel_paleta.show()
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	await _fade_in(_painel_paleta)
 
 	var cor: CorTinta = await _cor_escolhida
 
-	_painel_paleta.hide()
+	await _fade_out(_painel_paleta)
 	visible = false
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	return cor
+
+
+func _fade_in(painel: Control) -> void:
+	painel.modulate.a = 0.0
+	painel.show()
+	var tw := create_tween()
+	tw.tween_property(painel, "modulate:a", 1.0, DURACAO_FADE)
+	await tw.finished
+
+
+func _fade_out(painel: Control) -> void:
+	var tw := create_tween()
+	tw.tween_property(painel, "modulate:a", 0.0, DURACAO_FADE)
+	await tw.finished
+	painel.hide()
+	painel.modulate.a = 1.0

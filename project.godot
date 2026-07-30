@@ -18,11 +18,20 @@ config/icon="res://icon.svg"
 [autoload]
 
 EstadoJogo="*res://scripts/estado_jogo.gd"
+Opcoes="*res://scripts/opcoes.gd"
 
 [display]
 
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/godot_mcp/plugin.cfg")
+
+[gui]
+
+theme/custom="res://resources/ui/theme_principal.tres"
 
 [physics]
 

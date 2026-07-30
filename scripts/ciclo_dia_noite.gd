@@ -23,10 +23,10 @@ var _gradiente_ceu_horizonte: Gradient
 var _gradiente_ceu_zenite: Gradient
 var _sky_material: ProceduralSkyMaterial
 
-# Referência ao WorldEnvironment para trocar o sky ao longo do dia
-# (nó marcado como "Access as Unique Name" na cena, então funciona
-# independente de onde este script estiver na árvore)
-@onready var _world_env: WorldEnvironment = %WorldEnvironment
+# Referência ao WorldEnvironment para trocar o sky ao longo do dia.
+# Caminho relativo, não %NomeUnico — nome único já resolveu pra null sem
+# motivo claro neste projeto antes (ver convenção em CLAUDE.md).
+@onready var _world_env: WorldEnvironment = $"../WorldEnvironment"
 @onready var _lua: DirectionalLight3D      = $"../Lua"
 
 
@@ -166,22 +166,25 @@ func _atualizar_luz() -> void:
 
 	# ── Cor da luz e do céu (temperatura de cor) ───────────────
 	light_color = _gradiente_luz.sample(fracao_dia)
+	var cor_horizonte: Color = _gradiente_ceu_horizonte.sample(fracao_dia)
+	var cor_zenite: Color    = _gradiente_ceu_zenite.sample(fracao_dia)
 
 	if _sky_material:
-		var cor_horizonte: Color = _gradiente_ceu_horizonte.sample(fracao_dia)
-		var cor_zenite: Color    = _gradiente_ceu_zenite.sample(fracao_dia)
-		_sky_material.sky_horizon_color   = cor_horizonte
-		_sky_material.sky_top_color       = cor_zenite
+		_sky_material.sky_horizon_color    = cor_horizonte
+		_sky_material.sky_top_color        = cor_zenite
 		_sky_material.ground_horizon_color = cor_horizonte * 0.5
-		_sky_material.ground_top_color     = cor_zenite * 0.3
+		_sky_material.ground_bottom_color  = cor_zenite * 0.3
 		# Nuvens seguem a mesma temperatura de cor do horizonte — ficam
 		# alaranjadas no crepúsculo, escuras à noite, neutras de dia
 		_sky_material.sky_cover_modulate = cor_horizonte
 
-	# ── Luz ambiente (simula céu e reflexo) ────────────────────
-	# Mesmo à noite, há um pouco de luz da lua/estrelas
+	# ── Luz ambiente e névoa (simulam céu e reflexo) ───────────
+	# Mesmo à noite, há um pouco de luz da lua/estrelas. A névoa acompanha a
+	# mesma temperatura do horizonte — sem isso ficaria cinza fixo enquanto
+	# o céu muda de cor ao longo do dia.
 	if _world_env and _world_env.environment:
 		var env := _world_env.environment
 		var brilho_ambiente: float = clamp(altura_solar * 0.4 + 0.03, 0.03, 0.4)
 		env.ambient_light_energy = brilho_ambiente
-		env.ambient_light_color  = _gradiente_ceu_horizonte.sample(fracao_dia)
+		env.ambient_light_color  = cor_horizonte
+		env.fog_light_color      = cor_horizonte
