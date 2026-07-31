@@ -1,147 +1,116 @@
 shader_type spatial;
 
 // ─────────────────────────────────────────────
-//  TINTA SECANDO — com frente de pintura progressiva
+//  TINTA SECANDO — lida da máscara do rolo
 //
-//  A tinta não aparece de uma vez: uma "frente" varre a parede no sentido em
-//  que o tio anda, e cada ponto só recebe a cor nova quando a frente passa
-//  por ele. O relógio de secagem daquele ponto começa nesse mesmo instante,
-//  então o começo da parede está mais seco que o fim — escalonado de graça,
-//  sem precisar de vários materiais.
+//  A versão antiga deduzia "quando fui pintado" projetando a posição num
+//  eixo de varredura. Isso limitava a frente de pintura a uma linha reta
+//  atravessando a parede, e tornava impossível falha de cobertura,
+//  sobreposição e lap mark (ver PLANO-OVERHAUL-TINTA.md 1.1).
 //
-//  tempo_decorrido é o único valor que anda a cada frame (vindo do GDScript);
-//  o resto é configuração de uma demão.
+//  Agora cada ponto lê o histórico do que o rolo de fato fez ali:
+//    acumulada  R = cobertura (0-1)   G = espessura (nº de passadas)
+//    recente    R = instante 0-1      G = carga do rolo naquela hora
+//
+//  A parede é picada em vários MeshInstance3D (por causa das aberturas de
+//  janela e porta), então o UV da máscara NÃO vem do UV do mesh — vem da
+//  posição de mundo projetada no plano da parede. Assim as peças amostram
+//  uma máscara contínua, sem costura, e a geometria fica intacta.
 // ─────────────────────────────────────────────
+
+uniform sampler2D mascara_acumulada : filter_linear, repeat_disable;
+uniform sampler2D mascara_recente   : filter_linear, repeat_disable;
 
 uniform vec4 cor_anterior : source_color = vec4(0.9, 0.9, 0.88, 1.0);  // o que já estava na parede
 uniform vec4 cor_molhada  : source_color = vec4(0.18, 0.38, 0.72, 1.0);
 uniform vec4 cor_seca     : source_color = vec4(0.38, 0.58, 0.88, 1.0);
 
-// Eixo/extensão da varredura, em espaço de mundo. A frente anda de
-// `inicio_varredura` até `fim_varredura` projetados em `eixo_varredura`.
-uniform vec3  eixo_varredura     = vec3(1.0, 0.0, 0.0);
-uniform float inicio_varredura   = 0.0;
-uniform float fim_varredura      = 1.0;
+// Plano da parede em espaço de mundo: canto de origem + os dois eixos, cada
+// um com o comprimento do lado. Ver mapeamento em tinta_secando.gd.
+uniform vec3 origem_parede = vec3(0.0);
+uniform vec3 eixo_u = vec3(1.0, 0.0, 0.0);
+uniform vec3 eixo_v = vec3(0.0, 1.0, 0.0);
 
-uniform float tempo_decorrido    = 0.0;   // segundos desde o começo desta demão
-uniform float duracao_varredura  = 1.0;   // quanto o tio leva pra cruzar a parede
-uniform float duracao_secagem    = 60.0;  // quanto um ponto leva pra secar
+uniform float tempo_decorrido = 0.0;   // segundos desde o começo desta demão
+uniform float janela_demao    = 8.0;   // quanto dura a pintura (desnormaliza o instante)
+uniform float duracao_secagem = 60.0;  // quanto um ponto de espessura normal leva pra secar
 
-// Quanto a secagem "arrasta" no mesmo sentido da pintura. Sem isso a varredura
-// (segundos) é curta demais perto da secagem (minutos/horas) e a parede acaba
-// secando praticamente toda junta — perde a leitura de direita pra esquerda.
-uniform float atraso_direcional_secagem = 0.6;
+// Quanto a espessura atrasa a secagem. É daqui que sai a fase manchada: onde
+// o rolo passou duas vezes a camada é mais grossa e seca depois, então a
+// mancha desenha o que ele realmente pintou em vez de ruído solto.
+uniform float atraso_por_espessura = 0.55;
+
+uniform float limiar_lap = 0.35;  // segundos de diferença que já marcam lap
 
 varying vec3 pos_mundo;
-varying vec3 normal_mundo;
+
 
 void vertex() {
-	pos_mundo    = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	normal_mundo = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+	pos_mundo = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
 
-float hash(vec2 p) {
-	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+
+// Projeta a posição de mundo no plano da parede, devolvendo UV 0-1.
+vec2 uv_da_parede(vec3 p) {
+	vec3 rel = p - origem_parede;
+	return vec2(
+		dot(rel, eixo_u) / dot(eixo_u, eixo_u),
+		dot(rel, eixo_v) / dot(eixo_v, eixo_v));
 }
 
-float noise(vec2 p) {
-	vec2 i = floor(p);
-	vec2 f = fract(p);
-	float a = hash(i);
-	float b = hash(i + vec2(1.0, 0.0));
-	float c = hash(i + vec2(0.0, 1.0));
-	float d = hash(i + vec2(1.0, 1.0));
-	vec2 u = f * f * (3.0 - 2.0 * f);
-	return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
-}
-
-// Rotaciona cada oitava ~37° — sem isso, a soma de oitavas alinhadas na mesma
-// grade cria linhas retas visíveis (artefato clássico de value noise em bloco).
-const mat2 ROTACAO_OITAVA = mat2(vec2(0.8, 0.6), vec2(-0.6, 0.8));
-
-float fbm(vec2 p) {
-	float valor    = 0.0;
-	float amplitude = 0.5;
-	float total    = 0.0;
-	for (int i = 0; i < 4; i++) {
-		valor    += amplitude * noise(p);
-		total    += amplitude;
-		p         = ROTACAO_OITAVA * p * 2.0;
-		amplitude *= 0.5;
-	}
-	return valor / total;  // normalizado de volta pra ~0..1
-}
-
-// Projeta a posição de mundo nos 2 eixos da face (o eixo dominante da normal
-// vira o descartado) — coordenada contínua ao longo de toda a parede,
-// independente de em quantos MeshInstance3D ela foi picada.
-vec2 coord_parede(vec3 p, vec3 n) {
-	vec3 an = abs(n);
-	if (an.x > an.y && an.x > an.z) {
-		return p.zy;   // parede leste/oeste
-	}
-	if (an.z > an.y) {
-		return p.xy;   // parede norte/sul
-	}
-	return p.xz;       // chão/teto
-}
-
-// Marca de rolo: fibras na direção da rolada + granulado. Campo de altura.
-float altura_rolo(vec2 c) {
-	return fbm(vec2(c.x * 4.5, c.y * 0.9)) * 0.6 + fbm(c * 2.5) * 0.4;
-}
 
 void fragment() {
-	vec2 coord = coord_parede(pos_mundo, normal_mundo);
+	vec2 uv = uv_da_parede(pos_mundo);
 
-	// ── Onde a frente de pintura está em relação a este ponto ──────────
-	float extensao = fim_varredura - inicio_varredura;
-	float u = clamp((dot(pos_mundo, normalize(eixo_varredura)) - inicio_varredura) / extensao, 0.0, 1.0);
+	vec2 acum = texture(mascara_acumulada, uv).rg;
+	vec2 rec  = texture(mascara_recente, uv).rg;
 
-	// Instante (em segundos desde o início da demão) em que a frente passou
-	// aqui. Duas escalas de ruído torcem a borda: uma larga (ondula a linha
-	// inteira) e uma fina (esfarela a beirada). Sem isso a frente lê como uma
-	// régua vertical, que é o que denunciava o polígono da parede.
-	float t_pintado = u * duracao_varredura;
-	t_pintado += (fbm(coord * 0.35) - 0.5) * 0.55 * duracao_varredura;
-	t_pintado += (fbm(coord * 1.8)  - 0.5) * 0.18 * duracao_varredura;
+	float cobertura = acum.r;
+	float espessura = acum.g;
+	float instante  = rec.r * janela_demao;   // volta pra segundos
 
-	float dt = tempo_decorrido - t_pintado;   // tempo desde a pincelada aqui
+	// ── Quanto esta camada já secou ────────────────────────────────
+	// Camada grossa demora mais. Como a espessura varia ponto a ponto, a
+	// parede seca desigual — que é exatamente o que tinta de verdade faz.
+	float dt = tempo_decorrido - instante;
+	float duracao_local = duracao_secagem * (1.0 + espessura * atraso_por_espessura);
+	float fracao = clamp(dt / max(duracao_local, 0.001), 0.0, 1.0);
 
-	// Borda bem larga: tinta fresca de rolo não tem contorno, tem degradê.
-	float largura_borda = max(0.30 * duracao_varredura, 0.25);
-	float pintado = smoothstep(-largura_borda, largura_borda, dt);
+	// ── As fases da secagem (ver plano 3.4) ────────────────────────
+	// O detalhe que quase ninguém acerta: o BRILHO some antes de a COR mudar.
+	// Tinta látex perde o brilho de molhada no "flash off", bem antes de
+	// clarear. Por isso são duas curvas diferentes, não um crossfade só.
+	float seco_brilho = smoothstep(0.02, 0.30, fracao);
+	float seco_cor    = smoothstep(0.22, 0.95, fracao);
 
-	// ── Secagem: também caminha da direita pra esquerda ────────────────
-	// Além de começar mais tarde onde foi pintado depois, o relógio de
-	// secagem em si é atrasado proporcionalmente a `u` — assim a onda de
-	// secagem repete o mesmo sentido do rolo, em vez de virar mancha solta.
-	float dt_seco = dt - u * duracao_secagem * atraso_direcional_secagem;
-	float fracao  = clamp(dt_seco / duracao_secagem, 0.0, 1.0);
+	// ── Lap mark ───────────────────────────────────────────────────
+	// Onde pincelada nova encostou em tinta já secando, fica uma linha. Isso
+	// é um degrau no instante: dois pontos vizinhos pintados em momentos bem
+	// distantes. Sai de graça do gradiente da máscara recente.
+	vec2 texel = 1.0 / vec2(textureSize(mascara_recente, 0));
+	float r_dx = texture(mascara_recente, uv + vec2(texel.x, 0.0)).r - rec.r;
+	float r_dy = texture(mascara_recente, uv + vec2(0.0, texel.y)).r - rec.r;
+	float salto = length(vec2(r_dx, r_dy)) * janela_demao;
+	float lap = smoothstep(limiar_lap, limiar_lap * 2.0, salto) * cobertura;
 
-	// Ruído só quebra a borda da onda; não domina mais o desenho.
-	float mancha     = fbm(coord * 0.4) * 0.5 + 0.25;
-	float local_seco = smoothstep(mancha - 0.28, mancha + 0.28, fracao);
+	// ── Cor ────────────────────────────────────────────────────────
+	// Látex seca MAIS CLARO que molhado, por isso cor_seca é mais clara.
+	vec3 cor_nova = mix(cor_molhada.rgb, cor_seca.rgb, seco_cor);
 
-	vec3 cor_nova = mix(cor_molhada.rgb, cor_seca.rgb, local_seco);
-	ALBEDO = mix(cor_anterior.rgb, cor_nova, pintado);
+	// A lap mark é uma faixa levemente mais densa/escura de tinta
+	cor_nova = mix(cor_nova, cor_nova * 0.94, lap);
 
-	// Molhado NÃO é espelho — roughness baixo refletia o céu e quebrava a
-	// parede em blocos. Faixa estreita também evita banda de brilho na frente.
-	float rug_nova = mix(0.55, 0.9, local_seco);
-	ROUGHNESS = mix(0.92, rug_nova, pintado);
-	METALLIC  = 0.0;                                    // tinta não é metal
-	SPECULAR  = mix(0.3, mix(0.38, 0.3, local_seco), pintado);
+	// `cobertura` entra onde antes havia um smoothstep de borda. A diferença
+	// é tudo: "meio pintado" agora é falha de cobertura de verdade, que
+	// sobrevive à secagem e só some quando a próxima demão passa por cima.
+	ALBEDO = mix(cor_anterior.rgb, cor_nova, cobertura);
 
-	// Micro-variação — nem seca nem molhada fica perfeitamente lisa
-	ROUGHNESS += (hash(coord * 8.0) - 0.5) * 0.03;
-
-	// Relevo de rolo quase imperceptível: parede pintada é lisa de perto.
-	// Exagerar aqui vira "rasurado" e realça a faceta da geometria.
-	float forca = mix(0.6, 1.0, local_seco) * pintado;
-	float passo = 0.02;
-	float h     = altura_rolo(coord);
-	float dx    = altura_rolo(coord + vec2(passo, 0.0)) - h;
-	float dy    = altura_rolo(coord + vec2(0.0, passo)) - h;
-	NORMAL_MAP  = normalize(vec3(-dx * forca * 1.2, -dy * forca * 1.2, 1.0)) * 0.5 + 0.5;
+	// ── Superfície ─────────────────────────────────────────────────
+	// Molhado NÃO é espelho: roughness baixo demais reflete o céu procedural
+	// e quebra a parede em blocos visíveis (já testado e revertido antes).
+	float rug_pintada = mix(0.55, 0.9, seco_brilho);
+	ROUGHNESS = mix(0.92, rug_pintada, cobertura);
+	ROUGHNESS = mix(ROUGHNESS, ROUGHNESS * 0.93, lap);  // lap mark brilha um pouco mais
+	METALLIC  = 0.0;                                     // tinta não é metal
+	SPECULAR  = mix(0.3, mix(0.38, 0.3, seco_brilho), cobertura);
 }

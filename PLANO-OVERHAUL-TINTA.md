@@ -475,21 +475,47 @@ e deixar as demãos seguintes no ritmo honesto. **Confirmar antes de implementar
 
 **Ver seção 3.8 pra API real e o que ela obriga a mudar no design da máscara.**
 
-### Fase B — Máscara de tinta (a mais importante; independente da animação)
+### Fase B — Máscara de tinta ✅ CONCLUÍDA (30/07/2026)
 
-- `[ ]` Geometria da parede com UV limpo — hoje são `BoxMesh` picados. Cada parede precisa virar um
-  quad (ou peças com UV contínuo)
-- `[ ]` `mascara_tinta.gd` — dono das **8 texturas** (2 por parede, ver 3.7), expõe
-  `carimbar(parede, uv, direcao, largura, carga)` que faz os 2 blits (acumulada + recente)
-- `[ ]` Os 2 shaders `texture_blit` — um `blend_add`, um `blend_mix`, ambos girando o UV pela
-  direção do rolo. **Bloco `blit()`, não `fragment()`**
-- `[ ]` Textura de carimbo do rolo (64×32, borda macia, fibras)
-- `[ ]` Reescrever `tinta_secando.gdshader` pra ler as duas máscaras (some o bloco de varredura)
-- `[ ]` Curva de secagem em 4 fases, com a fase manchada saindo da espessura (acumulada.g)
-- `[ ]` Lap marks pelo gradiente do instante (recente.r)
-- `[ ]` `forcar_seco()` vira "preenche a máscara"
-- `[ ]` **Testar com um alvo movido por script, sem personagem** — dá pra validar e ajustar toda a
-  tinta antes do rig existir
+- `[x]` ~~Geometria da parede com UV limpo~~ — **não foi preciso mexer na geometria.** O plano
+  supunha transformar cada parede num quad, mas isso quebraria as aberturas de janela e porta (que
+  são justamente o motivo de as paredes serem picadas em 9 peças). Em vez disso o UV da máscara vem
+  da **posição de mundo projetada no plano da parede** (`origem_parede`/`eixo_u`/`eixo_v` no
+  shader). As peças emendam sem costura e a geometria ficou intacta
+- `[x]` `mascara_tinta.gd` — as 2 texturas por parede + `carimbar()`, com posicionamento sub-pixel
+- `[x]` Os 2 shaders `texture_blit` (`carimbo_acumulado`, `carimbo_recente`), bloco `blit()`
+- `[x]` Carimbo procedural do rolo (borda macia, fibras longitudinais, queda nas pontas)
+- `[x]` `tinta_secando.gdshader` reescrito lendo as duas máscaras — sumiu o bloco de varredura
+- `[x]` Curva de secagem com brilho e cor em curvas separadas (o "flash off": brilho some antes de
+  a cor mudar), mancha saindo da espessura real
+- `[x]` Lap marks pelo gradiente do instante
+- `[x]` `forcar_seco()` vira `preencher_coberta()` na máscara
+- `[x]` **Testado sem personagem**, com alvo scriptado (`trajeto_rolo.gd`)
+- `[x]` Performance: 920 fps no pior caso com as 4 máscaras ativas (critério pedia 60)
+
+**Refatoração que veio junto:** `tinta_secando.gd` (que era por `MeshInstance3D`) foi aposentado e
+virou `parede_pintavel.gd` (um nó por parede). A máscara é por parede, não por pedaço — o rolo não
+sabe que a parede foi picada em 9 meshes. As peças agora são só geometria compartilhando material.
+
+**Quatro armadilhas encontradas, todas com a mesma raiz — o rastro é feito de carimbos discretos,
+e qualquer irregularidade no espaçamento vira padrão visível que lê como bug de renderização:**
+
+1. **Passo entre passadas em fração, não em metros.** `0.055` de uma parede de 7 m dá 38 cm, mas o
+   rolo tem 23 cm — sobrava parede crua entre as passadas. O trajeto passou a trabalhar em metros
+   (que também resolve UV não ser isotrópico numa parede 7×3)
+2. **Espaçamento de carimbo dependente do fatiamento.** Carimbar "das duas pontas de cada pedaço
+   recebido" fazia o trecho animado (fatiado por frame) depositar mais que o instantâneo (fatiado
+   por segmento) — dava pra ver a emenda. Agora os carimbos caem em posições **absolutas** ao longo
+   do trajeto
+3. **Perfil do carimbo `smoothstep` na faixa de contato.** Carimbos espaçados de meia-faixa só somam
+   constante se o perfil for **triangular** (partição da unidade); com `smoothstep` a soma ondula e
+   aparece um ripple regular atravessado
+4. **`blit_rect` só aceita `Rect2i`.** O rolo anda em passos fracionários de pixel, então arredondar
+   a posição gerava moiré. A saída foi arredondar o retângulo e mandar o resto fracionário como
+   uniform (`desloc_sub`), deixando o shader deslocar o carimbo dentro dele
+
+Bônus: as fibras do carimbo estavam indexadas pela faixa de contato em vez do eixo do rolo, o que
+desenhava estrias atravessadas em vez de longitudinais.
 
 ### Fase C — Direção de arte low-poly
 
