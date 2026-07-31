@@ -101,21 +101,38 @@ func duracao_total() -> float:
 	return _janela_demao + tempo_secagem_segundos * (1.0 + ESPESSURA_TIPICA * ATRASO_POR_ESPESSURA)
 
 
-## Começa uma demão nova: limpa a máscara (a tinta anterior vira "cor de
-## baixo") e zera o relógio.
-func iniciar_demao(anterior: Color, molhada: Color, seca: Color, janela_segundos: float) -> void:
+## Começa uma demão nova.
+##
+## Só a máscara RECENTE é limpa. A acumulada persiste de propósito: ela guarda
+## o relevo real da parede (quantas camadas de tinta já passaram por cada
+## ponto), e isso não some quando uma demão nova começa — tinta velha continua
+## embaixo. Limpar as duas fazia a parede virar cor chapada no instante em que
+## a demão trocava, e a marca da demão anterior desaparecia de uma vez.
+##
+## `numero_demao` (0, 1, 2…) suaviza a marca do rolo a cada camada: parede
+## recém-pintada sobre reboco cru mostra muita variação, a terceira demão já
+## está praticamente lisa.
+func iniciar_demao(
+	anterior: Color,
+	molhada: Color,
+	seca: Color,
+	janela_segundos: float,
+	numero_demao: int = 0
+) -> void:
 	_janela_demao     = maxf(janela_segundos, 0.01)
 	_tempo_decorrido  = 0.0
 	_avisou_conclusao = false
 	_ativo            = true
 
-	mascara.limpar()
+	mascara.limpar_demao()
 	material.set_shader_parameter("cor_anterior",    anterior)
 	material.set_shader_parameter("cor_molhada",     molhada)
 	material.set_shader_parameter("cor_seca",        seca)
 	material.set_shader_parameter("janela_demao",    _janela_demao)
 	material.set_shader_parameter("duracao_secagem", tempo_secagem_segundos)
 	material.set_shader_parameter("tempo_decorrido", 0.0)
+	# cada demão deixa a superfície mais uniforme
+	material.set_shader_parameter("suavidade_demao", 1.0 / (1.0 + float(numero_demao) * 0.9))
 
 
 ## Carimba o rastro do rolo. `de`/`para` são UV 0-1 na parede; `instante` é

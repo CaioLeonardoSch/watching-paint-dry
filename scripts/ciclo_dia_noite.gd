@@ -184,7 +184,13 @@ func _atualizar_luz() -> void:
 	# o céu muda de cor ao longo do dia.
 	if _world_env and _world_env.environment:
 		var env := _world_env.environment
-		var brilho_ambiente: float = clamp(altura_solar * 0.4 + 0.03, 0.03, 0.4)
+		var brilho_ambiente: float = clamp(altura_solar * 0.22 + 0.03, 0.03, 0.22)
 		env.ambient_light_energy = brilho_ambiente
-		env.ambient_light_color  = cor_horizonte
-		env.fog_light_color      = cor_horizonte
+		# A ambiente é DESSATURADA de propósito. Ela incide em tudo por igual,
+		# inclusive nas faces internas do quarto — usar a cor crua do horizonte
+		# deixava o quarto inteiro laranja no fim da tarde, como se o pôr do sol
+		# atravessasse as paredes. Luz de céu que entra por uma janela chega
+		# rebatida e bem mais neutra que o céu em si.
+		env.ambient_light_color = cor_horizonte.lerp(Color(0.82, 0.84, 0.88), 0.72)
+		# A névoa é o céu de verdade, vista lá fora — essa mantém a cor cheia.
+		env.fog_light_color = cor_horizonte

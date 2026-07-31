@@ -12,6 +12,11 @@ extends CanvasLayer
 #  ativa) nem por cima da pergunta de cor (dialogo_pintura.gd já é dono do
 #  mouse nesse momento) — dono único do ESC durante o jogo,
 #  camera_cadeira.gd abriu mão do seu próprio toggle.
+#
+#  O CenterContainer é tela cheia e mora numa layer ACIMA do DialogoPintura,
+#  então tem mouse_filter = IGNORE na cena: com STOP (default do Control) ele
+#  engolia todo clique e travava os botões "Gostei"/"Trocar". Os painéis
+#  filhos continuam STOP, então o menu em si segue clicável.
 # ─────────────────────────────────────────────
 
 const DURACAO_FADE: float = 0.15

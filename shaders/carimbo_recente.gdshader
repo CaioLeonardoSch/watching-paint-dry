@@ -30,7 +30,10 @@ void blit() {
 	if (r.x < 0.0 || r.x > 1.0 || r.y < 0.0 || r.y > 1.0) {
 		COLOR0 = vec4(0.0);
 	} else {
-		// peso da substituição = quanto de tinta chegou aqui
+		// Peso da substituição = quanto de tinta chegou aqui.
+		// G guarda a carga e serve de marcador de "passei aqui nesta demão" —
+		// é zerado no início de cada demão e o shader da parede lê isso como
+		// cobertura da camada atual.
 		float peso = texture(carimbo, r).r * carga;
 		COLOR0 = vec4(instante, carga, 0.0, peso);
 	}

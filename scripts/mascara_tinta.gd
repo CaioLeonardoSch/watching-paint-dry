@@ -54,17 +54,29 @@ func _init(largura_metros: float, altura_metros: float, carimbo: ImageTexture) -
 	_mat_recente.shader = load("res://shaders/carimbo_recente.gdshader")
 
 
-## Zera para "parede sem tinta desta demão".
+## Zera as duas — parede como se nunca tivesse recebido tinta. Só no início.
 func limpar() -> void:
 	acumulada.setup(largura_px, altura_px, DrawableTexture2D.DRAWABLE_FORMAT_RGBA8, Color(0, 0, 0, 1), false)
 	recente.setup(largura_px, altura_px, DrawableTexture2D.DRAWABLE_FORMAT_RGBA8, Color(0, 0, 0, 1), false)
 
 
+## Prepara pra uma demão nova preservando o relevo já existente.
+##
+## Só a máscara recente é zerada. A acumulada guarda quantas camadas passaram
+## por cada ponto — informação física que não desaparece porque começou uma
+## demão nova. O canal G (carga) da recente serve de marcador de "passei aqui
+## nesta demão": zerado agora, e o carimbo o levanta por onde o rolo for.
+func limpar_demao() -> void:
+	recente.setup(largura_px, altura_px, DrawableTexture2D.DRAWABLE_FORMAT_RGBA8, Color(0, 0, 0, 1), false)
+
+
 ## Parede inteira coberta e pintada no instante 0 — usado ao retomar de um
 ## save, onde o estado visual é sempre "tudo seco" e não há o que animar.
+## R/G da acumulada = cobertura e relevo já assentados; G da recente = carga,
+## que é o marcador de "passou aqui" lido como cobertura da demão atual.
 func preencher_coberta() -> void:
 	acumulada.setup(largura_px, altura_px, DrawableTexture2D.DRAWABLE_FORMAT_RGBA8, Color(1.0, 0.5, 0, 1), false)
-	recente.setup(largura_px, altura_px, DrawableTexture2D.DRAWABLE_FORMAT_RGBA8, Color(0, 1.0, 0, 1), false)
+	recente.setup(largura_px, altura_px, DrawableTexture2D.DRAWABLE_FORMAT_RGBA8, Color(0, 0.95, 0, 1), false)
 
 
 ## Carimba o rolo numa posição da parede.

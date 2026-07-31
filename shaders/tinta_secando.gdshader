@@ -42,6 +42,20 @@ uniform float atraso_por_espessura = 0.55;
 
 uniform float limiar_lap = 0.35;  // segundos de diferença que já marcam lap
 
+// Quanto a marca do rolo aparece. Cai a cada demão (ver iniciar_demao): a
+// primeira camada sobre reboco cru mostra bastante variação, a terceira já
+// está quase lisa — que é como parede pintada de verdade se comporta.
+uniform float suavidade_demao = 1.0;
+uniform float forca_marca = 0.09;
+
+// Faixa da carga gravada que conta como "coberto". A máscara recente é escrita
+// com blend_mix, então o valor converge pra ALGO ABAIXO da carga real do rolo
+// (cada carimbo mistura parcialmente, e as bordas pesam pouco). Normalizar
+// pela carga cheia deixava um quarto da cor de baixo aparecendo e a parede
+// saía lavada. O limiar baixo faz uma passada de rolo já cobrir de verdade.
+uniform float cobertura_min = 0.03;
+uniform float cobertura_max = 0.45;
+
 varying vec3 pos_mundo;
 
 
@@ -65,15 +79,18 @@ void fragment() {
 	vec2 acum = texture(mascara_acumulada, uv).rg;
 	vec2 rec  = texture(mascara_recente, uv).rg;
 
-	float cobertura = acum.r;
-	float espessura = acum.g;
+	// A acumulada atravessa as demãos: é o relevo real da parede, quantas
+	// camadas passaram por cada ponto. A recente é limpa a cada demão, então
+	// a carga (G) vira o marcador de "o rolo passou aqui NESTA demão".
+	float relevo    = acum.g;
+	float cobertura = smoothstep(cobertura_min, cobertura_max, rec.g);
 	float instante  = rec.r * janela_demao;   // volta pra segundos
 
 	// ── Quanto esta camada já secou ────────────────────────────────
 	// Camada grossa demora mais. Como a espessura varia ponto a ponto, a
 	// parede seca desigual — que é exatamente o que tinta de verdade faz.
 	float dt = tempo_decorrido - instante;
-	float duracao_local = duracao_secagem * (1.0 + espessura * atraso_por_espessura);
+	float duracao_local = duracao_secagem * (1.0 + relevo * atraso_por_espessura);
 	float fracao = clamp(dt / max(duracao_local, 0.001), 0.0, 1.0);
 
 	// ── As fases da secagem (ver plano 3.4) ────────────────────────
@@ -100,10 +117,18 @@ void fragment() {
 	// A lap mark é uma faixa levemente mais densa/escura de tinta
 	cor_nova = mix(cor_nova, cor_nova * 0.94, lap);
 
+	// A marca do rolo modula as DUAS cores, não só a nova. É o que impede a
+	// parede de virar cor chapada no instante em que uma demão começa: a
+	// camada de baixo continua exibindo o relevo que ela deixou.
+	// `relevo` só aparece depois de secar — tinta molhada escorre e nivela.
+	float marca = (relevo - 0.5) * forca_marca * suavidade_demao;
+	vec3 base_anterior = cor_anterior.rgb * (1.0 - marca);
+	cor_nova *= (1.0 - marca * seco_cor);
+
 	// `cobertura` entra onde antes havia um smoothstep de borda. A diferença
 	// é tudo: "meio pintado" agora é falha de cobertura de verdade, que
 	// sobrevive à secagem e só some quando a próxima demão passa por cima.
-	ALBEDO = mix(cor_anterior.rgb, cor_nova, cobertura);
+	ALBEDO = mix(base_anterior, cor_nova, cobertura);
 
 	// ── Superfície ─────────────────────────────────────────────────
 	// Molhado NÃO é espelho: roughness baixo demais reflete o céu procedural
