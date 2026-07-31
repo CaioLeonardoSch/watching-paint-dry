@@ -517,15 +517,34 @@ e qualquer irregularidade no espaçamento vira padrão visível que lê como bug
 Bônus: as fibras do carimbo estavam indexadas pela faixa de contato em vez do eixo do rolo, o que
 desenhava estrias atravessadas em vez de longitudinais.
 
-### Fase C — Direção de arte low-poly
+### Fase C — Direção de arte low-poly (30/07/2026)
 
-- `[ ]` Tirar normal maps e ruído triplanar das paredes
-- `[ ]` Normais flat nas primitivas geradas em runtime
-- `[ ]` Assoalho vira tábuas low-poly de geometria (aposenta `assoalho.gdshader`)
-- `[ ]` Props: rodapé, moldura de porta e janela, interruptor, tomada
-- `[ ]` Paleta fechada de 8-10 cores
-- `[ ]` Luz: ambiente alto, direcional pela janela, testar `AreaLight3D`, MSAA 4x, SSAO sutil
-- `[ ]` Confirmar que SDFGI está desligado
+- `[x]` Tirar normal maps e ruído triplanar das paredes — já era código morto depois da Fase B
+  (as 9 peças passaram a receber o material da tinta), então saiu junto com o `mat_parede`
+- `[ ]` Normais flat nas primitivas geradas em runtime — `BoxMesh` já é facetado por natureza; as
+  esferas/cápsulas que faltam são dos personagens, que a **Fase D vai refazer de qualquer jeito**.
+  Deixado pra lá de propósito pra não fazer o trabalho duas vezes
+- `[x]` Assoalho virou tábuas de **geometria** (uma peça por tábua, altura e tom próprios, fresta
+  de verdade entre elas). `assoalho.gdshader` aposentado e apagado
+- `[x]` Props: rodapé nas 4 paredes, moldura de janela com travessa e peitoril, batente de porta,
+  interruptor, tomada — `props_quarto.gd`
+- `[x]` Paleta fechada — constantes no topo de `props_quarto.gd`
+- `[x]` Luz: ambiente **dessaturada** (era o que deixava o quarto laranja), SSAO, MSAA 4x
+- `[ ]` `AreaLight3D` na janela — não testado ainda; a luz atual já ficou aceitável
+- `[x]` SDFGI conferido, está desligado
+
+**A correção de luz que o usuário pediu:** `env.ambient_light_color` recebia a cor crua do horizonte.
+Como luz ambiente incide em tudo por igual, inclusive nas faces internas do quarto, o pôr do sol
+deixava o cômodo inteiro laranja — dava a impressão de que a luz atravessava as paredes. Agora a
+ambiente é dessaturada (`lerp` pra um cinza-azulado) e mais fraca; a névoa, que é o céu de verdade
+visto lá fora, mantém a cor cheia.
+
+**Armadilhas de posicionamento** (as duas custaram uma rodada cada):
+- Props colados no *centro* da parede ficam enterrados nela. As paredes são `BoxMesh` de 0.2 de
+  espessura centrados em ±3.5 / −4.0 / +2.0, então a face interna está 0.1 pra dentro:
+  X = ±3.4, Z = −3.9 / +1.9
+- Esconder o piso antigo debaixo das tábuas abre buraco — as frestas passam a dar no vazio e a luz
+  do exterior vaza por elas. Ele continua visível, escuro, como contrapiso
 
 ### Fase D — Rig novo + IK
 

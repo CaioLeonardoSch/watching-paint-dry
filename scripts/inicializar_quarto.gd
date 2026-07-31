@@ -16,6 +16,8 @@ func _ready() -> void:
 	_criar_janela()
 	_criar_lampada()
 	_criar_cadeira()
+	_criar_assoalho_tabuas()
+	PropsQuarto.criar(self)
 
 
 func _criar_meshes() -> void:
@@ -38,20 +40,14 @@ func _criar_meshes() -> void:
 		"ParedeLesteAcima":   Vector3(0.2, 0.9, 1.0),  # Z∈[-0.5,+0.5], Y∈[2.1,3.0]
 	}
 
-	var ruido_medio := MateriaisProcedurais.criar_textura_ruido(0.12, 512)
+	# Fase C tirou o reboco com ruído triplanar + normal map procedural que ficava
+	# aqui: as 9 paredes recebem o material da tinta (parede_pintavel.gd), então
+	# ele já era código morto — e a direção low-poly pede superfície limpa, não
+	# micro-relevo fingido, que só denuncia a face plana quando a luz raspa.
+	var mat_teto := _criar_material_teto()
 
-	# Reboco de parede — grão fino, relevo sutil
-	var normal_parede := MateriaisProcedurais.criar_normal_ruido(0.9, 1.2, 512)
-
-	# Branco cru de gesso/reboco não pintado — sem tonalidade quente de tinta
-	var mat_parede := MateriaisProcedurais.criar_material_texturizado(
-		Color(0.93, 0.92, 0.90), 0.95, ruido_medio, Vector3(2.0, 2.0, 2.0), normal_parede, 0.6)
-	var mat_piso   := _criar_material_assoalho()
-	var mat_teto   := _criar_material_teto()
-
-	var nos_piso  := ["ChaoQP"]
 	var nos_teto  := ["TetoQP"]
-	# material gerenciado pelo tinta_secando.gd (uma parede inteira vira "pintável")
+	# material gerenciado por parede_pintavel.gd (a parede inteira é pintável)
 	var nos_tinta := [
 		"ParedeNorteSolida", "ParedeSul",
 		"ParedeOesteNorte", "ParedeOesteSul", "ParedeOesteAcima", "ParedeOesteAbaixo",
@@ -68,14 +64,9 @@ func _criar_meshes() -> void:
 		box.size = meshes[nome]
 		no.mesh  = box
 
-		if nome in nos_tinta:
-			continue
-		elif nome in nos_piso:
-			no.set_surface_override_material(0, mat_piso)
-		elif nome in nos_teto:
+		# o chão recebe material em _criar_assoalho_tabuas (vira contrapiso)
+		if nome in nos_teto:
 			no.set_surface_override_material(0, mat_teto)
-		else:
-			no.set_surface_override_material(0, mat_parede)
 
 
 ## Teto de gesso: liso de propósito. Sem normal map e sem textura de detalhe —
@@ -89,10 +80,59 @@ func _criar_material_teto() -> StandardMaterial3D:
 	return mat
 
 
-func _criar_material_assoalho() -> ShaderMaterial:
-	var mat := ShaderMaterial.new()
-	mat.shader = load("res://shaders/assoalho.gdshader")
-	return mat
+## Assoalho de tábuas como GEOMETRIA, não como normal map.
+##
+## Fase C do overhaul: o `assoalho.gdshader` desenhava tábua, junta e relevo
+## por diferença finita numa superfície plana. Em low-poly isso é trabalho
+## errado — a estética quer forma e cor chapada, e relevo fingido em superfície
+## plana entrega o truque assim que a luz bate de raspão (foi o mesmo motivo de
+## o normal map do teto ter saído). Cada tábua vira um quad com altura e tom
+## próprios; a junta é a fresta entre elas, de verdade.
+func _criar_assoalho_tabuas() -> void:
+	var chao := get_node_or_null("ChaoQP")
+	if chao == null:
+		return
+	# O plano antigo continua visível como CONTRAPISO, escuro, por baixo das
+	# tábuas. Escondê-lo abre buraco: as frestas entre tábuas passam a dar no
+	# vazio e a luz do exterior vaza por elas.
+	var mat_base := StandardMaterial3D.new()
+	mat_base.albedo_color = Color(0.16, 0.12, 0.09)
+	mat_base.roughness    = 0.95
+	chao.set_surface_override_material(0, mat_base)
+
+	var raiz := Node3D.new()
+	raiz.name = "Assoalho"
+	add_child(raiz)
+
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 20260730  # decoração: fixa, pra não mudar entre execuções
+
+	const LARGURA_TABUA: float = 0.22
+	const FRESTA: float = 0.012
+	var x: float = -3.5
+	while x < 3.5:
+		var largura: float = minf(LARGURA_TABUA, 3.5 - x)
+		if largura < 0.02:
+			break
+
+		var tabua := MeshInstance3D.new()
+		raiz.add_child(tabua)
+		var box := BoxMesh.new()
+		# altura levemente irregular: assoalho velho não é perfeitamente plano
+		var altura: float = 0.05 + rng.randf() * 0.012
+		box.size = Vector3(largura - FRESTA, altura, 6.0)
+		tabua.mesh = box
+		tabua.position = Vector3(x + largura * 0.5, -altura * 0.5 + 0.004, -1.0)
+
+		# tom por tábua — é o que dá vida sem custar textura (vertex color é o
+		# caminho canônico de low-poly, e aqui a peça inteira faz o papel)
+		var tom: float = 0.86 + rng.randf() * 0.28
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = Color(0.52 * tom, 0.35 * tom, 0.21 * tom)
+		mat.roughness    = 0.72 + rng.randf() * 0.12
+		tabua.set_surface_override_material(0, mat)
+
+		x += largura
 
 
 func _criar_janela() -> void:
