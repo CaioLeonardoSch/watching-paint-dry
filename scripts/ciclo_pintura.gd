@@ -171,17 +171,23 @@ func _sequencia_abertura() -> void:
 	_camera_cutscene.look_at(PONTO_OLHAR_CUTSCENE, Vector3.UP)
 	_sol.set_process(false)  # dia/noite pausado durante a cutscene, pra não "piscar" rápido demais
 
-	# As outras 3 paredes já foram pintadas antes do jogador chegar — quanto
-	# mais cedo na volta, mais adiantada na secagem. Carimba de uma vez (sem
-	# animar) pra elas terem a marca de rolo de verdade, não cor chapada.
+	# As outras 3 paredes já foram pintadas antes do jogador chegar. Carimba de
+	# uma vez (sem animar) pra elas terem a marca de rolo de verdade, não cor
+	# chapada.
+	#
+	# O escalonamento de secagem entre elas é DE PROPÓSITO bem curto. A versão
+	# anterior espaçava cada parede por uma volta inteira mais 18% da secagem, e
+	# o resultado era o quarto abrindo com quatro paredes visivelmente em
+	# estágios diferentes — mais parecia tinta de cores diferentes que a mesma
+	# demão. A leitura que interessa no começo do jogo é uma só: primeira mão de
+	# tinta sobre reboco, igual nas quatro paredes.
 	var quantas_antes: int = ORDEM_ABERTURA.size()
 	for ordem in range(quantas_antes):
 		var indice: int = ORDEM_ABERTURA[ordem]
 		_iniciar_demao_parede(indice, 0)
 		_trajeto.pintar_instantaneo(_paredes[indice])
 		var voltas_atras: float = float(quantas_antes - ordem)
-		_paredes[indice].adiantar(duracao_pintura_segundos * voltas_atras
-			+ _duracao_secagem_padrao() * 0.18 * voltas_atras)
+		_paredes[indice].adiantar(duracao_pintura_segundos * voltas_atras * 0.35)
 
 	# O tio está no meio da parede norte, terminando o serviço em cena.
 	var v: Dictionary  = VARREDURAS[PAREDE_ABERTURA]

@@ -530,7 +530,10 @@ desenhava estrias atravessadas em vez de longitudinais.
   interruptor, tomada — `props_quarto.gd`
 - `[x]` Paleta fechada — constantes no topo de `props_quarto.gd`
 - `[x]` Luz: ambiente **dessaturada** (era o que deixava o quarto laranja), SSAO, MSAA 4x
-- `[ ]` `AreaLight3D` na janela — não testado ainda; a luz atual já ficou aceitável
+- `[x]` `AreaLight3D` na janela (`LuzJanela`), cor e energia seguindo o ciclo do dia. O sol
+  direcional caiu de 2.5 pra 1.4: ele desenhava um retângulo de borda dura e cor estourada na
+  parede, que lia como decalque em vez de luz. Agora quem carrega a iluminação de dia é a luz de
+  área, que dá a penumbra macia que direcional nenhuma dá — e o direcional só marca o recorte
 - `[x]` SDFGI conferido, está desligado
 
 **A correção de luz que o usuário pediu:** `env.ambient_light_color` recebia a cor crua do horizonte.
@@ -538,6 +541,18 @@ Como luz ambiente incide em tudo por igual, inclusive nas faces internas do quar
 deixava o cômodo inteiro laranja — dava a impressão de que a luz atravessava as paredes. Agora a
 ambiente é dessaturada (`lerp` pra um cinza-azulado) e mais fraca; a névoa, que é o céu de verdade
 visto lá fora, mantém a cor cheia.
+
+**Bug achado pelo usuário — a divisão vertical no meio da parede na abertura:** `pintar_instantaneo`
+gravava **instante fixo = 0** no trecho já pintado, enquanto o trecho animado gravava instante
+proporcional ao progresso. Como a abertura pinta a parede norte em duas etapas (65% de uma vez, 35%
+em cena), isso criava um degrau de até uma janela de demão inteira no relógio de secagem bem no meio
+da parede: metade começava a secar junta, a outra metade escalonada. Os dois modos agora derivam o
+instante da mesma coisa — a posição ao longo do trajeto.
+
+Junto: o escalonamento de secagem entre as paredes da abertura era grande demais (uma volta inteira
++ 18% da secagem por parede), e o quarto abria com as quatro paredes em estágios visivelmente
+diferentes — parecia tinta de cores diferentes, não a mesma demão. Encurtado, porque a leitura que
+interessa no começo é uma só: primeira mão de tinta sobre reboco, igual nas quatro.
 
 **Armadilhas de posicionamento** (as duas custaram uma rodada cada):
 - Props colados no *centro* da parede ficam enterrados nela. As paredes são `BoxMesh` de 0.2 de

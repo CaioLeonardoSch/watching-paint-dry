@@ -29,6 +29,12 @@ var _sky_material: ProceduralSkyMaterial
 @onready var _world_env: WorldEnvironment = $"../WorldEnvironment"
 @onready var _lua: DirectionalLight3D      = $"../Lua"
 
+## Luz de área no vão da janela. É ela que faz o papel de "o céu entra por
+## aqui": dá penumbra macia que direcional nenhuma dá, e permite baixar o sol
+## direto — que estourava a cor da parede e desenhava um retângulo de borda
+## dura, mais parecendo um decalque que luz.
+@onready var _luz_janela: Light3D = $"../LuzJanela"
+
 
 func _ready() -> void:
 	# Autoconfigura a partir do modo de jogo ativo — o valor no .tscn é só um
@@ -157,12 +163,20 @@ func _atualizar_luz() -> void:
 	# ── Intensidade da luz ──────────────────────────────────────
 	# sin(ângulo) > 0 quando o astro está acima do horizonte.
 	var altura_solar: float = sin(deg_to_rad(angulo_solar + 90.0))
-	light_energy = max(0.0, altura_solar) * 2.5
+	# Mais fraco que antes (era 2.5): o sol direto lavava a cor da parede onde
+	# entrava pela janela. Agora quem carrega a luz de dia é a AreaLight3D do
+	# vão, e o direcional só desenha o recorte.
+	light_energy = max(0.0, altura_solar) * 1.4
 
 	if _lua:
 		var altura_lunar: float = -altura_solar
 		_lua.light_energy = max(0.0, altura_lunar) * 0.4
 		_lua.light_color  = Color(0.6, 0.65, 0.85)
+
+	# A janela acompanha o dia, mas com cor bem menos saturada que o céu: o que
+	# entra num cômodo é luz rebatida, não o disco do sol.
+	if _luz_janela:
+		_luz_janela.light_energy = clampf(max(0.0, altura_solar) * 2.2 + 0.12, 0.12, 2.2)
 
 	# ── Cor da luz e do céu (temperatura de cor) ───────────────
 	light_color = _gradiente_luz.sample(fracao_dia)
@@ -192,5 +206,7 @@ func _atualizar_luz() -> void:
 		# atravessasse as paredes. Luz de céu que entra por uma janela chega
 		# rebatida e bem mais neutra que o céu em si.
 		env.ambient_light_color = cor_horizonte.lerp(Color(0.82, 0.84, 0.88), 0.72)
+		if _luz_janela:
+			_luz_janela.light_color = cor_horizonte.lerp(Color(0.94, 0.95, 0.97), 0.55)
 		# A névoa é o céu de verdade, vista lá fora — essa mantém a cor cheia.
 		env.fog_light_color = cor_horizonte

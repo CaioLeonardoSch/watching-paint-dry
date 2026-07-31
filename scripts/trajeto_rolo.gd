@@ -90,17 +90,22 @@ func pintar(parede: ParedePintavel, duracao: float, invertido: bool = false, de_
 ## Carimba o trajeto de uma vez só, sem animar. Usado na abertura, onde 3
 ## paredes já foram pintadas antes de o jogador chegar — elas precisam ter a
 ## marca de rolo de verdade, não cor chapada.
+##
+## O instante é gravado PROPORCIONAL ao progresso do trajeto, igual ao modo
+## animado. Gravar um valor fixo criava um degrau no relógio de secagem
+## exatamente onde o trecho instantâneo encontrava o animado: metade da parede
+## começava a secar junta e a outra metade escalonada, e a emenda aparecia como
+## uma divisão vertical nítida no meio da parede.
 func pintar_instantaneo(
 	parede: ParedePintavel,
 	invertido: bool = false,
-	ate_fracao: float = 1.0,
-	instante: float = 0.0
+	ate_fracao: float = 1.0
 ) -> void:
 	_preparar(parede, invertido)
 	if _pontos.size() < 2:
 		return
 	_proximo_carimbo = 0.0
-	_carimbar_ate(clampf(ate_fracao, 0.0, 1.0) * _comprimento, instante)
+	_carimbar_ate(clampf(ate_fracao, 0.0, 1.0) * _comprimento, -1.0)
 
 
 func _preparar(parede: ParedePintavel, invertido: bool) -> void:
@@ -157,7 +162,9 @@ func _process(delta: float) -> void:
 
 	_tempo += delta
 	var fracao: float = clampf(_tempo / _duracao, 0.0, 1.0)
-	_carimbar_ate(fracao * _comprimento, fracao)
+	# -1 = deriva o instante da posição, mesma fórmula do modo instantâneo.
+	# Os dois PRECISAM concordar, senão a emenda entre eles vira degrau.
+	_carimbar_ate(fracao * _comprimento, -1.0)
 
 	if fracao >= 1.0:
 		_ativo = false
@@ -171,6 +178,9 @@ func _process(delta: float) -> void:
 ## recebia, então o trecho animado (fatiado a cada frame) depositava bem mais
 ## tinta que o trecho instantâneo (fatiado por segmento) — dava pra ver a
 ## emenda na parede, mais grossa de um lado.
+## `instante` negativo = derivar da posição no trajeto. É o que mantém o
+## relógio de secagem contínuo quando um trecho é carimbado de uma vez e o
+## seguinte é animado.
 func _carimbar_ate(alvo: float, instante: float) -> void:
 	while _proximo_carimbo <= alvo:
 		var p := _ponto_em(_proximo_carimbo)
@@ -178,7 +188,10 @@ func _carimbar_ate(alvo: float, instante: float) -> void:
 		# o rolo fica perpendicular ao movimento: descida deixa ele deitado
 		var angulo: float = atan2(dir.y, dir.x) + PI * 0.5
 		var uv := _uv(p)
-		_parede.mascara.carimbar(uv, angulo, _carga_em(_proximo_carimbo), instante)
+		var t: float = instante
+		if t < 0.0:
+			t = _proximo_carimbo / maxf(_comprimento, 0.001)
+		_parede.mascara.carimbar(uv, angulo, _carga_em(_proximo_carimbo), t)
 		posicao_atual = uv
 		_proximo_carimbo += PASSO_CARIMBO
 
