@@ -568,6 +568,30 @@ dobra contínua, sem rasgar. Era o risco que a decisão 5.0 assumiu, e ele não 
   região já tiver sido feita, ela se perde e tudo volta pro slot 0 — reatribuir depois de mexer nos
   slots
 
+### Sentido de rotação dos ossos — o tio pintava as próprias costas
+
+Achado pelo usuário olhando o Blender. Os ossos de braço e perna apontam **pra baixo** (−Z na
+armadura), e rotação **positiva** em X é que leva a ponta pra frente (+Y): girar (0,0,−1) por +90°
+em X dá (0,+1,0). O clipe `pintar_braco` estava com valores negativos, então o braço ia pra trás —
+o tio fazia o gesto de pintar virado pro lado oposto da parede.
+
+Regra pra lembrar na Fase E, ao animar qualquer membro: **+X leva o membro pra frente do
+personagem, −X leva pra trás.** Vale pra `Braco_*`, `Antebraco_*`, `Coxa_*` e `Canela_*`.
+
+**Como conferir rápido:** `arm.matrix_world @ pose_bones["Mao_D"].head` no frame de maior extensão
+do clipe. Se o Y der negativo, o braço está indo pras costas. O pé serve de referência: a ponta de
+`Pe_D` aponta pra +Y, então mão e pé têm que ter Y do mesmo sinal.
+
+### Visualizar no Blender: silenciar as NLA tracks
+
+Com as 3 tracks ativas, o Blender **soma** as ações (`andar` + `pintar_braco` +
+`parado_respirando`) e mostra uma pose combinada que não existe em lugar nenhum do jogo — foi o que
+deu a impressão de que o tronco estava invertido em relação às pernas. Deixar `track.mute = True`
+pra trabalhar; **religar antes de exportar**, porque track silenciada não exporta a animação.
+
+No `.blend` os dois personagens ficam sobrepostos na origem. Para trabalhar, deslocar
+`Garotinha2_Armature.location.x`; **zerar antes de exportar** (armadura deslocada vaza pro `.glb`).
+
 ### Armadilhas do `TwoBoneIK3D` — as duas que mais custam tempo
 
 **1. O pole node é OBRIGATÓRIO.** Sem ele a IK roda e não faz absolutamente nada — sem erro, sem

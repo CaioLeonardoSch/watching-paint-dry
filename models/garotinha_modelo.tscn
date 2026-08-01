@@ -193,11 +193,11 @@ _data = {
 &"parado_respirando": SubResource("Animation_0bbc5")
 }
 
-[node name="GarotinhaModelo" type="Node3D" unique_id=1149323083]
+[node name="GarotinhaModelo" type="Node3D" unique_id=1606199384]
 
-[node name="Garotinha2_Armature" type="Node3D" parent="." unique_id=1984566884]
+[node name="Garotinha2_Armature" type="Node3D" parent="." unique_id=59094755]
 
-[node name="Skeleton3D" type="Skeleton3D" parent="Garotinha2_Armature" unique_id=295413206]
+[node name="Skeleton3D" type="Skeleton3D" parent="Garotinha2_Armature" unique_id=78236886]
 bones/0/name = "Quadril"
 bones/0/parent = -1
 bones/0/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.55, 0)
@@ -290,10 +290,10 @@ bones/12/position = Vector3(0, 0.24, 0)
 bones/12/rotation = Quaternion(0.5847103, 0, 0, 0.8112422)
 bones/12/scale = Vector3(1, 0.99999994, 1)
 
-[node name="Garotinha2" type="MeshInstance3D" parent="Garotinha2_Armature/Skeleton3D" unique_id=1016244279]
+[node name="Garotinha2" type="MeshInstance3D" parent="Garotinha2_Armature/Skeleton3D" unique_id=1515967873]
 mesh = SubResource("ArrayMesh_bhx0x")
 skin = SubResource("Skin_4mgtp")
 skeleton = NodePath("..")
 
-[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=1198999017]
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=430153764]
 libraries/ = SubResource("AnimationLibrary_y64ic")
