@@ -518,7 +518,48 @@ Isso não é um efeito colateral, é uma mudança de ritmo do jogo. Duas leitura
 Sugestão: acelerar só a abertura (ele já está terminando, `FRACAO_JA_PINTADA_ABERTURA` sobe pra 0.9)
 e deixar as demãos seguintes no ritmo honesto. **Confirmar antes de implementar.**
 
-### 5.7 Estado de execução da Fase D — atualizar a cada passo
+### 5.7 Locomoção: virar o corpo e parar de teleportar
+
+Duas queixas do usuário (01/08/2026), ambas de locomoção. Entram na Fase D, passo 11b.
+
+**A. O corpo tem que virar pra direção em que anda.** Hoje `ir_ate()` (em `tio.gd` e
+`garotinha.gd`) só interpola `position` com Tween, sem tocar em `rotation`. O personagem desliza de
+lado ou de costas, com o clipe `andar` tocando como se fosse pra frente. Quem escreve rotação hoje é
+só `pintar_varrendo()`, e mesmo assim com um ângulo fixo por parede (`VARREDURAS[i]["angulo"]`).
+
+O que fazer:
+- Derivar o ângulo do próprio deslocamento (`atan2` sobre `para - de`), em vez de tabelar
+- **Virar antes de sair andando**, não durante: girar no lugar e só então iniciar o Tween de posição
+  (ou girar bem mais rápido que o deslocamento). Um personagem que gira enquanto translada faz curva
+  de carro, não de pessoa
+- Interpolar o giro, nunca setar direto — `rotation_degrees.y` trocado num frame lê como teleporte
+  de orientação. `lerp_angle` resolve o problema do caminho curto (359° → 1°)
+- Enquanto pinta, a regra é outra: aí ele encara a **parede**, não a direção do movimento (anda de
+  lado rente à parede, que é como se pinta de verdade)
+
+**B. Ninguém pode teleportar.** Hoje há três saltos:
+- `entrar_pela_porta()` faz `position = ponto_entrada` e `show()` — ele materializa dentro do quarto
+- `sair_pela_porta()` termina com `hide()` — ele evapora na porta
+- `entrar_e_sentar()` faz um Tween curto de Y (`position.y - 0.15`) e `hide()` — ela afunda no chão
+  e some, em vez de sentar
+
+O que fazer:
+- Entrada/saída viram caminhada de verdade **atravessando o vão da porta**: começar do lado de fora
+  (X além de 3.5), andar até dentro, e o inverso pra sair. A porta já abre e fecha
+  (`porta.gd`), então o timing existe — falta o personagem percorrer o caminho
+- Como o corredor externo não é modelado, basta um trecho curto além do vão: some por oclusão da
+  parede, não por `hide()`. Só esconder de fato quando estiver fora do campo de visão
+- **Sentar precisa virar clipe de osso** (`sentar`, ver 5.3). Hoje é deslocamento em Y + `hide()`,
+  que foi aceitável enquanto o rig não tinha joelho — agora tem. A garotinha deve dobrar quadril e
+  joelhos até assentar na cadeira, e o corpo **continuar visível** enquanto a câmera não cortar
+- Rever a ordem em `ciclo_pintura.gd::_garotinha_entra_e_senta()`: hoje `camera_cadeira.ativar()` só
+  roda depois de `sentou`, então dá pra manter o corpo visível durante a descida inteira
+
+Cuidado: `_retomar_de_save()` esconde os dois de propósito (`_tio.hide()`, `_garotinha.hide()`) —
+ali o teleporte é intencional, porque o jogador chega com tudo já pronto. Não confundir com os
+saltos acima.
+
+### 5.9 Estado de execução da Fase D — atualizar a cada passo
 
 > Existe porque a Fase D é longa e provavelmente atravessa mais de uma sessão. **Quem retomar deve
 > ler 5.0 (decisões), a tabela de coordenadas em 5.1, e este quadro.**
@@ -536,6 +577,7 @@ e deixar as demãos seguintes no ritmo honesto. **Confirmar antes de implementar
 | 9 | Stack de `SkeletonModifier3D` (ver 5.2) | ✅ IK do braço e das pernas + `LookAtModifier3D`, todos com `active = false` até a Fase E ligar |
 | 10 | Clipes base (ver 5.3) | ✅ parcial — `andar`, `parado_respirando`, `pintar_braco`. Faltam os que dependem de props (`molhar_rolo`, banquinho), que são Fase E |
 | 11 | Camada procedural: altura do quadril, inclinação do torso (5.4) | ⬜ |
+| 11b | **Virar o corpo na direção do movimento** (ver 5.7) | ⬜ |
 | 12 | Religar `tio.gd`/`garotinha.gd` e re-testar câmeras/colisão | ⬜ |
 
 **Estado do `.blend` (salvo):** convivem os dois — `Tio`/`Tio_Armature` (7 ossos, é o que está no
