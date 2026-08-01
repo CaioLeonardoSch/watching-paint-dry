@@ -75,7 +75,7 @@ disciplina de sempre.
   estrutura de nós + referência a scripts externos; meshes e materiais são atribuídos em runtime
   (via `_ready()`), ou manualmente no Inspector quando for algo pontual
 - Scripts que dependem de mesh gerado em runtime usam `call_deferred` pra esperar o mesh existir
-  antes de aplicar material (ver `tinta_secando.gd::_setup`)
+  antes de aplicar material (ver `parede_pintavel.gd::aplicar_em`)
 - Até aqui, texturas/materiais e áudio foram feitos por **geração procedural via shader/ruído e
   síntese em código** — não por escolha permanente, mas porque era o suficiente até agora. **Asset
   externo (textura, modelo 3D, áudio gravado) não é mais proibido**: jogo de verdade usa esse tipo
@@ -88,7 +88,7 @@ disciplina de sempre.
 - Referências entre nós usam caminho relativo (`$"../Nome"`), **não** `%NomeUnico` — nome único já
   resolveu pra `null` sem motivo claro neste projeto mais de uma vez
 - **Pipeline Blender → Godot** (modelos rigados, `res://models/`): três armadilhas reais de
-  keyframe/export/import documentadas na Fase 1.2 (seção 4) — ordem de `keyframe_insert` vs.
+  keyframe/export/import documentadas no histórico da seção 4 — ordem de `keyframe_insert` vs.
   `frame_set`, `export_optimize_animation_size` quebrando loops perfeitos, e
   `GLTFDocument.generate_scene()` deixando `ImporterMeshInstance3D` em vez de `MeshInstance3D`.
   Ler antes de mexer em modelo/animação de personagem de novo
@@ -106,7 +106,7 @@ disciplina de sempre.
   (a cena carrega sem erro) — o comportamento de verdade só se confirma jogando o jogo
 - **Localização**: `resources/localizacao/textos.csv` (chave = texto PT-BR, colunas por idioma),
   importado pelo Godot como um `Translation` por idioma com conteúdo (hoje só `pt_BR` e `en` têm
-  texto real — `es`/`fr`/`zh_CN`/`ja`/`de` existem como coluna vazia na Fase 1.4, sem tradução
+  texto real — `es`/`fr`/`zh_CN`/`ja`/`de` existem como coluna vazia, sem tradução
   ainda). Registrado em `project.godot::[internationalization]`
   (`locale/translations` + `locale/fallback="pt_BR"`). UI estática (`text = "..."` no `.tscn`)
   traduz sozinha (Godot usa o próprio texto como chave); texto setado via código precisa de `tr()`

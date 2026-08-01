@@ -33,8 +33,8 @@ const COR_HORIZONTE: Color = Color(0.74, 0.82, 0.90)
 ## Ambiente DESSATURADO de propósito: incide em tudo por igual, inclusive nas
 ## faces internas do quarto. Usar a cor cheia do céu pinta o cômodo todo de
 ## azul, do mesmo jeito que a cor do pôr do sol o pintava de laranja.
-const COR_AMBIENTE: Color = Color(0.80, 0.83, 0.88)
-const ENERGIA_AMBIENTE: float = 0.24
+const COR_AMBIENTE: Color = Color(0.66, 0.72, 0.84)
+const ENERGIA_AMBIENTE: float = 0.14
 
 # Caminho relativo, não %NomeUnico — nome único já resolveu pra null sem
 # motivo claro neste projeto antes (ver convenção no PROJETO.md).
