@@ -296,6 +296,23 @@ e o retorno da IK no 4.6) chegaram depois deste projeto ser arquitetado.
 Reabre a antiga Fase 1.2 (rig de 7 ossos não sustenta agachar/esticar) e adiciona uma frente de
 material/shader que o roadmap original não previa.
 
+### Etapa 1.5 — Melhorias decididas em 01/08/2026
+
+Saíram de uma rodada de sugestões. As duas primeiras entraram na **Fase F** do
+`PLANO-OVERHAUL-TINTA.md` (som e olhar); a terceira é feature de jogo e mora aqui.
+
+- `[ ]` **Timer da demão, opcional nas Opções.** Mostra quanto falta a demão atual terminar de
+  secar, com liga/desliga na tela de Opções (junto de volume e tela cheia, em `opcoes.gd` —
+  persiste em `user://config.cfg` como os outros). **Desligado por padrão**: num jogo cuja proposta
+  é esperar sem pressa, contador na tela muda o tom, então quem quiser a informação escolhe tê-la.
+  O dado já existe — `ParedePintavel.get_fracao_seca()` e `duracao_total()`
+- `[ ]` Som de passo e de porta — ver Fase F
+- `[ ]` Tio olhar pra garotinha — ver Fase F
+
+**Recusado explicitamente:** vida na janela (pássaro, folhas, gente passando na rua) e poeira na luz.
+**Adiado:** opções mínimas de acessibilidade (sensibilidade de mouse, inverter eixo), a garotinha
+ficar visível depois de sentar, e qualquer outro feedback de progresso além do timer.
+
 ### Etapa 2 — Fechamento de conteúdo
 
 Depende da Etapa 1: logo e screenshots precisam do visual definitivo, e não vale traduzir texto que

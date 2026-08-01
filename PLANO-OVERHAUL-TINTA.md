@@ -804,6 +804,21 @@ interessa no começo é uma só: primeira mão de tinta sobre reboco, igual nas 
 - `[ ]` Som do rolo casado com a velocidade real da mão — hoje `pincelada` é timer fixo de 1.16 s,
   desligado do movimento
 - `[ ]` Som de molhar o rolo na bandeja (beat novo, merece som próprio)
+- `[ ]` **Passo e porta** (decidido 01/08/2026). Só esses dois: respiração e assoalho rangendo foram
+  descartados de propósito, pra não encher o ambiente de ruído num jogo cujo assunto é silêncio.
+  - Passo casado com o clipe `andar` — o pé toca o chão duas vezes por ciclo, então o som sai
+    nesses instantes, não em timer. Vale pros dois personagens (a garotinha pisa mais leve e mais
+    rápido; mesmo som com pitch mais alto e volume menor resolve)
+  - Porta: um som ao começar a abrir e outro ao bater no batente. `porta.gd` já tem `abrir()` e
+    `fechar()` com os sinais `abriu`/`fechou`, e o `fechar()` usa ease-in de propósito (acelera até
+    bater) — o baque casa naturalmente com o fim do Tween
+- `[ ]` **O tio olhar pra garotinha** (decidido 01/08/2026). O `LookAtModifier3D` já está montado
+  no `tio_modelo.tscn` (`OlharCabeca`, `active = false`) apontando pro nó `AlvoOlhar`. Basta mover o
+  alvo pra cabeça dela e ligar o modificador em dois momentos: quando ela entra e senta, e de novo
+  antes de ele sair pela porta. É o que separa "dois bonecos no mesmo cômodo" de "um tio e uma
+  sobrinha" — e a relação entre os dois é metade da premissa do jogo.
+  Cuidado: `influence` já está em 0.75 pra cabeça não travar 100% no alvo (fica robótico), e é bom
+  interpolar o `active` via `influence` em vez de ligar seco
 - `[ ]` **Gravar 60 s de gameplay e assistir do começo ao fim.** É o único teste que importa aqui:
   se der vontade de continuar olhando, funcionou
 - `[ ]` Rodar nos 3 modos, conferir que a secagem fecha em todos
