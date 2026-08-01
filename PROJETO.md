@@ -10,13 +10,18 @@ Estrutura fixa, conteúdo que evolui:
    conforme configuramos coisas novas.
 3. **O que já foi feito** — estado atual do jogo, sistema por sistema. Atualiza conforme
    implementamos.
-4. **O que fazer agora** — plano de ação com checkboxes. Atualiza conforme avançamos e decidimos
-   passos novos.
+4. **O que fazer agora** — as três etapas até a Steam, com checkboxes, mais o histórico das rodadas
+   já fechadas. Atualiza conforme avançamos e decidimos passos novos.
+5. **Backlog** — o que não está agendado em etapa nenhuma.
 
 Leia a seção 1 quando a dúvida for "por que isso existe"/"isso faz sentido pro jogo". Leia a seção
 2 antes de mexer em código, pra saber convenções e o que já está disponível pra usar. Leia a seção 3
 pra saber o que já existe antes de propor algo. A seção 4 é o backlog ativo — mantenha os checkboxes
 atualizados conforme os itens forem concluídos ou surgirem novos.
+
+O overhaul do miolo (tinta, parede, animação) tem documento próprio, **`PLANO-OVERHAUL-TINTA.md`**,
+pra não inflar este. Quando ele fechar, o que sobreviver vira parágrafo na seção 3 daqui e aquele
+arquivo pode morrer.
 
 ---
 
@@ -136,19 +141,16 @@ status `[ ]`/`[x]` conforme instalar cada uma.
 - `[x]` **Godot MCP** — já configurado (`addons/godot_mcp/` no projeto + permissões em
   `.claude/settings.local.json` pra `mcp__godot-mcp__*`). Dá ao Claude acesso direto ao editor:
   ler cena atual, listar nós, propriedades, executar script no editor
-- `[ ]` **Figma MCP** — pra desenhar telas de UI/menu visualmente antes de virar código Godot.
-  Ainda não configurado.
 - `[x]` **Blender MCP** — Blender 5.2.0 instalado via `winget` (`BlenderFoundation.Blender`),
   addon oficial (`ahujasid/blender-mcp`) instalado e ativado, servidor MCP registrado (`claude mcp
   add blender-mcp -s user -- uvx blender-mcp`, escopo `user`, mesmo padrão do `godot-mcp`), e
   "Start Server" já clicado no painel BlenderMCP dentro do Blender — conexão de ponta a ponta
-  confirmada, pronta pra uso
-- `[ ]` **GodotSteam** — GDExtension pra Steamworks (achievements, etc.). Vem mais pra frente,
-  junto da integração Steam.
-- `[ ]` **ProtonScatter** (addon Godot, Asset Library) — espalha árvores/props em regra. Candidato
-  pro mundo externo.
-- `[ ]` **Dialogue Manager** (addon Godot, Asset Library) — editor de diálogo não-linear. Só entra
-  se o diálogo da garotinha crescer além do "gostei"/"trocar" atual.
+  confirmada, pronta pra uso. **Atenção:** o Blender abre sempre com cena nova, então é preciso
+  abrir `models/fonte_blender/personagens.blend` e clicar "Start Server" a cada sessão
+- `[ ]` **GodotSteam** — GDExtension pra Steamworks (achievements, etc.). Entra na Etapa 3
+- **Descartados, não precisaram existir:** *Figma MCP* (o menu foi direto pro código), *ProtonScatter*
+  (espalhamento manual com seed fixa bastou pro volume de props) e *Dialogue Manager* (o diálogo
+  continua sendo "gostei"/"trocar" — só entra se crescer, ver seção 5)
 
 ---
 
@@ -248,36 +250,83 @@ Fase D.
 
 ## 4. O que fazer agora
 
-### Rodada atual: overhaul do miolo (parede, tinta, secagem, animação do tio)
+Três etapas até "entregável na Steam", em ordem. Cada uma fecha antes da seguinte começar — a
+ordem não é arbitrária: não adianta fazer screenshot de loja antes de o jogo estar com a cara
+final, nem traduzir texto que ainda pode mudar.
 
-Plano completo em **`PLANO-OVERHAUL-TINTA.md`** (documento próprio, não inflar este aqui). Resumo
-da decisão: a tinta deixa de ser função da posição no shader e passa a ser uma **máscara carimbada
-pelo trajeto real do rolo**; o tio ganha rig novo com cotovelo/joelho/coluna e **IK nativa do Godot
-4.6+**; direção de arte vira **low-poly assumida**. As duas peças de engine que viabilizam isso
-(`DrawableTexture2D` no 4.7 e o retorno da IK no 4.6) chegaram depois deste projeto ser arquitetado.
+| Etapa | O que é | Estado |
+|---|---|---|
+| **1. Overhaul do miolo** | Parede, tinta, secagem, animação do tio | Em andamento — A, B, C feitas; **faltam D, E, F** |
+| **2. Fechamento de conteúdo** | Branding/logo, créditos, tradução dos 5 idiomas pendentes | Não começou (depende da 1 pro visual final) |
+| **3. Steam** | `export_presets`, GodotSteam, conquistas, página de loja, build | Não começou |
 
-Isso reabre a Fase 1.2 abaixo (o rig de 7 ossos com braço de 1 osso só não sustenta agachar/esticar)
-e adiciona uma frente nova de material/shader que o roadmap original não previa.
+### Etapa 1 — Overhaul do miolo (em andamento)
 
-### Plano de polish rumo à Steam
+Plano completo em **`PLANO-OVERHAUL-TINTA.md`** (documento próprio, pra não inflar este). A tinta
+deixou de ser função da posição no shader e virou uma **máscara carimbada pelo trajeto real do
+rolo**; o tio ganha rig com cotovelo/joelho/coluna e **IK nativa do Godot 4.6+**; direção de arte
+virou **low-poly assumida**. As duas peças de engine que viabilizam isso (`DrawableTexture2D` no 4.7
+e o retorno da IK no 4.6) chegaram depois deste projeto ser arquitetado.
 
-Em 4 fases. Fases 0 e 1 acontecem no Cowork (comigo). Fase 2 é
-handoff pro Claude Code. Fase 3 mistura as duas. Prioridade das 3 frentes de polish (já decidida):
-**menu/UI → animação de personagens → mundo externo**. Deliberadamente fora desta rodada: base
-técnica de exportação Steam antes da Fase 3, trilha sonora, localização, título definitivo.
+- `[x]` **Fase A** — spike técnica: `DrawableTexture2D` confirmado, API real levantada contra o
+  compilador (a documentação oficial do 4.7 está errada sobre `texture_blit`)
+- `[x]` **Fase B** — máscara de tinta. `tinta_secando.gd` aposentado, virou `parede_pintavel.gd`
+- `[x]` **Fase C** — low-poly: assoalho em geometria, props, normal maps fora, SSAO/MSAA,
+  `AreaLight3D`. Junto saiu o ciclo de dia e noite (ver "descartados" na seção 3)
+- `[ ]` **Fase D** — rig de 19 ossos + IK. **É a fase mais cara e destrava a E**: hoje o braço tem
+  1 osso e o tio não consegue agachar nem esticar, só girar o ombro
+- `[ ]` **Fase E** — coreografia (W, verticais, banquinho, rodapé, bandeja). Pacing **já decidido**:
+  ritmo honesto nas demãos, abertura acelerada (volta completa de 3-5 min)
+- `[ ]` **Fase F** — refino: som do rolo casado com a velocidade real da mão (hoje é timer fixo de
+  1,16 s, desligado do movimento), e o teste que importa — gravar 60 s e assistir inteiro
 
-### Fase 0 — Setup das ferramentas
+Reabre a antiga Fase 1.2 (rig de 7 ossos não sustenta agachar/esticar) e adiciona uma frente de
+material/shader que o roadmap original não previa.
+
+### Etapa 2 — Fechamento de conteúdo
+
+Depende da Etapa 1: logo e screenshots precisam do visual definitivo, e não vale traduzir texto que
+ainda pode mudar.
+
+- `[ ]` Título definitivo — "Watching Paint Dry" fica irônico ou vira nome de loja de verdade?
+- `[ ]` Logo, ícone e capa — usuário vai procurar no Design do Claude
+- `[ ]` Botão de créditos
+- `[ ]` Traduzir de verdade `es`/`fr`/`zh_CN`/`ja`/`de` — hoje só existem como coluna vazia no
+  `textos.csv` e caem no fallback pt-BR (a infraestrutura está pronta, falta o texto)
+- `[ ]` Screenshots pra loja
+
+### Etapa 3 — Steam
+
+- `[ ]` Criar `export_presets.cfg` (não existe ainda) — presets Windows/Linux/Mac
+- `[ ]` Criar conta Steamworks (Steam Direct, US$100)
+- `[ ]` Integrar GodotSteam: inicialização básica da API
+- `[ ]` Ligar as conquistas existentes (`conquistas.gd`, hoje só locais em `user://save.tres`) à API
+  de conquistas da Steam
+- `[ ]` Página de loja com o branding da Etapa 2
+- `[ ]` Build de depósito e primeiro upload (branch de teste antes de público)
+
+### Candidato técnico, sem etapa fixa
+
+- `[ ]` **`LightmapGI`** — virou viável quando a luz deixou de ser dinâmica (ciclo de dia removido).
+  Assa sombra e luz indireta numa textura: melhor qualidade e frame mais barato. **Trava a
+  geometria** — mexer em parede ou props depois obriga re-bake, então faz sentido só depois da
+  Etapa 1 fechar
+
+### Histórico — rodadas já concluídas
+
+Mantido pelo registro das decisões (por que cada coisa é como é), não como lista de tarefas.
+
+#### Setup de ferramentas
 
 - `[x]` Godot MCP instalado (`addons/godot_mcp/` + permissões em `.claude/settings.local.json`)
-- `[ ]` Criar conta Figma e instalar o MCP server oficial (remoto, pra começar)
 - `[x]` Blender MCP — instalado e conectado de ponta a ponta (ver detalhe na seção 2)
-- `[ ]` `ProtonScatter` — instalar quando chegar na Fase 1.3
-- `[ ]` `Dialogue Manager` — só se a Fase 1.1/1.2 decidir expandir diálogo
-- `[ ]` GodotSteam — deixar pra perto da Fase 3 (requer conta Steamworks, taxa única de US$100)
+- Nunca foram necessários: **Figma MCP** (o menu foi direto pro código), **ProtonScatter** (o
+  espalhamento manual com seed fixa bastou) e **Dialogue Manager** (o diálogo continua sendo
+  "gostei"/"trocar"). **GodotSteam** fica pra Etapa 3
 
-### Fase 1 — Decisões de Design/UX/Assets
+#### Polish de menu, UI e mundo externo
 
-**1.1 Menu e UI** (prioridade 1)
+**Menu e UI**
 - `[ ]` Wireframe no Figma — pulado, foi direto pra código (Figma MCP nunca chegou a ser configurado)
 - `[x]` Paleta de cor/fonte/estilo — `resources/ui/theme_principal.tres`, tons madeira/tinta,
   aplicado globalmente via `project.godot::[gui]`
@@ -288,7 +337,11 @@ técnica de exportação Steam antes da Fase 3, trilha sonora, localização, t�
   **mestre** (não separado por música/SFX — não existe trilha/música ainda, então não fazia
   sentido separar) e tela cheia
 
-**1.2 Animação de personagens** (prioridade 2)
+**Animação de personagens** — ⚠️ **superada pela Fase D do overhaul.** O rig de 7 ossos descrito
+aqui não sustenta agachar nem esticar (braço de 1 osso só), então vai ser refeito com 19 ossos + IK.
+O que continua valendo deste bloco: as medidas dos personagens, o pipeline Blender→Godot e as
+armadilhas de export.
+
 - `[x]` Decisão: modelo rigado via Blender — confirmado explicitamente, contra a recomendação
   inicial (procedural seria mais rápido/barato de iterar). Trade-off aceito conscientemente: mais
   trabalho de pipeline em troca de visual mais rico
@@ -355,7 +408,7 @@ técnica de exportação Steam antes da Fase 3, trilha sonora, localização, t�
   os dois personagens rigados — abrir esse pra ajustar modelo/rig/animação no futuro em vez de
   remodelar do zero)
 
-**1.3 Mundo externo** (prioridade 3)
+**Mundo externo**
 - `[x]` Nova escala do jardim — 20×16 → 220×220 (`cenario_externo.gd::ALCANCE_JARDIM`). Não usou
   `ProtonScatter`, espalhamento manual por `RandomNumberGenerator` com seed fixa (mais simples pro
   volume de props envolvido, addon ficou sem necessidade)
@@ -364,11 +417,9 @@ técnica de exportação Steam antes da Fase 3, trilha sonora, localização, t�
 - `[x]` Mais casas — 2 casas + 10 árvores extras em profundidade variável
   (`cenario_externo.gd::_criar_decoracao_distante`), seed fixa (4477)
 
-**1.4 Branding pra loja Steam / polish final de menu**
-- `[ ]` Título definitivo — "Watching Paint Dry" fica irônico ou vira nome de loja de verdade?
-- `[ ]` Ícone, capa e screenshots — usuário vai procurar no Design do Claude antes, decisão adiada
-  por enquanto
-- `[ ]` Botão de créditos — pedido explicitamente pra depois ("futuramente"), não é desta rodada
+**Menu — save, idioma e fundo** (o que sobrou desta rodada — título, logo e créditos foram pra
+Etapa 2)
+
 - `[x]` **"Continuar" com save local** — já existia (não foi criado agora): `EstadoJogo`/
   `DadosSalvos` salvam em `user://save.tres`, botão só aparece com `EstadoJogo.existe_save()`
   (`menu_principal.gd`). Confirmado com o usuário que é isso mesmo que ele queria
@@ -394,27 +445,14 @@ técnica de exportação Steam antes da Fase 3, trilha sonora, localização, t�
   pareceu o padrão mais são: "apagar save" normalmente significa "recomeçar a partida", não "perder
   progresso permanente". Se não for isso que o usuário quer, é só falar que muda
 
-### Fase 2 — Codificação (Claude Code)
+---
 
-- `[ ]` Depois de cada subseção da Fase 1 fechada, atualizar a seção 3 deste documento
-  ("O que já foi feito") e passar a decisão como prompt pro Claude Code
-- `[ ]` Ordem sugerida: 1.1 → 1.2 → 1.3
-- `[ ]` Lembrar as armadilhas da seção 2 (warnings como erro, `.tscn` sem mesh inline, caminho
-  relativo em vez de `%NomeUnico`)
-- `[ ]` Com Godot MCP configurado, o Claude Code lê erros do editor direto — fecha o loop de teste
-  sem precisar colar stack trace manualmente
+## 5. Backlog — fora das três etapas
 
-### Fase 3 — Integração Steam
+Nada aqui está agendado. Entra só se sobrar fôlego depois da Etapa 3, ou se virar prioridade.
 
-- `[ ]` Criar conta Steamworks (Steam Direct, US$100, só perto do fim)
-- `[ ]` Criar `export_presets.cfg` (não existe ainda) — presets Windows/Linux/Mac
-- `[ ]` Integrar GodotSteam: inicialização básica da API
-- `[ ]` Ligar conquistas existentes (`estado_jogo.gd`/`conquistas.gd`, hoje só locais em
-  `user://save.tres`) à API de conquistas da Steam
-- `[ ]` Página de loja com o branding da 1.4
-- `[ ]` Build de depósito e primeiro upload (branch de teste antes de público)
-
-### Backlog — adiado, não é desta rodada
-
-- Trilha sonora (hoje só ambiente sintetizado + som de pincelada)
-- Localização (hoje só PT-BR)
+- **Trilha sonora** — hoje só ambiente sintetizado + som de pincelada, nenhum arquivo de áudio.
+  Se entrar, a tela de Opções passa a precisar de volume separado por música/SFX (hoje é só mestre,
+  justamente porque não há o que separar)
+- **Diálogo além de "gostei"/"trocar"** — só então o addon `Dialogue Manager` faria sentido
+- **Mais props e mobília** no quarto

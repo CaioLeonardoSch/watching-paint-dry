@@ -447,7 +447,15 @@ Isso entrega, de uma vez só, exatamente o que foi pedido: diagonais, verticais,
 subir em coisa, molhar tinta. **E cada um desses movimentos deixa a marca correspondente na parede**,
 porque é a mesma curva que alimenta o carimbo.
 
-### 5.6 Consequência de pacing — precisa de decisão
+### 5.6 Consequência de pacing — ✅ DECIDIDO (01/08/2026)
+
+> **Decisão do usuário: ritmo honesto nas demãos, abertura acelerada.** É a sugestão do fim desta
+> seção. Na prática: `FRACAO_JA_PINTADA_ABERTURA` sobe pra ~0.9 (o tio está quase terminando quando
+> o jogo abre, então a cutscene não cansa antes de o jogador comprar o tom), e as demãos seguintes
+> passam a durar o que a coreografia real leva — volta completa de 3 a 5 minutos.
+>
+> Isso obriga a recalibrar `duracao_pintura_segundos` e os tempos de secagem dos 3 modos: hoje o
+> modo Rápido seca em 60 s, o que ficaria mais curto que a própria pintura da parede.
 
 Hoje: `duracao_pintura_segundos = 8.0`, uma parede em 8 s andando reto, volta completa ~40 s.
 
@@ -588,8 +596,11 @@ interessa no começo é uma só: primeira mão de tinta sobre reboco, igual nas 
 - `[ ]` Props: rolo na mão, bandeja no chão, banquinho, lata de tinta
 - `[ ]` Refatorar `ciclo_pintura.gd` — `VARREDURAS` (eixo/início/fim) vira definição de superfície,
   não de trajeto
-- `[ ]` Recalibrar `duracao_pintura_segundos` e os 3 modos de jogo
-- `[ ]` Decidir o pacing da abertura (ver 5.6)
+- `[x]` Pacing decidido (ver 5.6): **ritmo honesto nas demãos, abertura acelerada**
+- `[ ]` Aplicar: `FRACAO_JA_PINTADA_ABERTURA` pra ~0.9 e `duracao_pintura_segundos` pro tempo real
+  da coreografia
+- `[ ]` Recalibrar o tempo de secagem dos 3 modos — com a pintura durando minutos, o modo Rápido
+  (60 s) secaria antes de a parede terminar de ser pintada
 
 ### Fase F — Refino e verificação
 
