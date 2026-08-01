@@ -18,21 +18,29 @@ const PAREDE_OESTE_X: float = -3.5  # plano da parede com a janela
 
 
 ## Alcance do jardim em X, além da parede — bem maior que o necessário pro
-## enquadramento perto da janela, pra empurrar a borda do plano pra dentro
-## da névoa (ver quarto.tscn::Environment e ambiente_dia.gd).
+## enquadramento perto da janela, pra empurrar a borda do plano pra longe do
+## que a janela enquadra (era a névoa que escondia a borda; ela saiu porque
+## encobria o quarto inteiro — ver ambiente_dia.gd::_configurar_ambiente).
 const ALCANCE_JARDIM: float = 220.0
+
+## Camada de render só do cenário externo. Serve pra uma luz de preenchimento
+## acender as fachadas sem tocar no quarto — ver _criar_preenchimento_externo.
+const CAMADA_EXTERNA: int = 1 << 1
 
 
 func _ready() -> void:
 	_criar_jardim()
-	# Uma perto e centrada na janela (visível de propósito), outras duas
-	# espalhadas pelo jardim só pra não ficar tão vazio.
-	_criar_arvore(Vector3(PAREDE_OESTE_X - 2.2, 0.0, 0.3), 1.0)
-	_criar_arvore(Vector3(PAREDE_OESTE_X - 3.0, 0.0, -3.2), 0.8)
-	_criar_arvore(Vector3(PAREDE_OESTE_X - 5.5, 0.0, 3.0), 1.15)
+	# NENHUMA árvore no eixo da janela. A que ficava em (X-2.2, Z+0.3) estava
+	# bem na frente do vão e picotava a luz do sol no chão do quarto — a mancha
+	# saía rendilhada de sombra de copa, parecendo defeito de render. As que
+	# sobraram estão fora do cone da janela, então a luz entra limpa e a vista
+	# continua tendo árvore.
+	_criar_arvore(Vector3(PAREDE_OESTE_X - 3.0, 0.0, -4.6), 0.8)
+	_criar_arvore(Vector3(PAREDE_OESTE_X - 5.5, 0.0, 4.4), 1.15)
 	_criar_rua()
-	_criar_casa(Vector3(PAREDE_OESTE_X - 11.5, 0.0, 0.0))
+	_criar_vizinhanca()
 	_criar_decoracao_distante()
+	_criar_preenchimento_externo()
 
 
 func _criar_jardim() -> void:
@@ -103,7 +111,9 @@ func _criar_rua() -> void:
 	add_child(rua)
 
 	var box := BoxMesh.new()
-	box.size = Vector3(3.0, 0.05, 16.0)
+	# Comprida o bastante (em Z) pra sair dos dois lados do enquadramento da
+	# janela: rua que termina à vista lê como cenário de teatro.
+	box.size = Vector3(3.0, 0.05, 90.0)
 	rua.mesh = box
 	rua.position = Vector3(PAREDE_OESTE_X - 8.5, 0.02, 0.0)  # levemente acima do jardim, evita z-fighting
 
@@ -114,11 +124,75 @@ func _criar_rua() -> void:
 		Color(0.15, 0.15, 0.16), 0.98, ruido_rua, Vector3(3.0, 3.0, 3.0), normal_rua, 0.8)
 	rua.set_surface_override_material(0, mat)
 
+	# Calçadas dos dois lados — é a faixa clara ladeando o asfalto que faz a
+	# rua ler como rua de bairro, e não como uma fita preta no gramado.
+	var ruido_calcada := MateriaisProcedurais.criar_textura_ruido(0.5, 256)
+	var mat_calcada := MateriaisProcedurais.criar_material_texturizado(
+		Color(0.62, 0.61, 0.58), 0.95, ruido_calcada, Vector3(3.0, 3.0, 3.0))
+	for dx in [1.9, -1.9]:
+		var calcada := MeshInstance3D.new()
+		add_child(calcada)
+		var box_calcada := BoxMesh.new()
+		box_calcada.size = Vector3(0.8, 0.12, 90.0)
+		calcada.mesh     = box_calcada
+		calcada.position = Vector3(PAREDE_OESTE_X - 8.5 + dx, 0.06, 0.0)
+		calcada.set_surface_override_material(0, mat_calcada)
 
-func _criar_casa(pos: Vector3) -> void:
+
+## Fila de casas do outro lado da rua + vizinhos do lado de cá, fora do cone
+## da janela. Variação de cor, telhado e escala vem de seed fixa: sem ela as
+## casas viram cópias idênticas e a rua denuncia o loop.
+func _criar_vizinhanca() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 8801
+
+	var cores_corpo: Array[Color] = [
+		Color(0.75, 0.65, 0.50),   # reboco cru
+		Color(0.82, 0.78, 0.70),   # bege claro
+		Color(0.66, 0.70, 0.66),   # verde acinzentado
+		Color(0.80, 0.72, 0.66),   # terracota lavado
+		Color(0.72, 0.74, 0.80),   # azul acinzentado
+	]
+	var cores_telhado: Array[Color] = [
+		Color(0.40, 0.22, 0.18),   # telha de barro
+		Color(0.30, 0.26, 0.26),   # fibrocimento escuro
+		Color(0.46, 0.28, 0.20),   # barro mais claro
+	]
+
+	# Do outro lado da rua, alinhadas pela calçada
+	for z in [-27.0, -18.0, -9.0, 0.0, 9.0, 18.0, 27.0]:
+		_criar_casa(
+			Vector3(PAREDE_OESTE_X - 11.5 - rng.randf_range(0.0, 1.2), 0.0, z),
+			cores_corpo[rng.randi() % cores_corpo.size()],
+			cores_telhado[rng.randi() % cores_telhado.size()],
+			rng.randf_range(0.85, 1.15))
+
+	# Vizinhos do lado de cá — só nas pontas, longe do que a janela enquadra
+	for z in [-21.0, 17.0]:
+		_criar_casa(
+			Vector3(PAREDE_OESTE_X - 4.0, 0.0, z),
+			cores_corpo[rng.randi() % cores_corpo.size()],
+			cores_telhado[rng.randi() % cores_telhado.size()],
+			rng.randf_range(0.9, 1.1))
+
+	# Árvores da calçada, ritmadas — o alinhamento é o que dá "rua" em vez de
+	# "árvores jogadas no gramado".
+	# Nenhuma em Z ∈ [-2, +2]: o sol vem do oeste na horizontal, então árvore
+	# nessa faixa volta a rendilhar a luz no chão do quarto.
+	for z in [-24.0, -13.0, -6.0, 11.0, 22.0]:
+		_criar_arvore(Vector3(PAREDE_OESTE_X - 6.2, 0.0, z), rng.randf_range(0.8, 1.1))
+
+
+func _criar_casa(
+	pos: Vector3,
+	cor_corpo: Color = Color(0.75, 0.65, 0.5),
+	cor_telhado: Color = Color(0.4, 0.22, 0.18),
+	escala: float = 1.0
+) -> void:
 	var casa := Node3D.new()
 	add_child(casa)
 	casa.position = pos
+	casa.scale    = Vector3.ONE * escala
 
 	var corpo := MeshInstance3D.new()
 	casa.add_child(corpo)
@@ -131,7 +205,7 @@ func _criar_casa(pos: Vector3) -> void:
 	var ruido_corpo  := MateriaisProcedurais.criar_textura_ruido(0.1, 512)
 	var normal_corpo := MateriaisProcedurais.criar_normal_ruido(1.6, 2.0, 512)
 	var mat_corpo    := MateriaisProcedurais.criar_material_texturizado(
-		Color(0.75, 0.65, 0.5), 0.9, ruido_corpo, Vector3(2.0, 2.0, 2.0), normal_corpo, 1.0)
+		cor_corpo, 0.9, ruido_corpo, Vector3(2.0, 2.0, 2.0), normal_corpo, 1.0)
 	corpo.set_surface_override_material(0, mat_corpo)
 
 	var telhado := MeshInstance3D.new()
@@ -146,13 +220,42 @@ func _criar_casa(pos: Vector3) -> void:
 	var ruido_telhado  := MateriaisProcedurais.criar_textura_ruido(0.4, 256)
 	var normal_telhado := MateriaisProcedurais.criar_normal_ruido(2.2, 3.0, 256)
 	var mat_telhado    := MateriaisProcedurais.criar_material_texturizado(
-		Color(0.4, 0.22, 0.18), 0.85, ruido_telhado, Vector3(2.0, 2.0, 6.0), normal_telhado, 1.5)
+		cor_telhado, 0.85, ruido_telhado, Vector3(2.0, 2.0, 6.0), normal_telhado, 1.5)
 	telhado.set_surface_override_material(0, mat_telhado)
 
 
+## Luz de preenchimento SÓ do lado de fora.
+##
+## O sol vem do oeste (é o que faz a luz entrar pela janela), então tudo que a
+## janela enquadra está de costas pra ele: as fachadas da vizinhança ficavam
+## chapadas de cinza, só com a luz ambiente. Esta luz vem do leste, fraca e sem
+## sombra, e só acende o que está na CAMADA_EXTERNA — o quarto continua com a
+## iluminação que tem, senão o problema de parede lavada voltava pela janela.
+func _criar_preenchimento_externo() -> void:
+	for no in _todos_meshes(self):
+		no.layers |= CAMADA_EXTERNA
+
+	var luz := DirectionalLight3D.new()
+	add_child(luz)
+	luz.rotation_degrees = Vector3(-35.0, 100.0, 0.0)
+	luz.light_color      = Color(0.86, 0.90, 1.0)  # frio: é céu, não sol
+	luz.light_energy     = 0.55
+	luz.shadow_enabled   = false
+	luz.light_cull_mask  = CAMADA_EXTERNA
+
+
+func _todos_meshes(raiz: Node) -> Array[MeshInstance3D]:
+	var achados: Array[MeshInstance3D] = []
+	for filho in raiz.get_children():
+		if filho is MeshInstance3D:
+			achados.append(filho)
+		achados.append_array(_todos_meshes(filho))
+	return achados
+
+
 ## Espalha mais árvores e casas em profundidade variável (além do grupo
-## próximo da janela), pra quebrar a sensação de vazio antes da névoa cobrir
-## o resto. Seed fixa — decoração, não precisa variar entre execuções.
+## próximo da janela), pra quebrar a sensação de vazio até onde a vista alcança.
+## Seed fixa — decoração, não precisa variar entre execuções.
 func _criar_decoracao_distante() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 4477

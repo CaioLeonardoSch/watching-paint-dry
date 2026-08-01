@@ -179,7 +179,8 @@ estão **completas**, mais uma rodada de refinamento pós-roadmap:
   **Grade de cor:** o `Environment` do quarto usa tonemap ACES (`tonemap_mode = 3`,
   `tonemap_white = 6.0`) + `adjustment_*` leve (contraste 1.08, saturação 1.15). Sem tonemap
   (linear, o default) tudo acima de 1.0 grampeava em branco e o quarto ficava lavado, com a mesma
-  cara de neblina que a comparação com a tela de título denunciou. Junto vieram luzes menos fortes
+  cara de neblina que a comparação com a tela de título denunciou. Junto saiu a névoa (ver "Mundo
+  externo") — era ela a maior parte do véu — e vieram luzes menos fortes
   (`LuzJanela` 1.9→1.5, `LuzLampada` 1.2→0.85) e ambiente mais fraco e menos leitoso
   (`ambiente_dia.gd`: 0.24→0.14, cor 0.80,0.83,0.88→0.66,0.72,0.84)
 - **Fase 3 — menu, modos, save, conquistas:** `estado_jogo.gd` é o autoload `EstadoJogo`, guarda
@@ -418,10 +419,39 @@ armadilhas de export.
 - `[x]` Nova escala do jardim — 20×16 → 220×220 (`cenario_externo.gd::ALCANCE_JARDIM`). Não usou
   `ProtonScatter`, espalhamento manual por `RandomNumberGenerator` com seed fixa (mais simples pro
   volume de props envolvido, addon ficou sem necessidade)
-- `[x]` Névoa — a cor acompanhava a hora do dia; com o ciclo removido virou fixa, casada com o
-  horizonte do céu (`ambiente_dia.gd::_configurar_ambiente`)
+- `[x]` Névoa — **removida** (01/08/2026). Existia pra esconder a borda do jardim; na prática o véu
+  cobria o quarto inteiro, mesmo com `fog_depth_begin` de 10 m. Sem ela a vista pela janela continua
+  legível (jardim de 220 m já é fundo suficiente) e o quarto para de parecer lavado.
+  `ambiente_dia.gd::_configurar_ambiente` agora força `fog_enabled = false`
 - `[x]` Mais casas — 2 casas + 10 árvores extras em profundidade variável
   (`cenario_externo.gd::_criar_decoracao_distante`), seed fixa (4477)
+- `[x]` **Rua residencial** (01/08/2026) — asfalto de 16 m → 90 m em Z (rua que termina à vista lê
+  como cenário de teatro), calçada dos dois lados, fila de 7 casas do outro lado espaçadas de 9 m +
+  2 vizinhos do lado de cá, e árvores alinhadas na calçada (`cenario_externo.gd::_criar_vizinhanca`,
+  seed 8801). `_criar_casa` virou paramétrica (cor de corpo, cor de telhado, escala) — sem variação
+  a fila denuncia o loop
+- `[x]` **Nenhuma árvore no eixo da janela** — a que ficava em `(X-2.2, Z+0.3)` picotava a luz do sol
+  no chão do quarto: a mancha saía rendilhada de sombra de copa, com cara de defeito de render.
+  Regra: nada em `Z ∈ [-2, +2]` a oeste, porque o sol vem do oeste na horizontal
+- `[x]` **Sombra do sol com alcance curto** — `directional_shadow_max_distance` 100 (padrão) → 45 m
+  (`ambiente_dia.gd::ALCANCE_SOMBRA`). O padrão espalhava o mapa por um jardim de 220 m e sobrava
+  pouco texel perto da janela; era a outra metade da mancha de luz picotada
+- `[x]` **Luz de preenchimento só do lado de fora** — o sol vem do oeste, então tudo que a janela
+  enquadra está de costas pra ele e as fachadas ficavam chapadas de cinza. Uma `DirectionalLight3D`
+  fraca vinda do leste, sem sombra, com `light_cull_mask` na `CAMADA_EXTERNA` (bit 2, aplicado a
+  todo mesh de `cenario_externo.gd`) acende só a vizinhança. Ambiente global não serve pra isso:
+  ele volta a lavar as paredes do quarto
+
+**Cômodo vizinho (o que se vê pela porta)**
+- `[x]` `scripts/comodo_vizinho.gd` + nó `ComodoVizinho` em `quarto.tscn` (01/08/2026). Antes a porta
+  abria pro vazio preto, denunciando que o quarto é uma caixa solta. É uma sala/cozinha *sugerida*,
+  vista só de raspão pelo vão: piso frio de porcelanato 60×60 (peças de verdade + fresta de rejunte,
+  igual ao assoalho — geometria em vez de normal map), parede amarelo-clara, rodapé, bancada com
+  tampo escuro, armário aéreo e geladeira (é a silhueta da geladeira que faz ler "cozinha"). Luz de
+  teto própria, mais fria e fraca que a do quarto, pra o vão ler como *outro* ambiente
+- Ocupa `X ∈ [+3.6, +10.0]`, `Z ∈ [-4.0, +2.0]` — o Z bate com o do quarto de propósito: a parede
+  leste já fecha esse lado, então não sobra fresta de luz entre os dois cômodos. Sem colisão, sem
+  `_process`, nada jogável
 
 **Menu — save, idioma e fundo** (o que sobrou desta rodada — título, logo e créditos foram pra
 Etapa 2)

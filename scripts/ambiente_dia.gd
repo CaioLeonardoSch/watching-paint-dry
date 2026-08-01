@@ -25,6 +25,12 @@ const AZIMUTE_GRAUS: float = -90.0
 const COR_SOL: Color = Color(1.0, 0.97, 0.90)
 const ENERGIA_SOL: float = 1.4
 
+## Até onde o mapa de sombra do sol alcança. O padrão do Godot (100 m) espalha
+## a mesma resolução por um jardim de 220 m: perto da janela sobrava pouco
+## texel e a mancha de luz no chão do quarto saía picotada, com cara de
+## defeito de render. 45 m ainda cobre a rua e as casas da frente.
+const ALCANCE_SOMBRA: float = 45.0
+
 ## Céu de dia limpo. O horizonte é mais claro e leitoso que o zênite — é o que
 ## dá leitura de "céu" em vez de gradiente azul chapado.
 const COR_ZENITE: Color = Color(0.38, 0.55, 0.82)
@@ -47,6 +53,9 @@ func _ready() -> void:
 	rotation_degrees = Vector3(ELEVACAO_GRAUS, AZIMUTE_GRAUS, 0.0)
 	light_color  = COR_SOL
 	light_energy = ENERGIA_SOL
+
+	directional_shadow_max_distance = ALCANCE_SOMBRA
+	directional_shadow_blend_splits = true
 
 	_configurar_ceu()
 	_configurar_ambiente()
@@ -76,8 +85,9 @@ func _configurar_ambiente() -> void:
 	var env := _world_env.environment
 	env.ambient_light_color  = COR_AMBIENTE
 	env.ambient_light_energy = ENERGIA_AMBIENTE
-	# A névoa é o céu visto lá fora, então mantém a cor cheia do horizonte.
-	env.fog_light_color = COR_HORIZONTE
+	# Névoa removida: mesmo com fog_depth_begin fora do quarto ela deixava um
+	# véu leitoso encobrindo o ambiente, que era metade do "lavado" reclamado.
+	env.fog_enabled = false
 
 
 ## Nuvens do céu. Diferente do MateriaisProcedurais.criar_textura_ruido (que dá

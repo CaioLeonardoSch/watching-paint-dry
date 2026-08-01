@@ -364,6 +364,29 @@ próximo em espírito: diorama pequeno, contemplativo, poucas formas).
 
 ## 5. Spec da animação
 
+### 5.0 Decisões da Fase D (01/08/2026) — LEIA ANTES DE RETOMAR
+
+Confirmadas com o usuário antes de começar. Se esta fase for retomada em outra sessão, o estado de
+execução está em **5.7**, no fim desta seção.
+
+| Questão | Decisão | Consequência |
+|---|---|---|
+| Como resolver cotovelo/joelho | **Malha contínua com weight paint suave** | Escolhido contra a recomendação (boneco articulado seria mais barato). Os corpos **precisam ser remodelados**: as cápsulas atuais são cilindro + 2 esferas sem loop nenhum no meio, e sem loops a malha não dobra — ela quebra |
+| Rig da garotinha | **Simplificado** | Só pernas, coluna e cabeça. Sem IK de braço: ela só anda e senta, e o corpo é escondido quando a câmera vira 1ª pessoa |
+| Mãos e pés | **Mão simples + pé chato** | Uma caixa achatada em cada ponta. A mão importa pro rolo ficar preso de forma crível; o pé, pra assentar no chão em vez de flutuar |
+
+**O que a descoberta técnica mudou:** o mesh do tio hoje tem **16 ilhas geometricamente separadas**
+(5 cápsulas × 3 peças + 1 esfera). É por isso que peso 1.0 nunca rasgou nada — não há nada contínuo
+pra rasgar. Com malha contínua isso deixa de valer, e o weight paint passa a ser trabalho de
+verdade.
+
+**Abordagem de modelagem escolhida: Skin Modifier.** Em vez de tentar costurar cilindros, o corpo é
+desenhado como um "esqueleto de arame" (vértices + arestas seguindo a pose do rig), e o
+`SKIN` modifier gera a malha contínua em volta, com raio ajustável por vértice. Depois é aplicado e
+o peso vem do **auto-weight do Blender** (`parent_set(type='ARMATURE_AUTO')`, heat map), que é bem
+mais confiável que pintar peso na mão via script. Vantagens: topologia contínua de graça, poucos
+polígonos, e o arame usa exatamente as mesmas coordenadas do rig.
+
 ### 5.1 Rig novo
 
 Refazer em `res://models/fonte_blender/personagens.blend` (o arquivo-fonte já existe). Manter as
@@ -383,11 +406,34 @@ Quadril (raiz, y=0.85)
 ~19 ossos. Ainda enxuto, mas com **tudo que a IK precisa**: cotovelo pro braço, joelho pra perna,
 coluna pro peso do corpo.
 
-**Atenção — a garotinha usa a mesma hierarquia** (× `ESCALA_CRIANCA` 0.78). Refazer as duas de uma
-vez, e as três armadilhas de pipeline já documentadas no `PROJETO.md` Fase 1.2 valem igual:
-ordem do `keyframe_insert`, `export_optimize_animation_size=False`, e converter
-`ImporterMeshInstance3D` → `MeshInstance3D`. Mais o bônus: conferir `location` da armadura antes de
-exportar.
+**A garotinha NÃO usa esta hierarquia inteira** (decisão 5.0): fica com Quadril → Coluna → Cabeça +
+as duas pernas, sem braços com IK. Escala `ESCALA_CRIANCA` 0.78 nas medidas do tio.
+
+As três armadilhas de pipeline já documentadas no histórico do `PROJETO.md` valem igual: ordem do
+`keyframe_insert`, `export_optimize_animation_size=False`, e converter `ImporterMeshInstance3D` →
+`MeshInstance3D`. Mais o bônus: conferir `location` da armadura antes de exportar.
+
+#### Coordenadas do esqueleto de arame (metros, Z pra cima no Blender)
+
+Derivadas da geometria atual pra AABB não mudar (tio: 1.8 m de altura, centrado em X=0). **Esta
+tabela é a fonte da verdade** — o arame do Skin e as cabeças de osso usam os mesmos pontos.
+
+| Ponto | Tio (x, y, z) | Observação |
+|---|---|---|
+| Quadril | (0, 0, 0.85) | raiz; topo da perna / base do torso |
+| Coluna_01 | (0, 0, 1.05) | |
+| Coluna_02 | (0, 0, 1.35) | altura do ombro |
+| Pescoço | (0, 0, 1.48) | |
+| Cabeça (topo) | (0, 0, 1.80) | bate com o topo da AABB atual |
+| Ombro E/D | (∓0.28, 0, 1.35) | mesmo ponto do pivô de braço antigo |
+| Cotovelo E/D | (∓0.31, 0, 1.10) | **novo** — não existia no rig de 7 ossos |
+| Mão E/D | (∓0.33, 0, 0.86) | ponta do braço; ponto de attach do rolo (direita) |
+| Coxa E/D | (∓0.12, 0, 0.85) | |
+| Joelho E/D | (∓0.12, 0, 0.45) | **novo** |
+| Pé E/D | (∓0.12, 0.06, 0.02) | levemente à frente, assenta no chão |
+
+Raios do Skin (por vértice): quadril/torso ~0.20, ombro 0.09, cotovelo 0.075, mão 0.06,
+coxa 0.11, joelho 0.09, pé 0.07, pescoço 0.06, cabeça 0.15.
 
 ### 5.2 Stack de modificadores no Godot
 
@@ -471,6 +517,33 @@ Isso não é um efeito colateral, é uma mudança de ritmo do jogo. Duas leitura
 
 Sugestão: acelerar só a abertura (ele já está terminando, `FRACAO_JA_PINTADA_ABERTURA` sobe pra 0.9)
 e deixar as demãos seguintes no ritmo honesto. **Confirmar antes de implementar.**
+
+### 5.7 Estado de execução da Fase D — atualizar a cada passo
+
+> Existe porque a Fase D é longa e provavelmente atravessa mais de uma sessão. **Quem retomar deve
+> ler 5.0 (decisões), a tabela de coordenadas em 5.1, e este quadro.**
+
+| # | Passo | Estado |
+|---|---|---|
+| 1 | Decisões com o usuário (5.0) | ✅ |
+| 2 | Coordenadas do arame definidas (5.1) | ✅ |
+| 3 | Corpo do tio via Skin modifier | ⬜ |
+| 4 | Armadura de 19 ossos no tio | ⬜ |
+| 5 | Auto-weight + teste de dobra (cotovelo/joelho) | ⬜ |
+| 6 | Corpo + rig simplificado da garotinha | ⬜ |
+| 7 | Export `.glb` das duas (com as armadilhas de export) | ⬜ |
+| 8 | Regerar `*_modelo.tscn` no Godot (`GLTFDocument` + converter `ImporterMeshInstance3D`) | ⬜ |
+| 9 | Stack de `SkeletonModifier3D` (ver 5.2) | ⬜ |
+| 10 | Clipes base (ver 5.3) | ⬜ |
+| 11 | Camada procedural: altura do quadril, inclinação do torso (5.4) | ⬜ |
+| 12 | Religar `tio.gd`/`garotinha.gd` e re-testar câmeras/colisão | ⬜ |
+
+**Antes de mexer no Blender:** ele abre sempre com cena nova, então é preciso abrir
+`models/fonte_blender/personagens.blend` e clicar "Start Server" no painel BlenderMCP (tecla N).
+
+**Regra de segurança:** o `.blend` atual tem os personagens que **estão no jogo hoje e funcionam**.
+Não sobrescrever até o rig novo passar no teste de dobra (passo 5) — trabalhar em objetos com nome
+novo (`Tio2`, `Tio2_Armature`) e só então substituir.
 
 ---
 
