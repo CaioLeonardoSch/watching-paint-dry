@@ -530,11 +530,11 @@ e deixar as demãos seguintes no ritmo honesto. **Confirmar antes de implementar
 | 3 | Corpo do tio via Skin modifier | ✅ `Tio2`, 590 verts / 588 polys |
 | 4 | Armadura de 19 ossos no tio | ✅ `Tio2_Armature` |
 | 5 | Auto-weight + teste de dobra (cotovelo/joelho) | ✅ **passou — não rasga** |
-| 6 | Corpo + rig simplificado da garotinha | ⬜ |
-| 7 | Export `.glb` das duas (com as armadilhas de export) | ⬜ |
-| 8 | Regerar `*_modelo.tscn` no Godot (`GLTFDocument` + converter `ImporterMeshInstance3D`) | ⬜ |
+| 6 | Corpo + rig simplificado da garotinha | ✅ 13 ossos, 494 verts |
+| 7 | Export `.glb` das duas (com as armadilhas de export) | ✅ |
+| 8 | Regerar `*_modelo.tscn` no Godot (`GLTFDocument` + converter `ImporterMeshInstance3D`) | ✅ |
 | 9 | Stack de `SkeletonModifier3D` (ver 5.2) | ⬜ |
-| 10 | Clipes base (ver 5.3) | ⬜ |
+| 10 | Clipes base (ver 5.3) | ✅ parcial — `andar`, `parado_respirando`, `pintar_braco`. Faltam os que dependem de props (`molhar_rolo`, banquinho), que são Fase E |
 | 11 | Camada procedural: altura do quadril, inclinação do torso (5.4) | ⬜ |
 | 12 | Religar `tio.gd`/`garotinha.gd` e re-testar câmeras/colisão | ⬜ |
 
@@ -557,6 +557,21 @@ trocar quando o novo estiver validado no Godot.
 **Weight paint:** `parent_set(type='ARMATURE_AUTO')` (heat map do Blender) resolveu sozinho, sem
 pintura manual. Testado com cotovelo a −75°, joelho a −70°, coluna e cabeça inclinadas: a malha
 dobra contínua, sem rasgar. Era o risco que a decisão 5.0 assumiu, e ele não se materializou.
+
+**Mais duas armadilhas, do export:**
+- **`material.diffuse_color` NÃO exporta pro glTF.** Ele é só preview de viewport. O exportador lê o
+  **Principled BSDF** dos nodes, então é preciso `use_nodes = True` e escrever em
+  `nodes["Principled BSDF"].inputs["Base Color"]`. Sintoma: personagem chega branco no Godot mesmo
+  com material "colorido" no Blender. Conferir no `.glb` bruto:
+  `json.materials[].pbrMetallicRoughness.baseColorFactor`
+- **`materials.clear()` zera o `material_index` de todas as faces.** Se a atribuição de face por
+  região já tiver sido feita, ela se perde e tudo volta pro slot 0 — reatribuir depois de mexer nos
+  slots
+
+**Cor por região:** com malha contínua não existe mais "uma peça, um material". A divisão
+pele/roupa é feita por `material_index` **por face**, escolhida por critério geométrico (faixa de Z
+e distância do eixo). Tentei primeiro derivar dos pesos do auto-weight, mas ele espalha influência
+demais no torso e a proporção saía errada (a garotinha ficou 468 de 492 faces em pele).
 
 **Antes de mexer no Blender:** ele abre sempre com cena nova, então é preciso abrir
 `models/fonte_blender/personagens.blend` e clicar "Start Server" no painel BlenderMCP (tecla N).

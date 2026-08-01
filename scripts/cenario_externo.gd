@@ -223,6 +223,53 @@ func _criar_casa(
 		cor_telhado, 0.85, ruido_telhado, Vector3(2.0, 2.0, 6.0), normal_telhado, 1.5)
 	telhado.set_surface_override_material(0, mat_telhado)
 
+	_criar_janelas_casa(casa)
+
+
+## Janelas e porta da fachada voltada pra cá (+X, o lado da rua).
+##
+## O vidro é OPACO de propósito: painel escuro chapado, sem transparência.
+## Vidro de verdade aqui só entregaria que a casa é uma caixa vazia por dentro
+## — janela de casa vista da rua é um retângulo escuro refletindo céu, e é
+## exatamente essa leitura que serve.
+func _criar_janelas_casa(casa: Node3D) -> void:
+	var x: float = 2.51   # rente à face +X do corpo (5.0 de largura)
+	var mat_moldura := _material_liso(Color(0.90, 0.88, 0.84), 0.7)
+	var mat_vidro   := _material_liso(Color(0.16, 0.20, 0.26), 0.15)
+	mat_vidro.metallic          = 0.25
+	mat_vidro.metallic_specular = 0.8
+
+	for z in [-1.7, 1.7]:
+		_caixa_casa(casa, Vector3(0.06, 1.1, 1.3), Vector3(x, 1.6, z), mat_moldura)
+		_caixa_casa(casa, Vector3(0.04, 0.94, 1.14), Vector3(x + 0.02, 1.6, z), mat_vidro)
+		# cruz da janela, igual à do quarto
+		_caixa_casa(casa, Vector3(0.06, 0.05, 1.14), Vector3(x + 0.03, 1.6, z), mat_moldura)
+		_caixa_casa(casa, Vector3(0.06, 0.94, 0.05), Vector3(x + 0.03, 1.6, z), mat_moldura)
+
+	# Porta da frente, entre as duas janelas
+	_caixa_casa(casa, Vector3(0.06, 2.1, 0.95), Vector3(x, 1.05, 0.0), mat_moldura)
+	_caixa_casa(casa, Vector3(0.05, 1.98, 0.84), Vector3(x + 0.02, 1.0, 0.0),
+		_material_liso(Color(0.34, 0.20, 0.14), 0.6))
+
+
+func _caixa_casa(pai: Node3D, tamanho: Vector3, pos: Vector3, mat: Material) -> void:
+	var no := MeshInstance3D.new()
+	pai.add_child(no)
+	var box := BoxMesh.new()
+	box.size    = tamanho
+	no.mesh     = box
+	no.position = pos
+	no.set_surface_override_material(0, mat)
+
+
+## Material chapado, sem ruído nem normal — pra peça pequena vista de longe o
+## detalhe procedural só vira sujeira.
+func _material_liso(cor: Color, aspereza: float) -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = cor
+	mat.roughness    = aspereza
+	return mat
+
 
 ## Luz de preenchimento SÓ do lado de fora.
 ##

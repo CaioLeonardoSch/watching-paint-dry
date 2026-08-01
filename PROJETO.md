@@ -203,6 +203,12 @@ estão **completas**, mais uma rodada de refinamento pós-roadmap:
   altura próprios; `assoalho.gdshader` apagado); props que dão leitura de quarto
   (`props_quarto.gd`: rodapé, moldura de janela, batente de porta, interruptor, tomada); normal map
   e ruído triplanar removidos das paredes; SSAO e MSAA 4x ligados; `AreaLight3D` no vão da janela
+- **Janela redesenhada (01/08/2026)** — vão encurtado 15% em Z (2.0 → 1.7, mais quadrado) e
+  travessa vertical somada à horizontal: cruz no meio, 4 vidros iguais, o desenho clássico. Antes
+  era só uma divisória horizontal, o que deixava a janela comprida com cara de vitrine. Mexe em 4
+  lugares que precisam andar juntos: `inicializar_quarto.gd` (tamanho das peças da parede oeste e
+  os 4 painéis de vidro), `props_quarto.gd::_moldura_janela` (moldura + cruz), as transforms de
+  `ParedeOesteNorte`/`Sul` em **`quarto.tscn` e `fundo_menu.tscn`**, e `LuzJanela.area_size`
 
 ### Layout do quarto (fonte da verdade)
 
@@ -211,8 +217,8 @@ Quarto:  X ∈ [-3.5, +3.5],  Z ∈ [-4.0, +2.0]
 
 Norte (-Z) = FRENTE  → parede sólida com tinta secando (ParedeNorteSolida)
 Sul   (+Z) = ATRÁS   → parede fechada (ParedeSul)
-Oeste (-X) = ESQUERDA → janela (com vidro translúcido/refração)
-Leste (+X) = DIREITA  → porta (folha com maçaneta, abre e fecha)
+Oeste (-X) = ESQUERDA → janela: vão Z ∈ [-0.85, +0.85], Y ∈ [0.8, 2.0], 4 vidros
+Leste (+X) = DIREITA  → porta (folha com maçaneta, abre e fecha) → dá no ComodoVizinho
 ```
 
 As 4 paredes são pintáveis, cada uma picada em vários `MeshInstance3D`. O shader da tinta usa
@@ -442,6 +448,11 @@ armadilhas de export.
   todo mesh de `cenario_externo.gd`) acende só a vizinhança. Ambiente global não serve pra isso:
   ele volta a lavar as paredes do quarto
 
+- `[x]` **Janelas nas casas da vizinhança** — duas por fachada + porta da frente, com **vidro
+  opaco** (painel escuro chapado, sem transparência). Vidro de verdade só entregaria que a casa é
+  uma caixa vazia por dentro; da rua, janela é retângulo escuro refletindo céu
+  (`cenario_externo.gd::_criar_janelas_casa`)
+
 **Cômodo vizinho (o que se vê pela porta)**
 - `[x]` `scripts/comodo_vizinho.gd` + nó `ComodoVizinho` em `quarto.tscn` (01/08/2026). Antes a porta
   abria pro vazio preto, denunciando que o quarto é uma caixa solta. É uma sala/cozinha *sugerida*,
@@ -449,6 +460,9 @@ armadilhas de export.
   igual ao assoalho — geometria em vez de normal map), parede amarelo-clara, rodapé, bancada com
   tampo escuro, armário aéreo e geladeira (é a silhueta da geladeira que faz ler "cozinha"). Luz de
   teto própria, mais fria e fraca que a do quarto, pra o vão ler como *outro* ambiente
+- **Piso frio brigava por z** — a peça de porcelanato e o contrapiso tinham o topo no MESMO plano
+  (`y = 0`), e o piso piscava manchas brancas conforme a câmera mexia. Corrigido com o mesmo
+  `+0.004` do assoalho do quarto: a peça fica um fio acima do contrapiso
 - Ocupa `X ∈ [+3.6, +10.0]`, `Z ∈ [-4.0, +2.0]` — o Z bate com o do quarto de propósito: a parede
   leste já fecha esse lado, então não sobra fresta de luz entre os dois cômodos. Sem colisão, sem
   `_process`, nada jogável
