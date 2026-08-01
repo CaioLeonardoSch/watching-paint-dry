@@ -53,7 +53,7 @@ transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -3.42, 1.4, 0)
 light_color = Color(0.95, 0.93, 0.88, 1)
 light_energy = 1.5
 shadow_enabled = true
-area_size = Vector2(2.0, 1.2)
+area_size = Vector2(1.7, 1.2)
 area_range = 7.0
 
 [node name="Lampada" type="MeshInstance3D" parent="." unique_id=2010000001]
@@ -94,10 +94,10 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, -4)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 2)
 
 [node name="ParedeOesteNorte" type="MeshInstance3D" parent="." unique_id=1872741563]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 1.5, -2.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 1.5, -2.425)
 
 [node name="ParedeOesteSul" type="MeshInstance3D" parent="." unique_id=767032305]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 1.5, 1.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 1.5, 1.425)
 
 [node name="ParedeOesteAcima" type="MeshInstance3D" parent="." unique_id=1944643393]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 2.5, 0)

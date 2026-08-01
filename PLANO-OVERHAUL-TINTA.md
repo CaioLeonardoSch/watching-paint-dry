@@ -527,9 +527,9 @@ e deixar as demãos seguintes no ritmo honesto. **Confirmar antes de implementar
 |---|---|---|
 | 1 | Decisões com o usuário (5.0) | ✅ |
 | 2 | Coordenadas do arame definidas (5.1) | ✅ |
-| 3 | Corpo do tio via Skin modifier | ⬜ |
-| 4 | Armadura de 19 ossos no tio | ⬜ |
-| 5 | Auto-weight + teste de dobra (cotovelo/joelho) | ⬜ |
+| 3 | Corpo do tio via Skin modifier | ✅ `Tio2`, 590 verts / 588 polys |
+| 4 | Armadura de 19 ossos no tio | ✅ `Tio2_Armature` |
+| 5 | Auto-weight + teste de dobra (cotovelo/joelho) | ✅ **passou — não rasga** |
 | 6 | Corpo + rig simplificado da garotinha | ⬜ |
 | 7 | Export `.glb` das duas (com as armadilhas de export) | ⬜ |
 | 8 | Regerar `*_modelo.tscn` no Godot (`GLTFDocument` + converter `ImporterMeshInstance3D`) | ⬜ |
@@ -537,6 +537,26 @@ e deixar as demãos seguintes no ritmo honesto. **Confirmar antes de implementar
 | 10 | Clipes base (ver 5.3) | ⬜ |
 | 11 | Camada procedural: altura do quadril, inclinação do torso (5.4) | ⬜ |
 | 12 | Religar `tio.gd`/`garotinha.gd` e re-testar câmeras/colisão | ⬜ |
+
+**Estado do `.blend` (salvo):** convivem os dois — `Tio`/`Tio_Armature` (7 ossos, é o que está no
+jogo hoje) e `Tio2`/`Tio2_Armature` (19 ossos, novo). A garotinha ainda só tem a versão antiga. Só
+trocar quando o novo estiver validado no Godot.
+
+**Armadilhas do Skin modifier** (custaram uma rodada cada):
+- Ele deixa **vértices soltos** nas junções de ombro (sem face nenhuma). Passam despercebidos até
+  alguém contar ilhas e achar "3 ilhas" onde deveria haver 1. Remover com bmesh, filtrando
+  `len(v.link_faces) == 0`
+- Precisa de **um vértice marcado como raiz** (`skin_vertices[0].data[i].use_root = True`), senão
+  a malha sai errada. Usar o quadril
+- **Subsurf encolhe a malha** (é aproximação, puxa pra dentro): o corpo saiu com 1,72 m em vez de
+  1,80 e os pés 5 cm acima do chão. Como a AABB precisa bater com a colisão e as câmeras, o passo
+  final é reescalar a malha pra `Z ∈ [0, 1.80]` explicitamente
+- Coxas a ±0,12 com raio 0,105 quase se tocam e a perna vira um bloco só — afastadas pra ±0,15 e
+  afinadas pra 0,098
+
+**Weight paint:** `parent_set(type='ARMATURE_AUTO')` (heat map do Blender) resolveu sozinho, sem
+pintura manual. Testado com cotovelo a −75°, joelho a −70°, coluna e cabeça inclinadas: a malha
+dobra contínua, sem rasgar. Era o risco que a decisão 5.0 assumiu, e ele não se materializou.
 
 **Antes de mexer no Blender:** ele abre sempre com cena nova, então é preciso abrir
 `models/fonte_blender/personagens.blend` e clicar "Start Server" no painel BlenderMCP (tecla N).

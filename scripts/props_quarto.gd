@@ -93,24 +93,32 @@ static func _rodapes(raiz: Node3D) -> void:
 		Vector3(LIMITE_X - SALIENCIA * 0.5, y, 0.5 + comp_sul * 0.5), mat)
 
 
-## Moldura da janela (parede oeste, x=-3.5, z de -1 a 1, y de 0.8 a 2.0).
+## Moldura da janela (parede oeste, x=-3.5, z de -0.85 a 0.85, y de 0.8 a 2.0).
+##
+## Vão encurtado 15% em Z (era z ∈ [-1, +1]) e travessa vertical somada à
+## horizontal: a cruz no meio divide em 4 vidros iguais, que é o desenho
+## clássico de janela de casa. Só a divisória horizontal deixava a janela
+## comprida e estranha, mais cara de vitrine que de quarto.
 static func _moldura_janela(raiz: Node3D) -> void:
 	var mat := _material(BRANCO_SUJO, 0.65)
 	var x: float = -LIMITE_X + SALIENCIA
 	var esp: float = 0.05
-	var z0: float = -1.0
-	var z1: float = 1.0
+	var z0: float = -0.85
+	var z1: float = 0.85
 	var y0: float = 0.8
 	var y1: float = 2.0
+	var ym: float = (y0 + y1) * 0.5
+	var zm: float = (z0 + z1) * 0.5
 
 	# verticais
-	_caixa(raiz, Vector3(esp, y1 - y0 + esp * 2.0, esp), Vector3(x, (y0 + y1) * 0.5, z0), mat)
-	_caixa(raiz, Vector3(esp, y1 - y0 + esp * 2.0, esp), Vector3(x, (y0 + y1) * 0.5, z1), mat)
+	_caixa(raiz, Vector3(esp, y1 - y0 + esp * 2.0, esp), Vector3(x, ym, z0), mat)
+	_caixa(raiz, Vector3(esp, y1 - y0 + esp * 2.0, esp), Vector3(x, ym, z1), mat)
 	# horizontais
-	_caixa(raiz, Vector3(esp, esp, z1 - z0), Vector3(x, y0, (z0 + z1) * 0.5), mat)
-	_caixa(raiz, Vector3(esp, esp, z1 - z0), Vector3(x, y1, (z0 + z1) * 0.5), mat)
-	# travessa central — divide o vidro em dois, cara de janela de casa
-	_caixa(raiz, Vector3(esp * 0.7, esp * 0.7, z1 - z0), Vector3(x, (y0 + y1) * 0.5, (z0 + z1) * 0.5), mat)
+	_caixa(raiz, Vector3(esp, esp, z1 - z0), Vector3(x, y0, zm), mat)
+	_caixa(raiz, Vector3(esp, esp, z1 - z0), Vector3(x, y1, zm), mat)
+	# cruz central — os dois braços, mais finos que a moldura de fora
+	_caixa(raiz, Vector3(esp * 0.7, esp * 0.7, z1 - z0), Vector3(x, ym, zm), mat)
+	_caixa(raiz, Vector3(esp * 0.7, y1 - y0, esp * 0.7), Vector3(x, ym, zm), mat)
 
 	# peitoril, um pouco mais fundo que a moldura
 	_caixa(raiz, Vector3(0.12, 0.04, z1 - z0 + 0.16),

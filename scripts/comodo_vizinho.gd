@@ -71,7 +71,7 @@ func _criar_piso() -> void:
 			# Porcelanato é quase uniforme; a variação é mínima, só o bastante
 			# pra o piso não ler como um plano chapado só.
 			var tom: float = 0.97 + rng.randf() * 0.06
-			var mat := _material(Color(0.80, 0.78, 0.74) * tom, 0.25)
+			var mat := _material(Color(0.80, 0.78, 0.74) * tom, 0.35)
 			mat.metallic_specular = 0.6  # piso frio reflete a luz do teto
 
 			var peca := MeshInstance3D.new()
@@ -79,7 +79,10 @@ func _criar_piso() -> void:
 			var box := BoxMesh.new()
 			box.size = Vector3(lx - REJUNTE, 0.04, lz - REJUNTE)
 			peca.mesh = box
-			peca.position = Vector3(x + lx * 0.5, -0.02, z + lz * 0.5)
+			# O +0.004 é o mesmo truque do assoalho do quarto: sem ele o topo da
+			# peça e o topo do contrapiso caem no MESMO plano e brigam por z —
+			# o piso ficava piscando manchas brancas conforme a câmera mexia.
+			peca.position = Vector3(x + lx * 0.5, -0.016, z + lz * 0.5)
 			peca.set_surface_override_material(0, mat)
 
 			z += LADO_PISO

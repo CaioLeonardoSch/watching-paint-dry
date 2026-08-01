@@ -29,11 +29,12 @@ func _criar_meshes() -> void:
 		"ParedeNorteSolida":  Vector3(7.0, 3.0, 0.2),  # X∈[-3.5,+3.5]
 		# Parede Sul (atrás, fechada)
 		"ParedeSul":          Vector3(7.0, 3.0, 0.2),
-		# Parede Oeste — janela (4 peças ao redor da abertura)
-		"ParedeOesteNorte":   Vector3(0.2, 3.0, 3.0),  # Z∈[-4.0,-1.0]
-		"ParedeOesteSul":     Vector3(0.2, 3.0, 1.0),  # Z∈[+1.0,+2.0]
-		"ParedeOesteAcima":   Vector3(0.2, 1.0, 2.0),  # Z∈[-1.0,+1.0], Y∈[2.0,3.0]
-		"ParedeOesteAbaixo":  Vector3(0.2, 0.8, 2.0),  # Z∈[-1.0,+1.0], Y∈[0.0,0.8]
+		# Parede Oeste — janela (4 peças ao redor da abertura). O vão encolheu
+		# 15% em Z (2.0 → 1.7): janela mais quadrada, ver props_quarto.gd
+		"ParedeOesteNorte":   Vector3(0.2, 3.0, 3.15), # Z∈[-4.0,-0.85]
+		"ParedeOesteSul":     Vector3(0.2, 3.0, 1.15), # Z∈[+0.85,+2.0]
+		"ParedeOesteAcima":   Vector3(0.2, 1.0, 1.7),  # Z∈[-0.85,+0.85], Y∈[2.0,3.0]
+		"ParedeOesteAbaixo":  Vector3(0.2, 0.8, 1.7),  # Z∈[-0.85,+0.85], Y∈[0.0,0.8]
 		# Parede Leste — porta (3 peças ao redor da abertura)
 		"ParedeLesteNorte":   Vector3(0.2, 3.0, 3.5),  # Z∈[-4.0,-0.5]
 		"ParedeLesteSul":     Vector3(0.2, 3.0, 1.5),  # Z∈[+0.5,+2.0]
@@ -160,15 +161,18 @@ func _criar_janela() -> void:
 	# O nó da cena vira só o suporte; os painéis entram como filhos.
 	janela.mesh = null
 
-	var altura_painel: float = 0.54   # dois painéis + a travessa no meio
+	# Quatro vidros, um por quadrante da cruz da moldura (props_quarto.gd).
+	var altura_painel: float = 0.54
+	var largura_painel: float = 0.78
 	for dy in [-0.30, 0.30]:
-		var painel := MeshInstance3D.new()
-		janela.add_child(painel)
-		var box := BoxMesh.new()
-		box.size       = Vector3(0.02, altura_painel, 1.92)
-		painel.mesh    = box
-		painel.position = Vector3(0, dy, 0)
-		painel.set_surface_override_material(0, mat)
+		for dz in [-0.41, 0.41]:
+			var painel := MeshInstance3D.new()
+			janela.add_child(painel)
+			var box := BoxMesh.new()
+			box.size        = Vector3(0.02, altura_painel, largura_painel)
+			painel.mesh     = box
+			painel.position = Vector3(0, dy, dz)
+			painel.set_surface_override_material(0, mat)
 
 
 func _criar_lampada() -> void:
