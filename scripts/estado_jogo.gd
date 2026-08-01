@@ -64,10 +64,6 @@ func tempo_secagem_atual() -> float:
 	return ModoJogo.TEMPO_SECAGEM[modo_atual]
 
 
-func duracao_dia_atual() -> float:
-	return ModoJogo.DURACAO_DIA[modo_atual]
-
-
 ## Checkpoint — só chamado depois que uma demão seca de verdade, nunca no
 ## meio da animação (ver ciclo_pintura.gd).
 func salvar_progresso_pintura(nome_cor: String, demao: int) -> void:

@@ -169,24 +169,31 @@ estão **completas**, mais uma rodada de refinamento pós-roadmap:
   violeta/rosa são as 6 que batem com as conquistas de cor. Personagens têm modelo rigado (Blender,
   Fase 1.2 — ver seção 4), animados por `AnimationPlayer` (clipes `andar`/`pintar_braco`) em vez do
   boneco procedural original
-- **Fase 2 — ambientação:** ciclo de dia e noite (`ciclo_dia_noite.gd`) — sol e lua giram em lados
-  opostos, cor da luz/céu seguem `Gradient`s com paradas densas perto do nascer/pôr do sol, nuvens
-  via `sky_cover` com alfa por `color_ramp`; cenário externo pela janela (`cenario_externo.gd`) —
-  jardim, 3 árvores, rua e uma casa, tudo primitivas; som ambiente sintetizado
-  (`som_ambiente.gd`/`som_pincelada.gd`, sem nenhum arquivo de áudio)
+- **Fase 2 — ambientação:** luz fixa de meio da tarde (`ambiente_dia.gd`) — o sol entra pela janela
+  a 52° do horizonte, céu procedural com nuvens em `sky_cover` (alfa por `color_ramp`);
+  cenário externo pela janela (`cenario_externo.gd`) — jardim, árvores, rua e casas, tudo
+  primitivas; som ambiente sintetizado (`som_ambiente.gd`/`som_pincelada.gd`, sem arquivo de áudio).
+  **O ciclo de dia e noite foi removido** (ver "descartados" abaixo)
 - **Fase 3 — menu, modos, save, conquistas:** `estado_jogo.gd` é o autoload `EstadoJogo`, guarda
   modo ativo e `DadosSalvos` salvo em `user://save.tres`. Menu inicial oferece Jogar (seletor de
-  modo Rápido/Normal/Realista) ou Continuar, mais visualizador de conquistas. `tinta_secando.gd` e
-  `ciclo_dia_noite.gd` se autoconfiguram a partir do modo ativo (tempo de secagem e duração do dia
-  mudam por modo — Realista é 2h/demão e dia de 24h). Menu de pausa (ESC) pausa a árvore de
+  modo Rápido/Normal/Realista) ou Continuar, mais visualizador de conquistas. `parede_pintavel.gd`
+  se autoconfigura a partir do modo ativo — desde a remoção do ciclo de dia, **o modo só controla o
+  tempo de secagem** (Realista é 2h/demão). Menu de pausa (ESC) pausa a árvore de
   verdade (`get_tree().paused`). Conquistas (`conquistas.gd`, 10 no total, texto fixo) disparam ao
   completar ciclo de 3 demãos de uma cor, com toast e persistência entre sessões
 - **Refinamento pós-roadmap:** porta de verdade (`porta.gd`/`porta.tscn`) com maçaneta de latão,
   abre/fecha por `Tween`, orquestrada por `ciclo_pintura.gd`; cadeira de madeira em `(0, 0, -1)`;
-  assoalho procedural (`shaders/assoalho.gdshader`) com tábuas, juntas e normal map por diferença
-  finita; paredes/chão com textura triplanar + normal procedural (`materiais_procedurais.gd`); teto
-  liso de propósito (sem normal map — luz rasante da lâmpada vira rabisco); tinta com frente de
-  pintura que varre a parede no sentido em que o tio anda, com atraso direcional na secagem
+  teto liso de propósito (sem normal map — luz rasante da lâmpada vira rabisco)
+- **Overhaul da tinta (Fases A/B do `PLANO-OVERHAUL-TINTA.md`):** a tinta deixou de ser calculada a
+  partir da posição e passou a ser lida de uma **máscara do que o rolo tocou**
+  (`mascara_tinta.gd` + `parede_pintavel.gd` + `trajeto_rolo.gd`, com `DrawableTexture2D` do 4.7).
+  Isso é o que permite falha de cobertura, sobreposição mais grossa que seca depois, e lap mark —
+  nada disso era representável no modelo anterior. `tinta_secando.gd` foi aposentado: a máscara é
+  por **parede**, não por pedaço de mesh
+- **Direção low-poly (Fase C):** assoalho virou geometria de tábuas (uma peça por tábua, tom e
+  altura próprios; `assoalho.gdshader` apagado); props que dão leitura de quarto
+  (`props_quarto.gd`: rodapé, moldura de janela, batente de porta, interruptor, tomada); normal map
+  e ruído triplanar removidos das paredes; SSAO e MSAA 4x ligados; `AreaLight3D` no vão da janela
 
 ### Layout do quarto (fonte da verdade)
 
@@ -212,18 +219,30 @@ layout antigo se aparecer em conversa ou documento velho.
 ### Coisas já tentadas e descartadas ou revertidas
 
 - Layout em L com puxadinho — trocado pelo retangular atual
+- **Ciclo de dia e noite** (`ciclo_dia_noite.gd`, removido em 31/07/2026) — girava sol e lua e
+  interpolava cor de luz, céu, ambiente e névoa ao longo do dia. Saiu por decisão do usuário:
+  atrapalhava mais do que ajudava. O jogo é observar uma parede secar devagar, e a luz mudando por
+  baixo competia com a única coisa que deveria estar mudando; amanhecer e entardecer eram os piores,
+  porque tingiam o quarto inteiro de laranja bem no meio da observação — e a tinta azul chegava a
+  ler como roxa. Substituído por `ambiente_dia.gd`, luz fixa de meio da tarde. Junto saíram a `Lua`,
+  a `LuzNoite` e o `ModoJogo.DURACAO_DIA`
 - Tinta molhada com `roughness` bem baixo (quase espelho) — refletia o céu processual e quebrava a
   parede em blocos visíveis. Molhado agora é só um pouco mais brilhoso que seco
 - Normal map no teto — virava rabisco agressivo sob a luz rasante da lâmpada
+- Normal map e ruído triplanar nas paredes — saíram na Fase C: em low-poly, superfície chapada é a
+  proposta, e micro-relevo fingido só denuncia a face plana quando a luz raspa
 - Textura de nuvem reusando `criar_textura_ruido` sem alfa variando — dava véu uniforme, não nuvem.
   Precisou de `color_ramp` controlando alfa
-- Frente de pintura com borda estreita — lia como régua vertical e denunciava o polígono da parede.
-  Borda larga + ruído em duas escalas resolveu
+- **Frente de pintura calculada por varredura** — a tinta deduzia "quando fui pintado" projetando a
+  posição num eixo, o que limitava a pintura a uma linha reta atravessando a parede. Trocada pela
+  máscara do rolo (Fase B). O ajuste antigo de borda larga + ruído em duas escalas era maquiagem
+  sobre esse limite
 
 ### Ideia levantada, ainda não implementada
 
-Pendurar um rodo/rolo na mão do tio — já que a frente de tinta no shader é sincronizada com a
-posição dele, bastaria o mesh; o desenho na parede já acompanharia.
+Pendurar um rolo na mão do tio. Com a máscara, o rolo e o desenho já são a mesma coisa
+(`trajeto_rolo.gd::posicao_atual`) — falta só o mesh e prendê-lo na mão, o que casa com o rig da
+Fase D.
 
 ---
 
@@ -340,8 +359,8 @@ técnica de exportação Steam antes da Fase 3, trilha sonora, localização, t�
 - `[x]` Nova escala do jardim — 20×16 → 220×220 (`cenario_externo.gd::ALCANCE_JARDIM`). Não usou
   `ProtonScatter`, espalhamento manual por `RandomNumberGenerator` com seed fixa (mais simples pro
   volume de props envolvido, addon ficou sem necessidade)
-- `[x]` Névoa: cor por hora do dia — `Environment.fog_light_color` acompanha o mesmo gradiente de
-  horizonte do céu em `ciclo_dia_noite.gd::_atualizar_luz`
+- `[x]` Névoa — a cor acompanhava a hora do dia; com o ciclo removido virou fixa, casada com o
+  horizonte do céu (`ambiente_dia.gd::_configurar_ambiente`)
 - `[x]` Mais casas — 2 casas + 10 árvores extras em profundidade variável
   (`cenario_externo.gd::_criar_decoracao_distante`), seed fixa (4477)
 

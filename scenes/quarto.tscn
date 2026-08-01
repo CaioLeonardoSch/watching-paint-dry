@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://d3yk1dyid6fkn" path="res://scripts/inicializar_quarto.gd" id="1_init"]
 [ext_resource type="Script" uid="uid://bjpbgoqjrk81g" path="res://scripts/camera_cadeira.gd" id="2_cam"]
-[ext_resource type="Script" uid="uid://b6vgly7k0uohb" path="res://scripts/ciclo_dia_noite.gd" id="3_sol"]
+[ext_resource type="Script" path="res://scripts/ambiente_dia.gd" id="3_sol"]
 [ext_resource type="PackedScene" path="res://scenes/tio.tscn" id="5_tio"]
 [ext_resource type="PackedScene" path="res://scenes/garotinha.tscn" id="6_garotinha"]
 [ext_resource type="Script" path="res://scripts/ciclo_pintura.gd" id="7_ciclo"]
@@ -42,29 +42,17 @@ script = ExtResource("1_init")
 environment = SubResource("Environment_wt0rd")
 
 [node name="Sol" type="DirectionalLight3D" parent="." unique_id=637477824 unique_name_in_owner=true]
-transform = Transform3D(0.866025, -0.433013, 0.25, 0, 0.5, 0.866025, -0.5, -0.75, 0.433013, 0, 8, 0)
-light_energy = 1.5
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8, 0)
 shadow_enabled = true
 script = ExtResource("3_sol")
-duracao_dia_segundos = 10.0
-
-[node name="Lua" type="DirectionalLight3D" parent="." unique_id=2010000009]
-transform = Transform3D(0.866025, -0.433013, 0.25, 0, 0.5, 0.866025, -0.5, -0.75, 0.433013, 0, 8, 0)
-shadow_enabled = false
 
 [node name="LuzJanela" type="AreaLight3D" parent="." unique_id=2010000020 unique_name_in_owner=true]
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -3.42, 1.4, 0)
 light_color = Color(0.95, 0.93, 0.88, 1)
-light_energy = 1.6
+light_energy = 1.9
 shadow_enabled = true
 area_size = Vector2(2.0, 1.2)
 area_range = 7.0
-
-[node name="LuzNoite" type="OmniLight3D" parent="." unique_id=1615089129]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 0)
-light_color = Color(0.3, 0.35, 0.6, 1)
-light_energy = 0.08
-omni_range = 12.0
 
 [node name="Lampada" type="MeshInstance3D" parent="." unique_id=2010000001]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.85, -1)

@@ -4,7 +4,7 @@ extends CanvasLayer
 #  MENU DE PAUSA — ESC durante o jogo
 #
 #  Pausa de verdade (get_tree().paused) — Tweens e _process de
-#  tio.gd/tinta_secando.gd/ciclo_dia_noite.gd já param sozinhos com a árvore
+#  tio.gd e parede_pintavel.gd já param sozinhos com a árvore
 #  pausada (process_mode herdado, default). Esse nó precisa de
 #  PROCESS_MODE_ALWAYS pra continuar respondendo input com o jogo parado.
 #

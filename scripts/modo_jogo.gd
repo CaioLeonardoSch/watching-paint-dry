@@ -16,16 +16,11 @@ const NOMES: Dictionary = {
 	Modo.REALISTA:  "Realista",
 }
 
-## Segundos de secagem por demão, em cada modo.
+## Segundos de secagem por demão, em cada modo. É a única coisa que o modo
+## controla — o ciclo de dia e noite foi removido (ver ambiente_dia.gd), então
+## não há mais duração de dia pra escalar.
 const TEMPO_SECAGEM: Dictionary = {
 	Modo.RAPIDO:   60.0,
 	Modo.NORMAL:   300.0,    # 5 minutos
 	Modo.REALISTA: 7200.0,   # 2 horas de verdade
-}
-
-## Segundos por dia completo (dia/noite), em cada modo.
-const DURACAO_DIA: Dictionary = {
-	Modo.RAPIDO:   360.0,    # 6 minutos
-	Modo.NORMAL:   1200.0,   # 20 minutos
-	Modo.REALISTA: 86400.0,  # 24 horas de verdade
 }

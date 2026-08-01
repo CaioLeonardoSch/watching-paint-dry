@@ -342,16 +342,18 @@ superfície chapada é a proposta, não o problema.
 O [consenso de low-poly em Godot](https://godotforums.org/d/21876-light-and-environment-setup-for-3d-low-poly-style-game):
 ambiente alto, uma direcional forte, MSAA ligado.
 
-- `ambient_light` alto vindo do céu (já existe via `ciclo_dia_noite.gd`)
+- `ambient_light` vindo do céu, **dessaturado** — ele incide em tudo por igual, inclusive nas faces
+  internas do quarto, então a cor cheia do céu pinta o cômodo inteiro (`ambiente_dia.gd`)
 - Direcional pela janela como fonte principal, sombra suave
-- 4.7 tem **`AreaLight3D`** novo — vale testar na janela (luz de área dá aquela penumbra macia que
-  luz pontual não dá) e na lâmpada
+- 4.7 tem **`AreaLight3D`** — usado no vão da janela, é ele que carrega a luz de dia; o direcional
+  ficou fraco, só desenhando o recorte
 - **MSAA 4x** em `project.godot` — em low-poly a silhueta *é* o desenho, serrilhado destrói
 - SSAO sutil, só pra escurecer canto e o encontro parede/chão
 - **Não usar SDFGI** — o ruído dele briga com superfície chapada
 
-Nota: `LightmapGI` daria o melhor resultado num quarto estático, mas o ciclo dia/noite é dinâmico.
-Fica fora.
+Nota: `LightmapGI` daria o melhor resultado num quarto estático e **passou a ser viável** — o ciclo
+de dia e noite foi removido (31/07/2026) e a iluminação agora é fixa. Candidato pra depois, se
+valer o tempo de bake.
 
 **Referências de direção:** [A Short Hike](https://store.steampowered.com/app/1055540/A_Short_Hike/)
 (luz quente, low-poly que não parece pobre), [Dorfromantik](https://store.steampowered.com/app/1455840/Dorfromantik/)
@@ -535,6 +537,14 @@ desenhava estrias atravessadas em vez de longitudinais.
   parede, que lia como decalque em vez de luz. Agora quem carrega a iluminação de dia é a luz de
   área, que dá a penumbra macia que direcional nenhuma dá — e o direcional só marca o recorte
 - `[x]` SDFGI conferido, está desligado
+
+**Ciclo de dia e noite removido (31/07/2026), a pedido do usuário.** Depois de a luz ambiente ser
+corrigida, o problema que sobrou não era de implementação e sim de proposta: num jogo cujo assunto é
+uma parede secando devagar, a luz mudando por baixo compete com a única coisa que deveria estar
+mudando. Amanhecer e entardecer eram os piores — tingiam o quarto inteiro e a tinta azul chegava a
+ler como roxa. `ciclo_dia_noite.gd` deu lugar a `ambiente_dia.gd`: luz fixa de meio da tarde,
+configurada uma vez em `_ready()`, sem `_process`. Saíram junto os nós `Lua` e `LuzNoite` e a tabela
+`ModoJogo.DURACAO_DIA` — o modo de jogo agora só controla o tempo de secagem.
 
 **A correção de luz que o usuário pediu:** `env.ambient_light_color` recebia a cor crua do horizonte.
 Como luz ambiente incide em tudo por igual, inclusive nas faces internas do quarto, o pôr do sol

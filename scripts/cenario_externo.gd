@@ -19,7 +19,7 @@ const PAREDE_OESTE_X: float = -3.5  # plano da parede com a janela
 
 ## Alcance do jardim em X, além da parede — bem maior que o necessário pro
 ## enquadramento perto da janela, pra empurrar a borda do plano pra dentro
-## da névoa (ver quarto.tscn::Environment e ciclo_dia_noite.gd::_atualizar_luz).
+## da névoa (ver quarto.tscn::Environment e ambiente_dia.gd).
 const ALCANCE_JARDIM: float = 220.0
 
 

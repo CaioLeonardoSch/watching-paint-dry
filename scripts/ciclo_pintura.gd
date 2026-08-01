@@ -5,12 +5,12 @@ extends Node
 #
 #  O tio dá uma VOLTA COMPLETA no quarto, sempre no mesmo sentido: da direita
 #  para a esquerda do ponto de vista da garotinha sentada (ela olha pro norte),
-#  ou seja Leste, Norte, Oeste, Sul. Ele pinta ANDANDO — a frente de tinta no
-#  shader avança junto com ele, então a cor nova vai cobrindo a antiga aos
-#  poucos e cada trecho já começa a secar assim que o rolo passa.
+#  ou seja Leste, Norte, Oeste, Sul. Ele pinta ANDANDO — o rolo (trajeto_rolo.gd)
+#  vai carimbando a máscara da parede enquanto ele caminha, então cada trecho já
+#  começa a secar assim que o rolo passa.
 #
-#  - ABERTURA: o tio já pintou 3 paredes antes do jogador chegar (cada uma um
-#    pouco mais seca que a seguinte) e está terminando a última (Sul) em cena.
+#  - ABERTURA: o tio já pintou 3 paredes antes do jogador chegar (num escalonamento
+#    curto de secagem entre elas) e está terminando a última (Norte) em cena.
 #  - Demãos seguintes: circuito completo, uma parede de cada vez.
 #  - Depois da 3ª demão: pergunta se gostou. Trocar de cor recomeça o ciclo,
 #    também com o tio dando a volta (o jogador está vendo, não pode teleportar
@@ -95,7 +95,6 @@ var _cor_anterior_seca: Color = COR_PAREDE_CRUA
 @onready var _garotinha: Garotinha          = $"../Garotinha"
 @onready var _camera_cadeira: CameraCadeira = $"../Camera3D"
 @onready var _camera_cutscene: Camera3D     = $"../CameraCutscene"
-@onready var _sol: Node3D                   = $"../Sol"
 @onready var _dialogo: DialogoPintura       = $"../DialogoPintura"
 @onready var _porta: Porta                  = $"../Porta"
 
@@ -150,7 +149,6 @@ func _retomar_de_save() -> void:
 	_tio.hide()
 	_garotinha.hide()
 	_camera_cadeira.ativar()
-	_sol.set_process(true)
 
 	cor_atual   = _carregar_cor(EstadoJogo.dados.cor_atual_nome)
 	demao_atual = EstadoJogo.dados.demao_atual
@@ -169,7 +167,6 @@ func _retomar_de_save() -> void:
 func _sequencia_abertura() -> void:
 	estado = Estado.INTRO
 	_camera_cutscene.look_at(PONTO_OLHAR_CUTSCENE, Vector3.UP)
-	_sol.set_process(false)  # dia/noite pausado durante a cutscene, pra não "piscar" rápido demais
 
 	# As outras 3 paredes já foram pintadas antes do jogador chegar. Carimba de
 	# uma vez (sem animar) pra elas terem a marca de rolo de verdade, não cor
@@ -208,7 +205,6 @@ func _sequencia_abertura() -> void:
 	await _tio.ir_ate(PONTO_PERTO_CADEIRA_TIO, 2.5)
 	await _garotinha_entra_e_senta()
 	_camera_cadeira.ativar()
-	_sol.set_process(true)
 	await _tio_sai()
 
 	estado = Estado.SECANDO
