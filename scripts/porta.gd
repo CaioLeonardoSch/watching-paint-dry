@@ -32,18 +32,70 @@ func _ready() -> void:
 	_criar_batentes()
 
 
+const COR_MADEIRA: Color = Color(0.42, 0.27, 0.16)
+const ESPESSURA_FOLHA: float = 0.06
+
+
 func _criar_folha() -> void:
 	var box := BoxMesh.new()
-	box.size = Vector3(0.06, 2.05, 0.95)
+	box.size = Vector3(ESPESSURA_FOLHA, 2.05, 0.95)
 	_folha.mesh = box
 	# Centro da folha meio vão adiante da dobradiça (Z local negativo)
 	_folha.position = Vector3(0, 1.025, -0.5)
 
-	var ruido  := MateriaisProcedurais.criar_textura_ruido(0.2, 512)
-	var normal := MateriaisProcedurais.criar_normal_ruido(1.2, 2.0, 512)
-	var mat    := MateriaisProcedurais.criar_material_texturizado(
-		Color(0.42, 0.27, 0.16), 0.75, ruido, Vector3(1.0, 6.0, 1.0), normal, 0.9)
+	# Cor chapada, sem normal map de veio. Em low-poly o veio fingido não
+	# sobrevive à luz de raspão — o que faz a porta ler como porta é a
+	# almofada, que é forma de verdade.
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = COR_MADEIRA
+	mat.roughness    = 0.75
 	_folha.set_surface_override_material(0, mat)
+
+	_criar_almofadas(mat)
+
+
+## Almofadas: duas molduras salientes na folha, uma alta e uma baixa — o
+## desenho clássico de porta de madeira. Cada moldura são 4 barras finas que
+## atravessam a folha, então aparecem dos dois lados de uma vez.
+func _criar_almofadas(mat: Material) -> void:
+	var largura: float = 0.95
+	var altura: float  = 2.05
+	var margem: float  = 0.11    # borda da folha que fica lisa
+	var vao: float     = 0.055   # respiro entre a almofada de cima e a de baixo
+	var barra: float   = 0.035   # espessura da barra da moldura
+	var saliencia: float = ESPESSURA_FOLHA + 0.016  # sobra dos dois lados
+
+	var meia_altura_util: float = (altura - margem * 2.0 - vao) * 0.5
+	var largura_util: float = largura - margem * 2.0
+
+	# centro Y de cada almofada, relativo ao centro da folha
+	var centros: Array[float] = [
+		-(altura * 0.5) + margem + meia_altura_util * 0.5 + meia_altura_util * 0.5,
+		(altura * 0.5) - margem - meia_altura_util * 0.5 - meia_altura_util * 0.5,
+	]
+	# recalcula pra ficar simétrico ao redor do vão central
+	centros[0] = -(vao * 0.5 + meia_altura_util * 0.5)
+	centros[1] =  (vao * 0.5 + meia_altura_util * 0.5)
+
+	for cy in centros:
+		var meia_a: float = meia_altura_util * 0.5
+		var meia_l: float = largura_util * 0.5
+		# horizontais (topo e base da almofada)
+		_barra_almofada(mat, Vector3(saliencia, barra, largura_util), Vector3(0, cy - meia_a, 0))
+		_barra_almofada(mat, Vector3(saliencia, barra, largura_util), Vector3(0, cy + meia_a, 0))
+		# verticais (laterais)
+		_barra_almofada(mat, Vector3(saliencia, meia_altura_util, barra), Vector3(0, cy, -meia_l))
+		_barra_almofada(mat, Vector3(saliencia, meia_altura_util, barra), Vector3(0, cy, meia_l))
+
+
+func _barra_almofada(mat: Material, tamanho: Vector3, pos: Vector3) -> void:
+	var peca := MeshInstance3D.new()
+	_folha.add_child(peca)
+	var box := BoxMesh.new()
+	box.size      = tamanho
+	peca.mesh     = box
+	peca.position = pos
+	peca.set_surface_override_material(0, mat)
 
 
 func _criar_macaneta() -> void:

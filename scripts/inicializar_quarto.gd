@@ -135,26 +135,40 @@ func _criar_assoalho_tabuas() -> void:
 		x += largura
 
 
+## Janela: dois painéis de vidro em vez de um bloco só.
+##
+## A moldura (props_quarto.gd) tem travessa central, então um vidro inteiro
+## atravessando ela ficava incoerente. Também saiu a refração: ela entortava o
+## cenário lá fora e chamava atenção pro vidro, quando o que interessa é o que
+## se vê através dele. Vidro de casa é quase invisível — o que o denuncia é o
+## reflexo de raspão, não distorção.
 func _criar_janela() -> void:
 	var janela := get_node_or_null("Janela")
 	if janela == null:
 		push_warning("Nó Janela não encontrado")
 		return
 
-	var box := BoxMesh.new()
-	box.size = Vector3(0.05, 1.2, 2.0)
-	janela.mesh = box
-
 	var mat := StandardMaterial3D.new()
-	mat.transparency       = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.albedo_color       = Color(0.75, 0.88, 1.0, 0.18)
-	mat.roughness          = 0.0
-	mat.metallic_specular  = 1.0
-	mat.refraction_enabled = true
-	mat.refraction_scale   = 0.02
-	mat.cull_mode          = BaseMaterial3D.CULL_DISABLED
+	mat.transparency      = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color      = Color(0.80, 0.90, 0.98, 0.10)
+	mat.roughness         = 0.04
+	mat.metallic_specular = 0.85
+	mat.cull_mode         = BaseMaterial3D.CULL_DISABLED
+	# Não recebe sombra: vidro sombreado lê como sujeira/fosco
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
 
-	janela.set_surface_override_material(0, mat)
+	# O nó da cena vira só o suporte; os painéis entram como filhos.
+	janela.mesh = null
+
+	var altura_painel: float = 0.54   # dois painéis + a travessa no meio
+	for dy in [-0.30, 0.30]:
+		var painel := MeshInstance3D.new()
+		janela.add_child(painel)
+		var box := BoxMesh.new()
+		box.size       = Vector3(0.02, altura_painel, 1.92)
+		painel.mesh    = box
+		painel.position = Vector3(0, dy, 0)
+		painel.set_surface_override_material(0, mat)
 
 
 func _criar_lampada() -> void:
@@ -180,36 +194,67 @@ func _criar_lampada() -> void:
 
 
 ## Cadeira onde a garotinha senta, em PONTO_CADEIRA_GAROTINHA (0, 0, -1),
-## virada pro norte (pra parede da tinta). Assento + encosto + 4 pernas,
-## tudo primitiva, madeira com veio (mesmo tratamento da porta).
+## virada pro norte (pra parede da tinta).
+##
+## Cadeira de cozinha, tudo primitiva: assento, dois montantes traseiros que
+## sobem do chão até o topo do encosto, ripas verticais entre eles, e as pernas
+## da frente. Cor chapada — o veio procedural que existia aqui saiu junto com o
+## das paredes (Fase C): em low-poly, é a ripa que faz ler como cadeira de
+## madeira, não a textura.
 func _criar_cadeira() -> void:
 	var cadeira := Node3D.new()
 	cadeira.name = "Cadeira"
 	add_child(cadeira)
 	cadeira.position = Vector3(0, 0, -1.0)
 
-	var ruido  := MateriaisProcedurais.criar_textura_ruido(0.35, 256)
-	var normal := MateriaisProcedurais.criar_normal_ruido(1.6, 1.8, 256)
-	var mat    := MateriaisProcedurais.criar_material_texturizado(
-		Color(0.38, 0.24, 0.14), 0.7, ruido, Vector3(4.0, 4.0, 4.0), normal, 0.8)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.38, 0.24, 0.14)
+	mat.roughness    = 0.72
+
+	# tom um tico mais claro no assento, como madeira gasta de uso
+	var mat_assento := StandardMaterial3D.new()
+	mat_assento.albedo_color = Color(0.44, 0.29, 0.17)
+	mat_assento.roughness    = 0.66
 
 	var alt_assento: float = 0.45
 	var meia_largura: float = 0.21
+	var z_tras: float = 0.19
+	var z_frente: float = -0.19
+	var alt_encosto: float = 0.52   # do assento até o topo do encosto
 
-	_peca_cadeira(cadeira, mat, Vector3(0.46, 0.05, 0.44), Vector3(0, alt_assento, 0))
+	_peca_cadeira(cadeira, mat_assento, Vector3(0.46, 0.05, 0.44), Vector3(0, alt_assento, 0))
 
-	# Encosto: painel inclinado, atrás (lado sul, +Z) — garota olha pro norte
-	var encosto := _peca_cadeira(cadeira, mat, Vector3(0.44, 0.5, 0.05), Vector3(0, alt_assento + 0.28, 0.2))
-	encosto.rotation_degrees.x = -8.0
+	# Montantes traseiros: sobem do chão até o alto do encosto numa peça só —
+	# é o que dá a silhueta de cadeira, em vez de um painel solto atrás.
+	var altura_montante: float = alt_assento + alt_encosto
+	for dx in [-meia_largura, meia_largura]:
+		_peca_cadeira(cadeira, mat, Vector3(0.05, altura_montante, 0.05),
+			Vector3(dx, altura_montante * 0.5, z_tras))
 
-	# Travessa horizontal do encosto, dá cara de cadeira de madeira mesmo
-	_peca_cadeira(cadeira, mat, Vector3(0.44, 0.07, 0.06), Vector3(0, alt_assento + 0.52, 0.23))
+	# Pernas da frente, mais curtas (só até o assento)
+	for dx in [-meia_largura, meia_largura]:
+		_peca_cadeira(cadeira, mat, Vector3(0.05, alt_assento, 0.05),
+			Vector3(dx, alt_assento * 0.5, z_frente))
 
-	var eixos_x: Array[float] = [-meia_largura, meia_largura]
-	var eixos_z: Array[float] = [-0.19, 0.19]
-	for dx in eixos_x:
-		for dz in eixos_z:
-			_peca_cadeira(cadeira, mat, Vector3(0.05, alt_assento, 0.05), Vector3(dx, alt_assento * 0.5, dz))
+	# Travessa de cima, ligando os montantes
+	var topo: float = alt_assento + alt_encosto - 0.04
+	_peca_cadeira(cadeira, mat, Vector3(0.44, 0.07, 0.05), Vector3(0, topo, z_tras))
+	# Travessa de baixo do encosto, deixando um vão aberto acima do assento
+	var base_encosto: float = alt_assento + 0.14
+	_peca_cadeira(cadeira, mat, Vector3(0.44, 0.05, 0.05), Vector3(0, base_encosto, z_tras))
+
+	# Ripas verticais no encosto
+	var altura_ripa: float = topo - base_encosto
+	for dx in [-0.105, 0.0, 0.105]:
+		_peca_cadeira(cadeira, mat, Vector3(0.045, altura_ripa, 0.03),
+			Vector3(dx, (base_encosto + topo) * 0.5, z_tras))
+
+	# Travessa entre as pernas, perto do chão — trava a estrutura e some com a
+	# sensação de "quatro palitos soltos"
+	for dz in [z_frente, z_tras]:
+		_peca_cadeira(cadeira, mat, Vector3(0.40, 0.035, 0.035), Vector3(0, 0.13, dz))
+	for dx in [-meia_largura, meia_largura]:
+		_peca_cadeira(cadeira, mat, Vector3(0.035, 0.035, 0.38), Vector3(dx, 0.13, 0))
 
 
 func _peca_cadeira(pai: Node3D, mat: Material, tamanho: Vector3, pos: Vector3) -> MeshInstance3D:

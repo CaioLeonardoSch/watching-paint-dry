@@ -175,7 +175,13 @@ estão **completas**, mais uma rodada de refinamento pós-roadmap:
   a 52° do horizonte, céu procedural com nuvens em `sky_cover` (alfa por `color_ramp`);
   cenário externo pela janela (`cenario_externo.gd`) — jardim, árvores, rua e casas, tudo
   primitivas; som ambiente sintetizado (`som_ambiente.gd`/`som_pincelada.gd`, sem arquivo de áudio).
-  **O ciclo de dia e noite foi removido** (ver "descartados" abaixo)
+  **O ciclo de dia e noite foi removido** (ver "descartados" abaixo).
+  **Grade de cor:** o `Environment` do quarto usa tonemap ACES (`tonemap_mode = 3`,
+  `tonemap_white = 6.0`) + `adjustment_*` leve (contraste 1.08, saturação 1.15). Sem tonemap
+  (linear, o default) tudo acima de 1.0 grampeava em branco e o quarto ficava lavado, com a mesma
+  cara de neblina que a comparação com a tela de título denunciou. Junto vieram luzes menos fortes
+  (`LuzJanela` 1.9→1.5, `LuzLampada` 1.2→0.85) e ambiente mais fraco e menos leitoso
+  (`ambiente_dia.gd`: 0.24→0.14, cor 0.80,0.83,0.88→0.66,0.72,0.84)
 - **Fase 3 — menu, modos, save, conquistas:** `estado_jogo.gd` é o autoload `EstadoJogo`, guarda
   modo ativo e `DadosSalvos` salvo em `user://save.tres`. Menu inicial oferece Jogar (seletor de
   modo Rápido/Normal/Realista) ou Continuar, mais visualizador de conquistas. `parede_pintavel.gd`
