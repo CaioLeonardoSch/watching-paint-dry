@@ -533,7 +533,7 @@ e deixar as demãos seguintes no ritmo honesto. **Confirmar antes de implementar
 | 6 | Corpo + rig simplificado da garotinha | ✅ 13 ossos, 494 verts |
 | 7 | Export `.glb` das duas (com as armadilhas de export) | ✅ |
 | 8 | Regerar `*_modelo.tscn` no Godot (`GLTFDocument` + converter `ImporterMeshInstance3D`) | ✅ |
-| 9 | Stack de `SkeletonModifier3D` (ver 5.2) | ⬜ |
+| 9 | Stack de `SkeletonModifier3D` (ver 5.2) | ✅ IK do braço e das pernas + `LookAtModifier3D`, todos com `active = false` até a Fase E ligar |
 | 10 | Clipes base (ver 5.3) | ✅ parcial — `andar`, `parado_respirando`, `pintar_braco`. Faltam os que dependem de props (`molhar_rolo`, banquinho), que são Fase E |
 | 11 | Camada procedural: altura do quadril, inclinação do torso (5.4) | ⬜ |
 | 12 | Religar `tio.gd`/`garotinha.gd` e re-testar câmeras/colisão | ⬜ |
@@ -567,6 +567,29 @@ dobra contínua, sem rasgar. Era o risco que a decisão 5.0 assumiu, e ele não 
 - **`materials.clear()` zera o `material_index` de todas as faces.** Se a atribuição de face por
   região já tiver sido feita, ela se perde e tudo volta pro slot 0 — reatribuir depois de mexer nos
   slots
+
+### Armadilhas do `TwoBoneIK3D` — as duas que mais custam tempo
+
+**1. O pole node é OBRIGATÓRIO.** Sem ele a IK roda e não faz absolutamente nada — sem erro, sem
+warning, sem exceção. A classe herda de `IKModifier3D`, e a documentação diz numa linha só: *"This
+IKModifier3D requires a pole target"*. O pole é o nó que define o plano da dobra (pra onde o
+cotovelo/joelho aponta). Configurar com `set_pole_node(indice, caminho)`.
+
+**2. `get_bone_global_pose()` NÃO reflete os modificadores.** Este é o que engana de verdade: depois
+de configurar tudo certo, os getters de pose continuam devolvendo a pose de repouso, como se a IK
+estivesse morta. Ela está funcionando — o resultado só aparece no que é renderizado. **A única
+verificação confiável é visual (renderizar e olhar).** Perdi várias rodadas achando que a IK estava
+quebrada por causa disso, inclusive testando `FABRIK3D`, cadeias diferentes, `use_virtual_end`,
+`extend_end_bone` e os dois `modifier_callback_mode_process`.
+
+Diagnóstico útil: o sinal `modification_processed` do modificador dispara a cada frame mesmo quando
+nada muda — serve pra confirmar que ele *está sendo processado*, separando "não roda" de "roda e
+não altera".
+
+A API é por índice, como o `texture_blit` da Fase A — `setting_count` e depois
+`set_root_bone_name(i, ...)`, `set_middle_bone_name(i, ...)`, `set_end_bone_name(i, ...)`,
+`set_target_node(i, ...)`, `set_pole_node(i, ...)`. Um mesmo nó atende várias cadeias (as duas
+pernas usam um `TwoBoneIK3D` só, com `setting_count = 2`).
 
 **Cor por região:** com malha contínua não existe mais "uma peça, um material". A divisão
 pele/roupa é feita por `material_index` **por face**, escolhida por critério geométrico (faixa de Z
