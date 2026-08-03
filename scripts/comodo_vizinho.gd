@@ -1,7 +1,7 @@
 extends Node3D
 
 # ─────────────────────────────────────────────
-#  CÔMODO VIZINHO — o que se vê quando a porta abre (parede leste, X=+3.5)
+#  CÔMODO VIZINHO — o que se vê quando a porta abre (parede leste, X=+3.0)
 #
 #  Antes daqui a porta abria pro vazio: fundo preto, sem chão, denunciando
 #  que o quarto é uma caixa solta no espaço. Este cômodo existe SÓ pra ser
@@ -9,7 +9,7 @@ extends Node3D
 #  sugerida (piso frio, parede amarelo-clara, bancada, geladeira), não um
 #  cômodo jogável. Nada aqui tem colisão nem _process.
 #
-#  Ocupa X ∈ [+3.6, +10.0], Z ∈ [-4.0, +2.0] — o Z bate com o do quarto de
+#  Ocupa X ∈ [+3.1, +9.5], Z ∈ [-4.0, +2.0] — o Z bate com o do quarto de
 #  propósito: a parede leste do quarto já fecha esse lado, então não sobra
 #  fresta de luz entre os dois cômodos.
 #
@@ -17,8 +17,8 @@ extends Node3D
 #  pra isso).
 # ─────────────────────────────────────────────
 
-const PAREDE_LESTE_X: float = 3.5   # plano da parede com a porta
-const FUNDO_X: float = 10.0         # parede oposta
+const PAREDE_LESTE_X: float = 3.0   # plano da parede com a porta
+const FUNDO_X: float = 9.5          # parede oposta
 const Z_NORTE: float = -4.0
 const Z_SUL: float = 2.0
 const ALTURA: float = 3.0

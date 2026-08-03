@@ -14,7 +14,7 @@ extends Node3D
 #  autocontido com várias peças pequenas.
 # ─────────────────────────────────────────────
 
-const PAREDE_OESTE_X: float = -3.5  # plano da parede com a janela
+const PAREDE_OESTE_X: float = -3.0  # plano da parede com a janela (6 × 6, ver G6)
 
 
 ## Alcance do jardim em X, além da parede — bem maior que o necessário pro
@@ -177,7 +177,8 @@ func _criar_vizinhanca() -> void:
 
 	# Árvores da calçada, ritmadas — o alinhamento é o que dá "rua" em vez de
 	# "árvores jogadas no gramado".
-	# Nenhuma em Z ∈ [-2, +2]: o sol vem do oeste na horizontal, então árvore
+	# Nenhuma em Z ∈ [-3, +1]: a janela agora e centrada em Z = -1, e o sol vem
+	# do oeste na horizontal, então árvore
 	# nessa faixa volta a rendilhar a luz no chão do quarto.
 	for z in [-24.0, -13.0, -6.0, 11.0, 22.0]:
 		_criar_arvore(Vector3(PAREDE_OESTE_X - 6.2, 0.0, z), rng.randf_range(0.8, 1.1))

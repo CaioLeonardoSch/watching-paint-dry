@@ -12,9 +12,9 @@ class_name PropsQuarto
 #
 #  Tudo aqui é geometria primitiva posicionada, sem textura nenhuma.
 #
-#  Quarto: X ∈ [-3.5, +3.5], Z ∈ [-4.0, +2.0], Y ∈ [0, 3]
-#  Porta a leste (x=+3.5, z de -0.5 a +0.5); janela a oeste (x=-3.5,
-#  z de -1 a +1, y de 0.8 a 2.0).
+#  Quarto: X ∈ [-3.0, +3.0], Z ∈ [-4.0, +2.0], Y ∈ [0, 3] — 6 × 6 (Fase G6)
+#  Porta a leste (x=+3.0, z de -0.5 a +0.5); janela a oeste (x=-3.0,
+#  z de -1.85 a -0.15, centrada na parede; y de 0.8 a 2.0).
 # ─────────────────────────────────────────────
 
 # ── Paleta fechada (Fase C do plano) ─────────────────────────
@@ -25,9 +25,9 @@ const METAL_FOSCO := Color(0.62, 0.60, 0.56)
 const PLASTICO_CREME := Color(0.90, 0.88, 0.83)
 
 # FACE INTERNA de cada parede, não o centro dela. As paredes são BoxMesh de
-# 0.2 de espessura centrados em ±3.5 / -4.0 / +2.0, então a superfície que dá
+# 0.2 de espessura centrados em ±3.0 / -4.0 / +2.0, então a superfície que dá
 # pro quarto está 0.1 pra dentro. Usar o centro enterra os props na parede.
-const LIMITE_X: float = 3.4
+const LIMITE_X: float = 2.9
 const LIMITE_Z_NORTE: float = -3.9
 const LIMITE_Z_SUL: float = 1.9
 
@@ -42,7 +42,6 @@ static func criar(pai: Node3D) -> void:
 
 	_rodapes(raiz)
 	_moldura_janela(raiz)
-	_moldura_porta(raiz)
 	_interruptor(raiz)
 	_tomada(raiz)
 
@@ -93,7 +92,7 @@ static func _rodapes(raiz: Node3D) -> void:
 		Vector3(LIMITE_X - SALIENCIA * 0.5, y, 0.5 + comp_sul * 0.5), mat)
 
 
-## Moldura da janela (parede oeste, x=-3.5, z de -0.85 a 0.85, y de 0.8 a 2.0).
+## Moldura da janela (parede oeste, x=-3.0, z de -1.85 a -0.15, y de 0.8 a 2.0).
 ##
 ## Vão encurtado 15% em Z (era z ∈ [-1, +1]) e travessa vertical somada à
 ## horizontal: a cruz no meio divide em 4 vidros iguais, que é o desenho
@@ -103,8 +102,8 @@ static func _moldura_janela(raiz: Node3D) -> void:
 	var mat := _material(BRANCO_SUJO, 0.65)
 	var x: float = -LIMITE_X + SALIENCIA
 	var esp: float = 0.05
-	var z0: float = -0.85
-	var z1: float = 0.85
+	var z0: float = -1.85
+	var z1: float = -0.15
 	var y0: float = 0.8
 	var y1: float = 2.0
 	var ym: float = (y0 + y1) * 0.5
@@ -125,18 +124,13 @@ static func _moldura_janela(raiz: Node3D) -> void:
 		Vector3(x + 0.04, y0 - 0.03, (z0 + z1) * 0.5), _material(MADEIRA_CLARA, 0.7))
 
 
-## Batente da porta (parede leste, x=+3.5, z de -0.5 a 0.5, até y=2.1).
-static func _moldura_porta(raiz: Node3D) -> void:
-	var mat := _material(MADEIRA_ESCURA, 0.7)
-	var x: float = LIMITE_X - SALIENCIA
-	var esp: float = 0.06
-	var z0: float = -0.5
-	var z1: float = 0.5
-	var topo: float = 2.1
-
-	_caixa(raiz, Vector3(esp, topo, esp), Vector3(x, topo * 0.5, z0), mat)
-	_caixa(raiz, Vector3(esp, topo, esp), Vector3(x, topo * 0.5, z1), mat)
-	_caixa(raiz, Vector3(esp, esp, z1 - z0 + esp), Vector3(x, topo, (z0 + z1) * 0.5), mat)
+## A moldura da porta MORAVA AQUI e foi removida na Fase G6.
+##
+## Havia duas molduras de porta no jogo, quase idênticas em cor e sobrepostas
+## em X — esta e a de `porta.gd::_criar_batentes`. Liam como uma moldura só
+## meio grossa e eram geometria duplicada esperando pra brigar por z-fighting.
+## Ficou a de `porta.gd`, que é quem tem as medidas da folha e por isso
+## consegue fechar a fresta do topo. Cena de porta autocontida.
 
 
 ## Interruptor perto da porta, na altura da mão.

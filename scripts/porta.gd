@@ -4,7 +4,7 @@ class_name Porta
 # ─────────────────────────────────────────────
 #  PORTA — folha com maçaneta, abre e fecha
 #
-#  Vão da porta na parede leste: X=3.5, Z ∈ [-0.5, +0.5], Y ∈ [0, 2.1].
+#  Vão da porta na parede leste: X=3.0, Z ∈ [-0.5, +0.5], Y ∈ [0, 2.1].
 #  Dobradiça no lado Z=+0.5; a folha gira em torno dela e abre pra dentro
 #  do quarto (sentido -X). Quem gira é o PivoFolha, não a raiz — os batentes
 #  (moldura) são irmãos dele e ficam parados, como tem que ser.
@@ -34,14 +34,18 @@ func _ready() -> void:
 
 const COR_MADEIRA: Color = Color(0.42, 0.27, 0.16)
 const ESPESSURA_FOLHA: float = 0.06
+## Vão tem 1,00 m: 1,5 cm de folga de cada lado, coberta pelo batente.
+const LARGURA_FOLHA: float = 0.97
+## Vão vai até 2,10 m. A folha para em 2,087 e o batente do topo cobre o resto.
+const ALTURA_FOLHA: float = 2.075
 
 
 func _criar_folha() -> void:
 	var box := BoxMesh.new()
-	box.size = Vector3(ESPESSURA_FOLHA, 2.05, 0.95)
+	box.size = Vector3(ESPESSURA_FOLHA, ALTURA_FOLHA, LARGURA_FOLHA)
 	_folha.mesh = box
 	# Centro da folha meio vão adiante da dobradiça (Z local negativo)
-	_folha.position = Vector3(0, 1.025, -0.5)
+	_folha.position = Vector3(0, 1.0495, -0.5)
 
 	# Cor chapada, sem normal map de veio. Em low-poly o veio fingido não
 	# sobrevive à luz de raspão — o que faz a porta ler como porta é a
@@ -58,8 +62,8 @@ func _criar_folha() -> void:
 ## desenho clássico de porta de madeira. Cada moldura são 4 barras finas que
 ## atravessam a folha, então aparecem dos dois lados de uma vez.
 func _criar_almofadas(mat: Material) -> void:
-	var largura: float = 0.95
-	var altura: float  = 2.05
+	var largura: float = LARGURA_FOLHA
+	var altura: float  = ALTURA_FOLHA
 	var margem: float  = 0.11    # borda da folha que fica lisa
 	var vao: float     = 0.055   # respiro entre a almofada de cima e a de baixo
 	var barra: float   = 0.035   # espessura da barra da moldura
@@ -151,21 +155,21 @@ func _criar_batentes() -> void:
 	# Molduras nas laterais e no topo do vão — some com a fresta feia entre
 	# folha e parede, e dá acabamento de porta de verdade.
 	var caixa_norte := BoxMesh.new()
-	caixa_norte.size = Vector3(0.14, 2.15, 0.06)
+	caixa_norte.size = Vector3(0.20, 2.15, 0.06)
 	_batente_norte.mesh     = caixa_norte
 	_batente_norte.position = Vector3(0, 1.075, -1.0)
 	_batente_norte.set_surface_override_material(0, mat)
 
 	var caixa_sul := BoxMesh.new()
-	caixa_sul.size = Vector3(0.14, 2.15, 0.06)
+	caixa_sul.size = Vector3(0.20, 2.15, 0.06)
 	_batente_sul.mesh     = caixa_sul
 	_batente_sul.position = Vector3(0, 1.075, 0.0)
 	_batente_sul.set_surface_override_material(0, mat)
 
 	var caixa_topo := BoxMesh.new()
-	caixa_topo.size = Vector3(0.14, 0.06, 1.1)
+	caixa_topo.size = Vector3(0.20, 0.11, 1.1)
 	_batente_topo.mesh     = caixa_topo
-	_batente_topo.position = Vector3(0, 2.12, -0.5)
+	_batente_topo.position = Vector3(0, 2.115, -0.5)
 	_batente_topo.set_surface_override_material(0, mat)
 
 

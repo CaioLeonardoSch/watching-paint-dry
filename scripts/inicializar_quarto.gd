@@ -3,13 +3,23 @@ extends Node3D
 # ─────────────────────────────────────────────
 #  INICIALIZADOR DO QUARTO
 #
-#  Quarto:  X ∈ [-3.5, +3.5],  Z ∈ [-4.0, +2.0]
+#  Quarto:  X ∈ [-3.0, +3.0],  Z ∈ [-4.0, +2.0]  — 6 × 6 m
 #
 #  Norte (-Z) = FRENTE  → parede com tinta
 #  Sul  (+Z)  = ATRÁS
-#  Oeste (-X) = ESQUERDA → janela
+#  Oeste (-X) = ESQUERDA → janela (centrada em Z = -1)
 #  Leste (+X) = DIREITA  → porta
+#
+#  QUADRADO DE PROPÓSITO (Fase G6). Era 7 × 6, e a assimetria tinha
+#  consequência medível: as paredes norte/sul tinham 21 m² contra 18 m² das
+#  outras, o rolo andava 17% mais rápido nelas (mesma duração, trajeto maior),
+#  e a janela fora de centro deixava a parede norte — a que a garotinha encara
+#  — recebendo um quarto da luz que a sul recebia. Agora as 4 são idênticas:
+#  18 m², mesma máscara, todas a 3,0 m da câmera da cadeira.
 # ─────────────────────────────────────────────
+
+## Meia-largura do quarto. As paredes leste/oeste ficam em ±LIMITE_X.
+const LIMITE_X: float = 3.0
 
 func _ready() -> void:
 	_criar_meshes()
@@ -22,20 +32,24 @@ func _ready() -> void:
 
 func _criar_meshes() -> void:
 	var meshes := {
-		# Chão e teto
-		"ChaoQP":             Vector3(7.0, 0.2, 6.0),
-		"TetoQP":             Vector3(7.0, 0.2, 6.0),
+		# Chão e teto — 6 × 6 (era 7 × 6)
+		"ChaoQP":             Vector3(6.0, 0.2, 6.0),
+		"TetoQP":             Vector3(6.0, 0.2, 6.0),
 		# Parede Norte — inteira coberta pela tinta
-		"ParedeNorteSolida":  Vector3(7.0, 3.0, 0.2),  # X∈[-3.5,+3.5]
+		"ParedeNorteSolida":  Vector3(6.0, 3.0, 0.2),  # X∈[-3.0,+3.0]
 		# Parede Sul (atrás, fechada)
-		"ParedeSul":          Vector3(7.0, 3.0, 0.2),
-		# Parede Oeste — janela (4 peças ao redor da abertura). O vão encolheu
-		# 15% em Z (2.0 → 1.7): janela mais quadrada, ver props_quarto.gd
-		"ParedeOesteNorte":   Vector3(0.2, 3.0, 3.15), # Z∈[-4.0,-0.85]
-		"ParedeOesteSul":     Vector3(0.2, 3.0, 1.15), # Z∈[+0.85,+2.0]
-		"ParedeOesteAcima":   Vector3(0.2, 1.0, 1.7),  # Z∈[-0.85,+0.85], Y∈[2.0,3.0]
-		"ParedeOesteAbaixo":  Vector3(0.2, 0.8, 1.7),  # Z∈[-0.85,+0.85], Y∈[0.0,0.8]
-		# Parede Leste — porta (3 peças ao redor da abertura)
+		"ParedeSul":          Vector3(6.0, 3.0, 0.2),
+		# Parede Oeste — janela CENTRADA no vão da parede: Z∈[-1.85,-0.15],
+		# ou seja 1.7 de largura em torno de Z = -1, que é o centro da parede.
+		# Antes ela estava em Z = 0, 1 m fora do centro — e isso deixava a
+		# parede norte recebendo ~1/4 da luz de janela que a sul recebia.
+		"ParedeOesteNorte":   Vector3(0.2, 3.0, 2.15), # Z∈[-4.0,-1.85]
+		"ParedeOesteSul":     Vector3(0.2, 3.0, 2.15), # Z∈[-0.15,+2.0]
+		"ParedeOesteAcima":   Vector3(0.2, 1.0, 1.7),  # Z∈[-1.85,-0.15], Y∈[2.0,3.0]
+		"ParedeOesteAbaixo":  Vector3(0.2, 0.8, 1.7),  # Z∈[-1.85,-0.15], Y∈[0.0,0.8]
+		# Parede Leste — porta (3 peças ao redor da abertura). A porta fica
+		# fora do centro de propósito: casa tem porta encostada num lado, e
+		# centrar as duas aberturas na mesma reta daria cara de diagrama.
 		"ParedeLesteNorte":   Vector3(0.2, 3.0, 3.5),  # Z∈[-4.0,-0.5]
 		"ParedeLesteSul":     Vector3(0.2, 3.0, 1.5),  # Z∈[+0.5,+2.0]
 		"ParedeLesteAcima":   Vector3(0.2, 0.9, 1.0),  # Z∈[-0.5,+0.5], Y∈[2.1,3.0]
@@ -110,9 +124,9 @@ func _criar_assoalho_tabuas() -> void:
 
 	const LARGURA_TABUA: float = 0.22
 	const FRESTA: float = 0.012
-	var x: float = -3.5
-	while x < 3.5:
-		var largura: float = minf(LARGURA_TABUA, 3.5 - x)
+	var x: float = -LIMITE_X
+	while x < LIMITE_X:
+		var largura: float = minf(LARGURA_TABUA, LIMITE_X - x)
 		if largura < 0.02:
 			break
 

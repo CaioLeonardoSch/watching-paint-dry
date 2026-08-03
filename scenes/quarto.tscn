@@ -49,7 +49,7 @@ shadow_enabled = true
 script = ExtResource("3_sol")
 
 [node name="LuzJanela" type="AreaLight3D" parent="." unique_id=2010000020 unique_name_in_owner=true]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -3.42, 1.4, 0)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -2.92, 1.4, -1.0)
 light_color = Color(0.95, 0.93, 0.88, 1)
 light_energy = 1.5
 shadow_enabled = true
@@ -57,14 +57,14 @@ area_size = Vector2(1.7, 1.2)
 area_range = 7.0
 
 [node name="Lampada" type="MeshInstance3D" parent="." unique_id=2010000001]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.85, -1)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.45, -1)
 
 [node name="LuzLampada" type="OmniLight3D" parent="." unique_id=2010000002]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.75, -1)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.35, -1)
 light_color = Color(1, 0.85, 0.65, 1)
-light_energy = 0.85
+light_energy = 1.1
 shadow_enabled = true
-omni_range = 6.0
+omni_range = 7.0
 
 [node name="Camera3D" type="Camera3D" parent="." unique_id=660135362 unique_name_in_owner=true]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, -1)
@@ -72,14 +72,14 @@ current = false
 script = ExtResource("2_cam")
 
 [node name="CameraCutscene" type="Camera3D" parent="." unique_id=2010000003 unique_name_in_owner=true]
-position = Vector3(-3.0, 2.2, 1.6)
+position = Vector3(-2.5, 2.2, 1.6)
 current = true
 
 [node name="Tio" parent="." instance=ExtResource("5_tio") unique_id=2010000004 unique_name_in_owner=true]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.8, 0, -3.6)
 
 [node name="Garotinha" parent="." instance=ExtResource("6_garotinha") unique_id=2010000005 unique_name_in_owner=true]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.8, 0, 0.3)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.3, 0, 0.3)
 
 [node name="ChaoQP" type="MeshInstance3D" parent="." unique_id=1658286424]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, -1)
@@ -94,31 +94,31 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, -4)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 2)
 
 [node name="ParedeOesteNorte" type="MeshInstance3D" parent="." unique_id=1872741563]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 1.5, -2.425)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.0, 1.5, -2.925)
 
 [node name="ParedeOesteSul" type="MeshInstance3D" parent="." unique_id=767032305]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 1.5, 1.425)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.0, 1.5, 0.925)
 
 [node name="ParedeOesteAcima" type="MeshInstance3D" parent="." unique_id=1944643393]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 2.5, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.0, 2.5, -1.0)
 
 [node name="ParedeOesteAbaixo" type="MeshInstance3D" parent="." unique_id=372275550]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 0.4, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.0, 0.4, -1.0)
 
 [node name="Janela" type="MeshInstance3D" parent="." unique_id=29798466]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 1.4, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.0, 1.4, -1.0)
 
 [node name="ParedeLesteNorte" type="MeshInstance3D" parent="." unique_id=1265925856]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 1.5, -2.25)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.0, 1.5, -2.25)
 
 [node name="ParedeLesteSul" type="MeshInstance3D" parent="." unique_id=459245049]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 1.5, 1.25)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.0, 1.5, 1.25)
 
 [node name="ParedeLesteAcima" type="MeshInstance3D" parent="." unique_id=286120380]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 2.55, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.0, 2.55, 0)
 
 [node name="Porta" parent="." instance=ExtResource("13_porta") unique_id=118936835]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.46, 0, 0.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.96, 0, 0.5)
 
 [node name="CicloPintura" type="Node" parent="." unique_id=2010000006]
 script = ExtResource("7_ciclo")

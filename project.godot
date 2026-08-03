@@ -22,6 +22,16 @@ Opcoes="*res://scripts/opcoes.gd"
 
 [display]
 
+; A janela abre a 1600x900 e a base de UI continua em 1152x648. Com stretch
+; "canvas_items" o 3D ja renderiza na resolucao real da janela (a base so'
+; escala a UI), entao janela maior = imagem mais nitida de verdade. Sem estes
+; dois campos o Godot usava o padrao de fabrica, 1152x648.
+; Nao subir a BASE pra 1920x1080 antes da Etapa 2: isso obrigaria a revisar
+; todos os tamanhos de fonte do theme_principal.tres.
+window/size/viewport_width=1152
+window/size/viewport_height=648
+window/size/window_width_override=1600
+window/size/window_height_override=900
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 

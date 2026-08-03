@@ -25,9 +25,9 @@ enum Estado { INTRO, PINTANDO, SECANDO, PERGUNTANDO, CONTEMPLANDO }
 @export var demaos_por_ciclo: int = 3
 @export var duracao_pintura_segundos: float = 8.0
 
-const PONTO_PORTA_TIO: Vector3          = Vector3(3.0, 0, 0)
+const PONTO_PORTA_TIO: Vector3          = Vector3(2.5, 0, 0)
 const PONTO_PERTO_CADEIRA_TIO: Vector3  = Vector3(0.9, 0, -1.6)
-const PONTO_PORTA_GAROTINHA: Vector3    = Vector3(2.8, 0, 0.5)
+const PONTO_PORTA_GAROTINHA: Vector3    = Vector3(2.3, 0, 0.5)
 const PONTO_CADEIRA_GAROTINHA: Vector3  = Vector3(0, 0, -1)
 const PONTO_OLHAR_CUTSCENE: Vector3     = Vector3(0.8, 1.3, -2.0)  # entre parede, porta e cadeira
 
@@ -58,27 +58,27 @@ const PAREDE_ABERTURA: int = 1                # Norte
 #
 # Antes isto descrevia por onde a "frente de varredura" andava; agora descreve
 # só a superfície. Quem decide o caminho do rolo é trajeto_rolo.gd.
-# Quarto: X ∈ [-3.5, +3.5], Z ∈ [-4.0, +2.0], Y ∈ [0, 3].
+# Quarto: X ∈ [-3.0, +3.0], Z ∈ [-4.0, +2.0], Y ∈ [0, 3] — 6 × 6, ver G6.
 const VARREDURAS: Array[Dictionary] = [
 	{  # Leste (porta) — direita da garotinha. Pinta do sul pro norte.
-		"origem": Vector3(3.5, 3, 2), "eixo_u": Vector3(0, 0, -6), "eixo_v": Vector3(0, -3, 0),
+		"origem": Vector3(3.0, 3, 2), "eixo_u": Vector3(0, 0, -6), "eixo_v": Vector3(0, -3, 0),
 		"largura": 6.0, "altura": 3.0,
-		"de": Vector3(2.8, 0, 1.6), "para": Vector3(2.8, 0, -3.4), "angulo": -90.0,
+		"de": Vector3(2.3, 0, 1.6), "para": Vector3(2.3, 0, -3.4), "angulo": -90.0,
 	},
 	{  # Norte (frente dela). Pinta de leste pra oeste.
-		"origem": Vector3(3.5, 3, -4), "eixo_u": Vector3(-7, 0, 0), "eixo_v": Vector3(0, -3, 0),
-		"largura": 7.0, "altura": 3.0,
-		"de": Vector3(2.8, 0, -3.4), "para": Vector3(-2.8, 0, -3.4), "angulo": 0.0,
+		"origem": Vector3(3.0, 3, -4), "eixo_u": Vector3(-6, 0, 0), "eixo_v": Vector3(0, -3, 0),
+		"largura": 6.0, "altura": 3.0,
+		"de": Vector3(2.3, 0, -3.4), "para": Vector3(-2.3, 0, -3.4), "angulo": 0.0,
 	},
 	{  # Oeste (janela) — esquerda dela. Pinta do norte pro sul.
-		"origem": Vector3(-3.5, 3, -4), "eixo_u": Vector3(0, 0, 6), "eixo_v": Vector3(0, -3, 0),
+		"origem": Vector3(-3.0, 3, -4), "eixo_u": Vector3(0, 0, 6), "eixo_v": Vector3(0, -3, 0),
 		"largura": 6.0, "altura": 3.0,
-		"de": Vector3(-2.8, 0, -3.4), "para": Vector3(-2.8, 0, 1.4), "angulo": 90.0,
+		"de": Vector3(-2.3, 0, -3.4), "para": Vector3(-2.3, 0, 1.4), "angulo": 90.0,
 	},
 	{  # Sul (atrás dela) — fecha a volta. Pinta de oeste pra leste.
-		"origem": Vector3(-3.5, 3, 2), "eixo_u": Vector3(7, 0, 0), "eixo_v": Vector3(0, -3, 0),
-		"largura": 7.0, "altura": 3.0,
-		"de": Vector3(-2.8, 0, 1.4), "para": Vector3(2.8, 0, 1.4), "angulo": 180.0,
+		"origem": Vector3(-3.0, 3, 2), "eixo_u": Vector3(6, 0, 0), "eixo_v": Vector3(0, -3, 0),
+		"largura": 6.0, "altura": 3.0,
+		"de": Vector3(-2.3, 0, 1.4), "para": Vector3(2.3, 0, 1.4), "angulo": 180.0,
 	},
 ]
 
@@ -153,7 +153,7 @@ func _retomar_de_save() -> void:
 	cor_atual   = _carregar_cor(EstadoJogo.dados.cor_atual_nome)
 	demao_atual = EstadoJogo.dados.demao_atual
 
-	var indice_cor: int = clampi(demao_atual - 1, 0, cor_atual.variantes_secas.size() - 1)
+	var indice_cor: int = clampi(demao_atual - 1, 0, cor_atual.demaos() - 1)
 	for i in range(_paredes.size()):
 		_iniciar_demao_parede(i, indice_cor)
 		_paredes[i].forcar_seco()
@@ -279,8 +279,8 @@ func _rodada_de_pintura(indice_demao: int) -> void:
 func _iniciar_demao_parede(indice_parede: int, indice_demao: int) -> void:
 	_paredes[indice_parede].iniciar_demao(
 		_cor_antes_da_demao(indice_demao),
-		cor_atual.cor_molhada_base,
-		cor_atual.variantes_secas[indice_demao],
+		cor_atual.molhada(indice_demao),
+		cor_atual.seca(indice_demao),
 		duracao_pintura_segundos,
 		indice_demao)
 
@@ -289,7 +289,7 @@ func _iniciar_demao_parede(indice_parede: int, indice_demao: int) -> void:
 ## ou (na 1ª) a cor que estava lá antes de trocar de tinta.
 func _cor_antes_da_demao(indice_demao: int) -> Color:
 	if indice_demao > 0:
-		return cor_atual.variantes_secas[indice_demao - 1]
+		return cor_atual.seca(indice_demao - 1)
 	return _cor_anterior_seca
 
 
@@ -317,7 +317,7 @@ func _perguntar_cor() -> void:
 
 	var nova_cor: CorTinta = await _dialogo.escolher_cor(cor_atual)
 	# A cor que sai fica "por baixo" da primeira demão da cor nova
-	_cor_anterior_seca = cor_atual.variantes_secas[cor_atual.variantes_secas.size() - 1]
+	_cor_anterior_seca = cor_atual.seca(cor_atual.demaos() - 1)
 	cor_atual   = nova_cor
 	demao_atual = 0
 	EstadoJogo.salvar_progresso_pintura(cor_atual.nome, demao_atual)
