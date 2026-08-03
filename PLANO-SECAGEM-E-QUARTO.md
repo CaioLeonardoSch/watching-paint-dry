@@ -691,9 +691,32 @@ um ripple no período do carimbo (~3,6 texels) nos **dois** canais.
 
 Antes da G1 isso sumia dentro do `smoothstep` saturado da cobertura. Depois, com `instante` e
 espessura alimentando o tempo local de secagem direto, ele virou um **pente horizontal fino
-atravessando a parede** — lê como defeito de renderização, não como tinta. Resolvido com uma média
-3 × 3 espaçada de 3 texels sobre `rec.rg`. Suavizar só o G deixava metade do pente na tela, porque
-`instante` (canal R) carrega o mesmo ripple.
+atravessando a parede** — lê como defeito de renderização, não como tinta. Resolvido com um box
+filtro sobre `rec.rg` de largura **exatamente igual ao período do carimbo** (3 taps espaçados de
+passo/3), que tem um zero nessa frequência. Suavizar só o G deixava metade do pente na tela, porque
+`instante` (canal R) carrega o mesmo ripple. O período vem de
+`MascaraTinta.passo_carimbo_texels()`, derivado das constantes — chumbar o número faria mexer na
+faixa do rolo trazer os carimbos de volta sem aviso.
+
+#### ⚠️ E o lap mark disparava em todo carimbo
+
+Achado depois, numa foto do jogo: a parede inteira ficava com **cara de tecido**, tramada de
+tracinhos horizontais curtos. Desligando um termo do shader de cada vez, o culpado apareceu na hora
+— com o lap desligado a energia de alta frequência caía de 0,633 pra 0,253, e nenhum outro termo
+mexia o ponteiro.
+
+A causa: o lap media `instante` **texel a texel sobre a máscara crua**. Mas `instante` anda um degrau
+a cada carimbo, então cada carimbo era um "salto" e o lap desenhava um traço em cima dele. Um lap de
+verdade é um degrau de segundos entre duas **passadas** vizinhas.
+
+Consertado derivando do campo liso, num passo de **um período de carimbo**: o degrau entre duas
+passadas sobrevive a esse passo, o degrau de quantização entre dois carimbos da mesma passada não —
+que é exatamente o critério que separa as duas coisas. Energia caiu pra 0,270, encostada no piso de
+0,248 de "lap desligado".
+
+Isso estava latente desde a Fase B e ficou escondido enquanto nada mais no shader dependia de
+`instante`. Vale como aviso pras fases que ainda vão mexer nele: **`instante` é quantizado no passo
+do carimbo, e qualquer derivada dele tem que ser tomada numa escala maior que esse passo.**
 
 #### Detalhes da textura de mancha
 

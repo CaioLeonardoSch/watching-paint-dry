@@ -110,6 +110,7 @@ func configurar(
 	# ── Campo de secagem (Fase G1) ────────────────────────────────
 	material.set_shader_parameter("mancha_secagem", mascara.mancha)
 	material.set_shader_parameter("mancha_escala", mascara.mancha_escala)
+	material.set_shader_parameter("passo_carimbo_texels", MascaraTinta.passo_carimbo_texels())
 	material.set_shader_parameter("carga_tipica", CARGA_TIPICA)
 	material.set_shader_parameter("espessura_demao", ESPESSURA_DEMAO)
 	material.set_shader_parameter("variacao_max", VARIACAO_MAX)

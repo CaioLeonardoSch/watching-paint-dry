@@ -24,6 +24,16 @@ const PIXELS_POR_METRO: float = 146.0
 const LARGURA_ROLO_M: float = 0.23
 const FAIXA_ROLO_M: float = 0.05
 
+## Distância entre dois carimbos do rastro, em texels da máscara — meia faixa
+## do rolo (ver `carimbar_traco` e `trajeto_rolo.gd::PASSO_CARIMBO`, 0,025 m).
+##
+## O shader precisa deste número: é o período do ripple que sobra nas duas
+## máscaras, e um box filtro com exatamente esta largura tem um zero nessa
+## frequência. Derivado das constantes em vez de chumbado, senão mexer na
+## faixa do rolo faria os carimbos reaparecerem na parede sem aviso.
+static func passo_carimbo_texels() -> float:
+	return FAIXA_ROLO_M * PIXELS_POR_METRO * 0.5
+
 ## Resolução da mancha de secagem. 24 px/m: a oitava fina tem 0,35 m, então
 ## cada mancha pequena cobre ~8 texels. Mais que isso é VRAM à toa num sinal
 ## que é de propósito borrado — ele nunca é visto como textura, só como nuvem.

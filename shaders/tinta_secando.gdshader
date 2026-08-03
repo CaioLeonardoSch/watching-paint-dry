@@ -45,6 +45,10 @@ uniform float duracao_secagem = 60.0;  // quanto um ponto de espessura normal le
 
 // Mancha do campo, canal R centrado em 0,5. Lida duas vezes: uma fixa (o
 // substrato, mesmo reboco em todas as demãos) e uma deslocada por demão.
+// Período do ripple do carimbo, em texels da máscara. Vem de
+// `MascaraTinta.passo_carimbo_texels()`, não é escolhido aqui.
+uniform float passo_carimbo_texels = 3.65;
+
 uniform sampler2D mancha_secagem : filter_linear, repeat_disable;
 uniform float mancha_escala = 0.6667;
 uniform vec2  mancha_offset = vec2(0.0);
@@ -97,6 +101,27 @@ void vertex() {
 }
 
 
+// Máscara recente sem o carimbo.
+//
+// As máscaras são escritas a cada meia faixa do rolo. Na recente isso é
+// blend_mix, e mix NÃO é partição da unidade (só o blend_add da acumulada é,
+// que é o motivo do perfil triangular do carimbo). Sobra um ripple no período
+// do carimbo nos dois canais: R (instante) anda um degrau por carimbo, G
+// (carga) ondula.
+//
+// Box filtro de largura EXATAMENTE igual ao período tem um zero nessa
+// frequência. Três taps espaçados de passo/3 dão largura total = passo.
+vec2 rec_liso(vec2 uv, vec2 passo) {
+	vec2 s = vec2(0.0);
+	for (int i = -1; i <= 1; i++) {
+		for (int j = -1; j <= 1; j++) {
+			s += texture(mascara_recente, uv + vec2(float(i), float(j)) * passo).rg;
+		}
+	}
+	return s / 9.0;
+}
+
+
 // Projeta a posição de mundo no plano da parede, devolvendo UV 0-1.
 vec2 uv_da_parede(vec3 p) {
 	vec3 rel = p - origem_parede;
@@ -109,41 +134,31 @@ vec2 uv_da_parede(vec3 p) {
 void fragment() {
 	vec2 uv = uv_da_parede(pos_mundo);
 
-	vec2 acum = texture(mascara_acumulada, uv).rg;
-	vec2 rec  = texture(mascara_recente, uv).rg;
-
 	vec2 tam_mascara = vec2(textureSize(mascara_recente, 0));
 	vec2 texel = 1.0 / tam_mascara;
+
+	// ── Tirar o carimbo do rolo de cima da parede ──────────────────
+	// Preserva o que interessa: a carga cai ao longo de cada passada e o
+	// instante anda de uma passada pra outra, e as duas variam na escala de
+	// 20 cm, não de 2 mm. Ver rec_liso().
+	vec2 passo = texel * (passo_carimbo_texels / 3.0);
+	vec2 rec_suave = rec_liso(uv, passo);
+
+	// A acumulada é blend_add com carimbo triangular, que É partição da unidade
+	// — mas só aproximadamente, porque `carimbar_traco` arredonda o número de
+	// passos pra cima. Sobra um resto, e o mesmo box resolve.
+	float relevo = 0.0;
+	for (int i = -1; i <= 1; i++) {
+		for (int j = -1; j <= 1; j++) {
+			relevo += texture(mascara_acumulada,
+				uv + vec2(float(i), float(j)) * passo).g;
+		}
+	}
+	relevo /= 9.0;
 
 	// A acumulada atravessa as demãos: é o relevo real da parede, quantas
 	// camadas passaram por cada ponto. A recente é limpa a cada demão, então
 	// a carga (G) vira o marcador de "o rolo passou aqui NESTA demão".
-	float relevo = acum.g;
-
-	// Máscara recente suavizada, pra alimentar o tempo de secagem.
-	//
-	// A recente é escrita com blend_mix a cada meia faixa do rolo, e mix NÃO é
-	// partição da unidade (o carimbo triangular só soma constante com
-	// blend_add). Sobra um ripple no período do carimbo, ~3,6 texels, nos DOIS
-	// canais. Antes da G1 ele sumia dentro do smoothstep saturado da cobertura;
-	// agora que instante e espessura entram direto no tempo local de secagem,
-	// ele aparece como um pente horizontal fino atravessando a parede — lê como
-	// defeito de renderização, não como tinta.
-	//
-	// Média 3×3 espaçada de 3 texels apaga o pente e preserva o que interessa:
-	// a carga cai ao longo de cada passada (o rolo vai esvaziando) e o instante
-	// anda de uma passada pra outra, e essas duas coisas variam na escala de
-	// 20 cm, não de 2 mm. Suavizar o R junto é obrigatório — só o G deixava
-	// metade do pente na tela, porque `instante` carrega o mesmo ripple.
-	vec2 rec_suave = vec2(0.0);
-	for (int i = -1; i <= 1; i++) {
-		for (int j = -1; j <= 1; j++) {
-			rec_suave += texture(mascara_recente,
-				uv + vec2(float(i), float(j)) * texel * 3.0).rg;
-		}
-	}
-	rec_suave /= 9.0;
-
 	float cobertura = smoothstep(cobertura_min, cobertura_max, rec_suave.g);
 	float instante  = rec_suave.r * janela_demao;   // volta pra segundos
 	float carga_suave = rec_suave.g;
@@ -220,8 +235,20 @@ void fragment() {
 	// Onde pincelada nova encostou em tinta já secando, fica uma linha. Isso
 	// é um degrau no instante: dois pontos vizinhos pintados em momentos bem
 	// distantes. Sai de graça do gradiente da máscara recente.
-	float r_dx = texture(mascara_recente, uv + vec2(texel.x, 0.0)).r - rec.r;
-	float r_dy = texture(mascara_recente, uv + vec2(0.0, texel.y)).r - rec.r;
+	//
+	// ⚠️ Tem que ser derivada do campo LISO, e num passo de um período de
+	// carimbo. A versão texel a texel sobre a máscara crua media a coisa errada:
+	// `instante` anda um degrau a cada carimbo, então o lap disparava em TODO
+	// carimbo e desenhava um tracinho horizontal — a parede inteira ficava com
+	// cara de tecido. Isso ficava escondido enquanto o resto do shader não
+	// dependia de `instante`; a G1 destapou.
+	//
+	// Um lap de verdade é um degrau de segundos entre duas PASSADAS vizinhas,
+	// que é o que sobrevive a um passo desse tamanho. O degrau de quantização
+	// entre dois carimbos da mesma passada não sobrevive, que é o ponto.
+	vec2 passo_lap = texel * passo_carimbo_texels;
+	float r_dx = rec_liso(uv + vec2(passo_lap.x, 0.0), passo).r - rec_suave.r;
+	float r_dy = rec_liso(uv + vec2(0.0, passo_lap.y), passo).r - rec_suave.r;
 	float salto = length(vec2(r_dx, r_dy)) * janela_demao;
 	// A diferença finita acima é derivada de textura por pixel multiplicando um
 	// smoothstep estreito — gerador clássico de aliasing. `nitidez` desliga ela
