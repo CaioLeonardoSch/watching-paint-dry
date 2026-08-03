@@ -25,13 +25,13 @@ func _ready() -> void:
 
 func _pintar_paredes() -> void:
 	var cor := load("res://resources/cores/azul.tres") as CorTinta
-	if not cor or cor.variantes_secas.is_empty():
+	if not cor:
 		return
 
 	var ruido  := MateriaisProcedurais.criar_textura_ruido(0.1, 512)
 	var normal := MateriaisProcedurais.criar_normal_ruido(0.4, 0.6, 512)
 	var mat := MateriaisProcedurais.criar_material_texturizado(
-		cor.variantes_secas[-1], 0.55, ruido, Vector3(2.0, 2.0, 2.0), normal, 0.4)
+		cor.seca(cor.demaos() - 1), 0.55, ruido, Vector3(2.0, 2.0, 2.0), normal, 0.4)
 
 	for nome in PAREDES_TINTA:
 		var no := get_node_or_null(nome)

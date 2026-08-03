@@ -64,7 +64,8 @@ func _montar_botoes_paleta(cor_atual: CorTinta) -> void:
 		botao.custom_minimum_size = Vector2(90, 40)
 
 		var estilo := StyleBoxFlat.new()
-		estilo.bg_color = cor.variantes_secas[-1] if cor.variantes_secas.size() > 0 else cor.cor_molhada_base
+		# amostra da paleta mostra a cor cheia — é o que a parede vira no fim
+		estilo.bg_color = cor.cor_alvo
 		estilo.corner_radius_top_left     = 4
 		estilo.corner_radius_top_right    = 4
 		estilo.corner_radius_bottom_left  = 4

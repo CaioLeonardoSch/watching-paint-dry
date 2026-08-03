@@ -21,9 +21,11 @@ shader_type spatial;
 uniform sampler2D mascara_acumulada : filter_linear, repeat_disable;
 uniform sampler2D mascara_recente   : filter_linear, repeat_disable;
 
-uniform vec4 cor_anterior : source_color = vec4(0.9, 0.9, 0.88, 1.0);  // o que já estava na parede
-uniform vec4 cor_molhada  : source_color = vec4(0.18, 0.38, 0.72, 1.0);
-uniform vec4 cor_seca     : source_color = vec4(0.38, 0.58, 0.88, 1.0);
+uniform vec4 cor_anterior : source_color = vec4(0.93, 0.92, 0.90, 1.0);  // o que já estava na parede
+// Molhada é MAIS CLARA que a seca: o ligante da látex é branco leitoso
+// enquanto tem água e fica transparente ao secar (ver cor_tinta.gd).
+uniform vec4 cor_molhada  : source_color = vec4(0.44, 0.57, 0.76, 1.0);
+uniform vec4 cor_seca     : source_color = vec4(0.38, 0.51, 0.74, 1.0);
 
 // Plano da parede em espaço de mundo: canto de origem + os dois eixos, cada
 // um com o comprimento do lado. Ver mapeamento em tinta_secando.gd.
@@ -111,7 +113,9 @@ void fragment() {
 	float lap = smoothstep(limiar_lap, limiar_lap * 2.0, salto) * cobertura;
 
 	// ── Cor ────────────────────────────────────────────────────────
-	// Látex seca MAIS CLARO que molhado, por isso cor_seca é mais clara.
+	// Látex seca MAIS ESCURO que molhado: o véu leitoso do ligante some e
+	// sobra o pigmento. Quem monta as duas cores é cor_tinta.gd — aqui é só
+	// a travessia de uma pra outra.
 	vec3 cor_nova = mix(cor_molhada.rgb, cor_seca.rgb, seco_cor);
 
 	// A lap mark é uma faixa levemente mais densa/escura de tinta
@@ -133,7 +137,7 @@ void fragment() {
 	// ── Superfície ─────────────────────────────────────────────────
 	// Molhado NÃO é espelho: roughness baixo demais reflete o céu procedural
 	// e quebra a parede em blocos visíveis (já testado e revertido antes).
-	float rug_pintada = mix(0.55, 0.9, seco_brilho);
+	float rug_pintada = mix(0.45, 0.9, seco_brilho);
 	ROUGHNESS = mix(0.92, rug_pintada, cobertura);
 	ROUGHNESS = mix(ROUGHNESS, ROUGHNESS * 0.93, lap);  // lap mark brilha um pouco mais
 	METALLIC  = 0.0;                                     // tinta não é metal
