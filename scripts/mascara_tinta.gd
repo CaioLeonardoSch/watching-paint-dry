@@ -24,8 +24,29 @@ const PIXELS_POR_METRO: float = 146.0
 const LARGURA_ROLO_M: float = 0.23
 const FAIXA_ROLO_M: float = 0.05
 
+## Resolução da mancha de secagem. 24 px/m: a oitava fina tem 0,35 m, então
+## cada mancha pequena cobre ~8 texels. Mais que isso é VRAM à toa num sinal
+## que é de propósito borrado — ele nunca é visto como textura, só como nuvem.
+const PIXELS_POR_METRO_MANCHA: float = 24.0
+
+## A textura de mancha cobre 1,5× a parede em cada eixo.
+##
+## A demão desloca o UV pra não secar com o mesmo desenho de manchas da demão
+## anterior (o que denunciaria o truque na hora), e a margem é o que permite
+## esse deslocamento. Não dá pra resolver com `repeat_enable`: o ruído do
+## FastNoiseLite não é tileável, e o wrap deixaria uma emenda reta atravessando
+## a parede — bem o oposto do que a mancha existe pra fazer.
+const MARGEM_MANCHA: float = 1.5
+
 var acumulada: DrawableTexture2D
 var recente: DrawableTexture2D
+
+## Campo de variação da secagem desta parede (Fase G1). Canal R, 0-1, centrado
+## em 0,5. O shader lê duas vezes: uma fixa (o substrato, que é o mesmo reboco
+## em todas as demãos) e uma deslocada (a irregularidade desta demão).
+var mancha: ImageTexture
+## UV da parede × isto = UV dentro da mancha. É o recíproco de MARGEM_MANCHA.
+var mancha_escala: float = 1.0 / MARGEM_MANCHA
 
 var largura_px: int
 var altura_px: int
@@ -37,12 +58,16 @@ var _mat_recente: ShaderMaterial
 var _carimbo: ImageTexture
 
 
-func _init(largura_metros: float, altura_metros: float, carimbo: ImageTexture) -> void:
+## `semente` vem do índice da parede: quatro paredes com a mesma nuvem leem
+## como repetição de textura, que é justamente o que a mancha deveria evitar.
+func _init(largura_metros: float, altura_metros: float, carimbo: ImageTexture,
+		semente: int = 0) -> void:
 	largura_m = largura_metros
 	altura_m  = altura_metros
 	largura_px = maxi(int(round(largura_metros * PIXELS_POR_METRO)), 4)
 	altura_px  = maxi(int(round(altura_metros * PIXELS_POR_METRO)), 4)
 	_carimbo = carimbo
+	mancha = criar_mancha(semente, largura_metros, altura_metros)
 
 	acumulada = DrawableTexture2D.new()
 	recente   = DrawableTexture2D.new()
@@ -157,6 +182,48 @@ func carimbar_traco(de: Vector2, para: Vector2, carga: float, instante: float) -
 	for i in range(n + 1):
 		var t: float = float(i) / float(n)
 		carimbar(de.lerp(para, t), angulo, carga, instante)
+
+
+## Campo de variação da secagem — a razão nº 1 de parede de verdade secar em
+## nuvens (Fase G1, plano §3.1).
+##
+## Duas oitavas com significado físico, não "detalhe": a grossa (~1,1 m) é a
+## variação de absorção do reboco de uma região pra outra; a fina (~0,35 m) é o
+## granulado dentro de cada região. Sem a grossa a parede seca com chuvisco
+## uniforme, que lê como ruído de vídeo em vez de mancha.
+##
+## O ruído é amostrado em METROS, não em UV. Assim as manchas ficam redondas em
+## qualquer parede — amostrar em UV numa parede 6 × 3 esticaria cada mancha na
+## proporção 2:1 e o olho pega isso na hora.
+static func criar_mancha(semente: int, largura_metros: float, altura_metros: float) -> ImageTexture:
+	var w: int = maxi(int(round(largura_metros * MARGEM_MANCHA * PIXELS_POR_METRO_MANCHA)), 8)
+	var h: int = maxi(int(round(altura_metros * MARGEM_MANCHA * PIXELS_POR_METRO_MANCHA)), 8)
+
+	var grossa := FastNoiseLite.new()
+	grossa.seed = semente
+	grossa.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	grossa.fractal_octaves = 1
+	grossa.frequency = 1.0 / 1.1
+
+	var fina := FastNoiseLite.new()
+	# offset na semente pra as duas oitavas não coincidirem de picos
+	fina.seed = semente + 977
+	fina.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	fina.fractal_octaves = 1
+	fina.frequency = 1.0 / 0.35
+
+	var img := Image.create(w, h, false, Image.FORMAT_R8)
+	for y in h:
+		for x in w:
+			var mx: float = float(x) / PIXELS_POR_METRO_MANCHA
+			var my: float = float(y) / PIXELS_POR_METRO_MANCHA
+			var n: float = grossa.get_noise_2d(mx, my) * 0.68 + fina.get_noise_2d(mx, my) * 0.32
+			# guardado em 0-1; o shader devolve pra -1..+1. A distribuição bruta
+			# do ruído é preservada de propósito — normalizar pra usar a faixa
+			# toda transformaria a mancha suave num contraste de pôster.
+			img.set_pixel(x, y, Color(n * 0.5 + 0.5, 0.0, 0.0))
+
+	return ImageTexture.create_from_image(img)
 
 
 ## Carimbo procedural do rolo: borda macia nos dois eixos, fibras

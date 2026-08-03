@@ -346,7 +346,8 @@ outro na mesma sessão.**
 | Se mexer em… | Confira também | Por quê |
 |---|---|---|
 | Qualquer geometria de parede/janela | **`quarto.tscn` E `fundo_menu.tscn`** | `fundo_menu.gd` herda `inicializar_quarto.gd`; a cena do menu tem transforms próprios que não são atualizados sozinhos |
-| `parede_pintavel.gd::ATRASO_POR_ESPESSURA` | `tinta_secando.gdshader::atraso_por_espessura` | São o mesmo número em dois lugares. Se divergirem, a parede é dada como pronta antes de secar |
+| `parede_pintavel.gd::VARIACAO_MAX` | `tinta_secando.gdshader::variacao_max` | São o mesmo número em dois lugares — é o clamp do campo de secagem, e `duracao_total()` só é honesta porque ele existe |
+| `parede_pintavel.gd::CARGA_TIPICA` e `ESPESSURA_DEMAO` | Carga e trajeto em `trajeto_rolo.gd` | São **medidos**, não escolhidos (0,627 e 0,033). Mexer na carga do rolo ou no trajeto desregula os dois. Remedir lendo a máscara de volta — receita em SECAGEM §5.1 |
 | `ciclo_pintura.gd::COR_PAREDE_CRUA` | `cor_tinta.gd::COR_FUNDO_CRU` e o default de `cor_anterior` no shader | Três cópias do mesmo tom de reboco (`0.93, 0.92, 0.90`) |
 | `mascara_tinta.gd::FAIXA_ROLO_M` | `trajeto_rolo.gd::PASSO_CARIMBO` | O perfil do carimbo é **triangular de base = 2 × passo** de propósito (partição da unidade). Quebrar essa razão faz a parede ganhar um ripple regular atravessado |
 | `props_quarto.gd::LIMITE_X` / `LIMITE_Z_*` | Tamanhos em `inicializar_quarto.gd` e transforms no `.tscn` | Os props usam a **face interna** da parede (0,1 m pra dentro do centro), não o centro |
@@ -363,12 +364,19 @@ as contas, em `PLANO-SECAGEM-E-QUARTO.md` §2.
 |---|---|---|
 | Falha de cobertura por rolo descarregado | Inerte — a carga vive entre 0,82 e 1,0, e o limiar do shader satura em 0,45 | G3 |
 | Lap mark | Inerte — o salto medido é 0,023 s contra um limiar de 0,35 s | G4 |
-| Mancha de secagem vinda da espessura | Inerte — 0,7% de variação; a parede toda seca dentro de 0,4 s | G1 |
+| ~~Mancha de secagem vinda da espessura~~ | ✅ **G1**: campo de 4 termos, razão medida 2,27–2,33 (era 1,00) | ~~G1~~ |
 | A 2ª demão cobrir falha da 1ª | Impossível — `cor_anterior` é cor chapada, então a falha some no frame em que a demão começa | G3 |
-| `duracao_total()` corresponder ao que está na tela | ~18% de espera morta por demão em todos os modos (`ESPESSURA_TIPICA` está ~7× alta) | G1 |
+| ~~`duracao_total()` corresponder ao que está na tela~~ | ✅ **G1**: espera morta 21% → 3,9%. `ESPESSURA_TIPICA` não estava 7× alta, estava **10× alta** — o depósito medido é 0,033, não 0,35 | ~~G1~~ |
 
 **A arquitetura da Fase B está certa** — máscara, carimbos, UV por posição de mundo, brilho e cor em
 curvas separadas. O que falta é calibração e um canal de textura. Não reescrever.
+
+**Atualização de 03/08/2026 (G1):** as duas linhas riscadas caíram, e a lição vale pras que sobraram
+— **os três "inertes" restantes são todos erro de escala, não de arquitetura.** No caso da mancha, a
+causa era um centro chumbado (`relevo - 0.5`) que só batia porque `preencher_coberta` grava 0,5;
+numa parede pintada do zero o termo virava um escurecimento chapado. Antes de mexer em G3 ou G4,
+**medir o valor real lendo a máscara de volta** — foi o que resolveu aqui, e o número medido não
+tinha nada a ver com o que estava no código.
 
 ### 3.5 Pendências conhecidas no código
 
@@ -472,12 +480,12 @@ frente de material/shader que o roadmap original não previa.
 | Fase | O que entrega | Depende de | Spec | Estado |
 |---|---|---|---|---|
 | **A** | Spike do `DrawableTexture2D` (a doc oficial do 4.7 está errada sobre `texture_blit`) | — | OVERHAUL §3.7, §6 | ✅ |
-| **B** | Máscara de tinta — `tinta_secando.gd` virou `parede_pintavel.gd` | A | OVERHAUL §3, §6 | ⚠️ **arquitetura ✅, números inertes** (ver 3.4) |
+| **B** | Máscara de tinta — `tinta_secando.gd` virou `parede_pintavel.gd` | A | OVERHAUL §3, §6 | ✅ (os "números inertes" eram um centro chumbado — resolvido na G1) |
 | **C** | Low-poly: assoalho em geometria, props, normal maps fora, SSAO/MSAA, `AreaLight3D` | — | OVERHAUL §4, §6 | ✅ |
 | **D** | Rig de 19 ossos + IK (cotovelo, joelho, coluna) | — | OVERHAUL §5 | 🟡 **~10 de 12 passos** — ver 3.7, conferir antes |
 | **E** | Coreografia: W, verticais, banquinho, rodapé, bandeja, rolo na mão | D, G6 | OVERHAUL §5.5, §6 | ⬜ |
 | **F** | Refino: som do rolo casado com a mão, passo, porta, o tio olhar pra ela, gravar 60 s | D, E | OVERHAUL §6 | ⬜ |
-| **G1** | **Campo de secagem** — a parede passa a secar desigual e a fase manchada existe | — | SECAGEM §3.1, §5 | ⬜ |
+| **G1** | **Campo de secagem** — a parede passa a secar desigual e a fase manchada existe | — | SECAGEM §3.1, §5, §5.1 | ✅ |
 | **G2** | Cor (saturação antes de valor) e brilho rasante | G1 | SECAGEM §3.3, §3.4 | ⬜ |
 | **G3** | Cobertura com história — a 2ª demão passa a ter função | G1 | SECAGEM §3.6, §3.7 | ⬜ |
 | **G4** | Lap mark relativo e tempo de pintura por modo | E | SECAGEM §3.8, §3.9 | ⬜ |
@@ -515,11 +523,18 @@ evita retrabalho. Cada item traz a definição de pronto — o que precisa ser v
    downsample do Godot é bilinear e só em 2,0× ele vira média de caixa 2 × 2 de verdade. FXAA e TAA
    foram medidos e **reprovados** (FXAA fica pior que não fazer nada; TAA apaga a marca do rolo).
    Detalhe em SECAGEM §7.5.
-3. `[ ]` **G1 — campo de secagem.** *O item de maior retorno do projeto inteiro.* É o assunto do
+3. `[x]` **G1 — campo de secagem.** ✅ *O item de maior retorno do projeto inteiro.* É o assunto do
    jogo. Hoje a parede toda seca dentro de 0,4 s de diferença e o modo Realista é duas horas de
    retângulo uniforme.
    **Pronto quando:** a razão entre o `duracao_local` máximo e o mínimo de uma parede é ≥ 1,5; a
    parede fica visivelmente manchada no meio da secagem e uniforme no fim.
+   **Verificado:** razão **2,27–2,33** nas 4 paredes e nas 3 demãos, com só 0,1–0,3% da parede
+   tocando o clamp. O contraste espacial da parede sobe de 0,66 (molhada) pra **2,96** no meio da
+   secagem e volta pra 0,64 (seca) — a mancha é um evento com começo e fim. Espera morta 21% → 3,9%.
+   ⚠️ **Três números do plano estavam errados**, todos achados medindo: a espessura tem que vir da
+   máscara **recente** (com a acumulada, a dispersão crescia a cada demão em vez de encolher), o
+   `relevo_base` precisa ser **medido** por demão (o acumulador vale 0,5 vindo de save), e o anúncio
+   de conclusão usa um **percentil**, não o teto do clamp. Detalhe em SECAGEM §5.1.
 4. `[ ]` **G2 — cor e brilho.** Depende de G1 (mesmo shader, e o véu só pode baixar depois que a
    estrutura existir).
    **Pronto quando:** dá pra dizer onde a parede ainda está molhada só movendo a câmera.

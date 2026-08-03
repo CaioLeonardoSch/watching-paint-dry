@@ -59,6 +59,12 @@ const PAREDE_ABERTURA: int = 1                # Norte
 # Antes isto descrevia por onde a "frente de varredura" andava; agora descreve
 # só a superfície. Quem decide o caminho do rolo é trajeto_rolo.gd.
 # Quarto: X ∈ [-3.0, +3.0], Z ∈ [-4.0, +2.0], Y ∈ [0, 3] — 6 × 6, ver G6.
+## Centro do vão da janela, na face interna da parede oeste. É a única entrada
+## direcional do campo de secagem (Fase G1): perto dela há corrente de ar e mais
+## calor, então a tinta seca antes ali e a região seca avança dali pro canto de
+## baixo mais distante. Se a janela mudar de lugar, este ponto muda junto.
+const PONTO_JANELA: Vector3 = Vector3(-3.0, 1.4, -1.0)
+
 const VARREDURAS: Array[Dictionary] = [
 	{  # Leste (porta) — direita da garotinha. Pinta do sul pro norte.
 		"origem": Vector3(3.0, 3, 2), "eixo_u": Vector3(0, 0, -6), "eixo_v": Vector3(0, -3, 0),
@@ -120,7 +126,7 @@ func _ready() -> void:
 		var origem: Vector3 = v["origem"]
 		var eixo_u: Vector3 = v["eixo_u"]
 		var eixo_v: Vector3 = v["eixo_v"]
-		parede.configurar(largura, altura, origem, eixo_u, eixo_v, carimbo)
+		parede.configurar(largura, altura, origem, eixo_u, eixo_v, carimbo, i, PONTO_JANELA)
 		parede.aplicar_em(grupos[i])
 		_paredes.append(parede)
 

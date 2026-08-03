@@ -625,18 +625,116 @@ Tudo num lugar só, pra facilitar a implementação e o rollback.
 Quebrada em quatro passos que **entregam valor isoladamente** e podem parar em qualquer um deles.
 Nenhum depende do rig (Fase D) nem da coreografia (Fase E) — exceto 3.9, que está marcada.
 
-### G1 — O campo de secagem (o item que sozinho resolve a queixa)
+### G1 — O campo de secagem (o item que sozinho resolve a queixa) ✅ **feito em 03/08/2026**
 
-- `[ ]` `mascara_tinta.gd`: gerar a textura de mancha por parede (`FastNoiseLite`, 2 oitavas,
-  256×256, semente derivada do índice da parede)
-- `[ ]` `tinta_secando.gdshader`: samplers e uniforms novos; substituir `atraso_por_espessura` pelo
+- `[x]` `mascara_tinta.gd`: textura de mancha por parede (`FastNoiseLite`, 2 oitavas, semente
+  derivada do índice da parede)
+- `[x]` `tinta_secando.gdshader`: samplers e uniforms novos; `atraso_por_espessura` substituído pelo
   bloco `variacao` de 3.1
-- `[ ]` `parede_pintavel.gd`: `VARIACAO_MAX`, `FIM_DA_COR`, `espessura_esperada`,
-  `duracao_demao`, offset de UV por demão; apagar `ESPESSURA_TIPICA`
-- `[ ]` `k_mancha` e o peso da mancha indo pro `ROUGHNESS` (3.2)
+- `[x]` `parede_pintavel.gd`: `VARIACAO_MAX`, `VARIACAO_CONCLUSAO`, `FIM_DA_COR`, `CARGA_TIPICA`,
+  `ESPESSURA_DEMAO`, `_duracao_demao`, offset de UV por demão; `ESPESSURA_TIPICA` apagada
+- `[x]` `k_mancha` e o peso da mancha indo pro `ROUGHNESS` (3.2)
 
-**Entrega:** a fase manchada passa a existir; o modo Realista vira assistível; some a espera morta
-de 18%. **É o item de maior retorno do documento.** Se der pra fazer só um, é este.
+**Entrega:** a fase manchada passa a existir; o modo Realista vira assistível; a espera morta cai de
+21% pra 3,9%. **É o item de maior retorno do documento.** Ver 5.1 pro que mudou em relação ao plano.
+
+### 5.1 O que a G1 entregou de fato — 03/08/2026
+
+Três coisas do plano estavam erradas e só apareceram medindo. Nenhuma é de forma; todas são de
+qual número entra na conta.
+
+#### ⚠️ (1) A espessura vem da máscara RECENTE, não da acumulada
+
+3.1 escreve `esp_rel = relevo / espessura_esperada - 1.0`, com `relevo = acum.g`. Implementado assim,
+**a dispersão da secagem CRESCE a cada demão** — medido, razão p05–p95 de 1,53 na 1ª demão e 2,07 na
+3ª. É o contrário do certo, e contraria o próprio plano, que diz que o termo "não cresce com o número
+de demãos": a 3ª demão cai sobre substrato selado e é a mais lisa.
+
+A causa é que a acumulada é acumulada: o relevo das demãos velhas empilha neste termo. O que atrasa a
+secagem é o filme **molhado desta demão**, e quem guarda isso é a máscara recente, que é limpa a cada
+demão. Trocado pra `rec.g`, a dispersão fica estável: 1,51 · 1,52 · 1,51 nas três demãos.
+
+A acumulada continua sendo a fonte certa pra **marca do rolo**, que é relevo seco de todas as camadas.
+São duas grandezas diferentes e agora têm dois divisores diferentes, os dois medidos:
+
+| Constante | Valor | O que é | Medido em |
+|---|---|---|---|
+| `CARGA_TIPICA` | 0,627 | carga média na recente depois de uma passada (σ 0,113) | secagem |
+| `ESPESSURA_DEMAO` | 0,033 | depósito médio de uma demão no acumulador (pico 0,043, σ 0,005) | marca do rolo |
+
+O `espessura_esperada = 0.04` que 3.1 sugeria estava certo em ordem de grandeza pro acumulador — e o
+`ESPESSURA_TIPICA = 0.35` que estava no código estava errado por um fator de 10.
+
+#### ⚠️ (2) `relevo_base` precisa ser medido, não constante
+
+O acumulador é absoluto e **já vale 0,498 quando o jogo retoma de um save**, porque
+`preencher_coberta` grava G = 0,5. Com um centro chumbado, o termo saturava o clamp na parede inteira.
+`iniciar_demao` agora lê a máscara de volta (1 texel a cada 8, ~6 mil amostras) e mede a base.
+
+Isso destapou um bug antigo: `marca` usava `relevo - 0.5`, um centro chumbado que **só batia por
+acidente** justamente porque `preencher_coberta` grava 0,5. Numa parede pintada do zero o relevo vale
+~0,033 e o termo virava um escurecimento chapado de −0,47. Era esta a origem do *"números inertes"*
+anotado na Fase B: o desvio real (±0,005) sumia ao lado do erro de centro.
+
+#### ⚠️ (3) O anúncio de conclusão usa um percentil, não o teto
+
+`duracao_total()` com `VARIACAO_MAX` limita o **pior texel possível** — mas só 0,3% da parede chega
+perto dele, e esperar por esses custava 12% de espera morta com a parede já parada na tela. Virou
+duas constantes: `VARIACAO_MAX = 0.40` (o clamp do shader, contrato de verdade) e
+`VARIACAO_CONCLUSAO = 0.20` (o percentil que o anúncio usa).
+
+#### O pente do carimbo, que a G1 destapou
+
+A máscara recente é escrita com `blend_mix` a cada meia faixa do rolo, e **mix não é partição da
+unidade** — só o `blend_add` da acumulada é, que era o motivo do perfil triangular do carimbo. Sobra
+um ripple no período do carimbo (~3,6 texels) nos **dois** canais.
+
+Antes da G1 isso sumia dentro do `smoothstep` saturado da cobertura. Depois, com `instante` e
+espessura alimentando o tempo local de secagem direto, ele virou um **pente horizontal fino
+atravessando a parede** — lê como defeito de renderização, não como tinta. Resolvido com uma média
+3 × 3 espaçada de 3 texels sobre `rec.rg`. Suavizar só o G deixava metade do pente na tela, porque
+`instante` (canal R) carrega o mesmo ripple.
+
+#### Detalhes da textura de mancha
+
+- **24 px/m**, não 256 × 256 fixo. A oitava fina tem 0,35 m, então cada mancha pequena já cobre
+  ~8 texels; resolução acima disso é VRAM num sinal que nunca é visto como textura
+- **Amostrada em metros, não em UV.** Em UV, uma parede 6 × 3 esticaria cada mancha na proporção 2:1
+- **Textura 1,5× maior que a parede**, em vez de `repeat_enable`. O ruído do `FastNoiseLite` não é
+  tileável, e o wrap deixaria uma emenda reta atravessando a parede — o oposto do que a mancha faz.
+  A margem é o que permite o offset por demão
+
+#### Medições
+
+Critério do plano — razão entre `duracao_local` máximo e mínimo ≥ 1,5:
+
+| Demão | Leste | Norte | Oeste | Sul |
+|---|---|---|---|---|
+| 1ª | 2,33 | 2,33 | 2,27 | 2,33 |
+| 2ª | 2,32 | 2,33 | 2,30 | 2,30 |
+| 3ª | 2,33 | 2,33 | 2,27 | 2,33 |
+
+Entre p05 e p95 fica 1,45–1,58, e o clamp é tocado por só 0,1–0,3% da parede — o campo não está
+saturado, está distribuído. A parede oeste seca consistentemente antes (média 56 s contra 59 s das
+outras): é o termo da janela funcionando.
+
+A mancha como **evento** (aceites 2 e 3), medindo o contraste espacial da parede norte:
+
+| `fracao` | 0,02 | 0,15 | 0,30 | 0,50 | 0,70 | 1,00 |
+|---|---|---|---|---|---|---|
+| contraste | 0,66 | 0,57 | 1,61 | **2,96** | 1,31 | 0,64 |
+
+Nasce, atinge 4,6× a linha de base no meio, e morre. Quem só olhar antes e depois não vê mancha
+nenhuma, que era exatamente a proposta.
+
+Espera morta (aceite 7): **21% → 3,9%**. O alvo do plano é 2% e não foi alcançado; apertar mais faz
+o sinal disparar cedo em demãos de sorte pior, porque o campo é estocástico. Fica em 3,9%.
+
+⚠️ **Como medir isso de novo, se precisar:** comparar quadro com quadro **não funciona** — o limiar
+é por passo, então passo menor deixa o detector menos sensível e a resposta muda com a resolução do
+teste (60 passos deram 77 s; 160 deram 74 s pro mesmo jogo). A formulação que independe do passo é
+comparar cada quadro com o **estado final**: "a cor parou" = "a imagem chegou a menos de 1 nível de
+255 do que ela vai virar".
 
 ### G2 — Cor e superfície
 
