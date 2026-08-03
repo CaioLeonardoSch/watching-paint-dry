@@ -1,27 +1,58 @@
 # Watching Paint Dry — Projeto
 
-Documento único do projeto. Substitui `CLAUDE.md` (que virou só um ponteiro pra cá, de propósito —
-não é carregado automaticamente em toda sessão), `CONCEITO-DO-JOGO.md` e `PLANO-EVOLUCAO-STEAM.md`.
+Documento-mãe do projeto. Substitui `CONCEITO-DO-JOGO.md` e `PLANO-EVOLUCAO-STEAM.md` (apagados).
+`CLAUDE.md` é só o roteador pra cá, de propósito — assim o plano de ação, que só cresce, não é
+carregado em toda sessão.
 
-Estrutura fixa, conteúdo que evolui:
+---
 
-1. **Porquê** — premissa, tom, direção criativa. Muda raramente.
-2. **Como** — stack técnico, convenções, ferramentas disponíveis (skills, MCPs, addons). Atualiza
-   conforme configuramos coisas novas.
-3. **O que já foi feito** — estado atual do jogo, sistema por sistema. Atualiza conforme
-   implementamos.
-4. **O que fazer agora** — as três etapas até a Steam, com checkboxes, mais o histórico das rodadas
-   já fechadas. Atualiza conforme avançamos e decidimos passos novos.
-5. **Backlog** — o que não está agendado em etapa nenhuma.
+## 0. Como usar estes documentos
 
-Leia a seção 1 quando a dúvida for "por que isso existe"/"isso faz sentido pro jogo". Leia a seção
-2 antes de mexer em código, pra saber convenções e o que já está disponível pra usar. Leia a seção 3
-pra saber o que já existe antes de propor algo. A seção 4 é o backlog ativo — mantenha os checkboxes
-atualizados conforme os itens forem concluídos ou surgirem novos.
+### 0.1 Vocabulário — três palavras que já se confundiram
 
-O overhaul do miolo (tinta, parede, animação) tem documento próprio, **`PLANO-OVERHAUL-TINTA.md`**,
-pra não inflar este. Quando ele fechar, o que sobreviver vira parágrafo na seção 3 daqui e aquele
-arquivo pode morrer.
+Este projeto usa "etapa" e "fase" com significados **diferentes e não intercambiáveis**. Ler errado
+faz alguém refazer trabalho pronto.
+
+| Palavra | O que é | Onde mora |
+|---|---|---|
+| **Etapa 1, 2, 3** | Os três grandes blocos até publicar na Steam: miolo → conteúdo → loja | Seção 4 deste arquivo |
+| **Fase A … G** | Os passos **dentro da Etapa 1** (o overhaul do miolo) | `PLANO-OVERHAUL-TINTA.md` §6 e `PLANO-SECAGEM-E-QUARTO.md` |
+| **Fase 1, 2, 3** ⚠️ | O **roadmap ORIGINAL**, concluído e aposentado. Só aparece em texto histórico | Seção 3 deste arquivo |
+
+⚠️ **"Fase 1.2" é o rig antigo de 7 ossos, do roadmap original — NÃO é a Fase D.** Sempre que uma
+fase for citada com letra (D, E, F, G) é o overhaul atual; com número, é história.
+
+### 0.2 Mapa dos documentos
+
+| Arquivo | O que tem | Quando ler |
+|---|---|---|
+| `CLAUDE.md` | Roteador de 30 linhas | Carregado sozinho toda sessão |
+| **`PROJETO.md`** (este) | Premissa, convenções, estado atual, ordem das etapas, backlog | **Sempre, antes de qualquer coisa** |
+| `PLANO-OVERHAUL-TINTA.md` | Spec técnica das Fases A–F: máscara de tinta, direção low-poly, rig + IK, coreografia | Antes de mexer em tinta, parede, rig ou animação |
+| `PLANO-SECAGEM-E-QUARTO.md` | Spec das Fases G1–G6: campo de secagem, quarto 6 × 6, nitidez, porta, resolução | Antes de mexer em shader de tinta, coordenada de parede ou `project.godot` |
+
+Os dois planos são **descartáveis por construção**: quando uma fase fecha, o que sobreviver dela
+vira parágrafo na seção 3 daqui e o texto de planejamento morre. `PROJETO.md` é o único permanente.
+
+### 0.3 Estrutura deste arquivo
+
+| Seção | Conteúdo | Leia quando |
+|---|---|---|
+| 1. **Porquê** | Premissa, tom, disciplina de escopo | A dúvida for "isso faz sentido pro jogo?" |
+| 2. **Como** | Stack, convenções, armadilhas conhecidas, ferramentas | **Antes de escrever qualquer linha de código** |
+| 3. **O que já foi feito** | Estado real do jogo, sistema por sistema, e o que já foi descartado | Antes de propor qualquer coisa — evita reinventar e evita repetir erro já revertido |
+| 4. **O que fazer agora** | As 3 etapas, com dependências e checkboxes | É o backlog ativo. **Manter os checkboxes em dia** |
+| 5. **Backlog** | O que não está agendado em etapa nenhuma | Ao decidir escopo |
+
+### 0.4 Regra de ouro pra quem for executar
+
+1. Ler seção 2 (convenções) e seção 3 (estado atual) **antes** de propor. Metade das armadilhas
+   deste projeto já foi paga uma vez e está documentada — repeti-las é o desperdício mais caro aqui.
+2. Conferir a **seção 3.6 (Coisas já tentadas e descartadas)** antes de sugerir qualquer melhoria
+   visual. Várias ideias "óbvias" já foram implementadas, testadas e revertidas por bom motivo.
+3. **Mudança de escopo passa por confirmação explícita.** Nunca assumir sozinho.
+4. Ao terminar um passo, **atualizar o checkbox e escrever o porquê**, não só o quê. Este projeto se
+   apoia no registro das decisões; um `[x]` sem explicação perde metade do valor.
 
 ---
 
@@ -59,14 +90,14 @@ disciplina de sempre.
 
 ## 2. Como — stack, convenções e ferramentas disponíveis
 
-### Stack técnico
+### 2.1 Stack técnico
 
 - Godot **4.7**, renderer Forward Plus
 - Física: **Jolt Physics**
 - Driver: **D3D12** no Windows
 - Entry point: `res://scenes/menu_principal.tscn` (menu) → `res://scenes/quarto.tscn` (jogo)
 
-### Convenções deste projeto
+### 2.2 Convenções deste projeto
 
 - **GDScript, comentários e nomes de variáveis/nós em português brasileiro**, informal — mesmo
   registro usado nos outros projetos de design (tamanduá, sapo)
@@ -114,7 +145,7 @@ disciplina de sempre.
   no auto-translate de propriedade pra string dinâmica. Trocar idioma: `Opcoes.definir_idioma(codigo)`
   (autoload, persiste em `config.cfg`, aplica `TranslationServer.set_locale`)
 
-### Sistema de skills de gamedev
+### 2.3 Sistema de skills de gamedev
 
 - `.agents/skills/` — router + skills especializadas de Godot (câmera, shaders, nodes, áudio etc.),
   instaladas via `npx skills add gamedev-skills/awesome-gamedev-agent-skills` (registro em
@@ -133,7 +164,7 @@ disciplina de sempre.
   só `.agents/skills/` (versionado) e `.claude/skills/` (gitignorado, é a cópia que o Claude Code
   usa de verdade) devem sobrar
 
-### Ferramentas externas — status de configuração
+### 2.4 Ferramentas externas — status de configuração
 
 Levantadas numa sessão de planejamento (Cowork), a configurar conforme formos usando. Atualize o
 status `[ ]`/`[x]` conforme instalar cada uma.
@@ -156,7 +187,7 @@ status `[ ]`/`[x]` conforme instalar cada uma.
 
 ## 3. O que já foi feito
 
-### Estado atual do jogo
+### 3.1 Estado atual do jogo
 
 Já tem um loop narrativo de verdade, não é mais só "olhar ao redor". As 3 fases do roadmap original
 estão **completas**, mais uma rodada de refinamento pós-roadmap:
@@ -180,9 +211,30 @@ estão **completas**, mais uma rodada de refinamento pós-roadmap:
   `tonemap_white = 6.0`) + `adjustment_*` leve (contraste 1.08, saturação 1.15). Sem tonemap
   (linear, o default) tudo acima de 1.0 grampeava em branco e o quarto ficava lavado, com a mesma
   cara de neblina que a comparação com a tela de título denunciou. Junto saiu a névoa (ver "Mundo
-  externo") — era ela a maior parte do véu — e vieram luzes menos fortes
-  (`LuzJanela` 1.9→1.5, `LuzLampada` 1.2→0.85) e ambiente mais fraco e menos leitoso
-  (`ambiente_dia.gd`: 0.24→0.14, cor 0.80,0.83,0.88→0.66,0.72,0.84)
+  externo") — era ela a maior parte do véu — e vieram luzes menos fortes.
+  **Correção 02/08/2026 — a parede leste mais escura.** A parede da porta ficava visivelmente mais
+  escura que as outras. **Não é a tinta:** o material das 4 paredes foi medido e é idêntico. É que
+  a `LuzJanela` não alcança aquele lado (a parede está a ~6,9 m de uma luz de `area_range` 7), então
+  lá só chega lâmpada + ambiente. Testado no jogo: **mexer no `area_range` não muda nada** — a queda
+  de 1/d² já matou a contribuição antes do corte. Quem equilibra é a lâmpada.
+
+  **Valores em vigor hoje** (conferidos no código, não confiar em valor citado em texto antigo):
+
+  | Onde | Parâmetro | Valor |
+  |---|---|---|
+  | `ambiente_dia.gd` | `ENERGIA_SOL` | 1.4 |
+  | `ambiente_dia.gd` | `ENERGIA_AMBIENTE` | 0.16 |
+  | `ambiente_dia.gd` | `COR_AMBIENTE` | `(0.66, 0.72, 0.84)` — dessaturada de propósito |
+  | `quarto.tscn` | `LuzJanela.light_energy` | 1.5 |
+  | `quarto.tscn` | `LuzLampada.light_energy` | 1.1 |
+
+  ⚠️ **Armadilha: o `Environment` do `quarto.tscn` tem `ambient_light_color` e
+  `ambient_light_energy` gravados (0.72,0.75,0.82 e 0.22), mas eles são SOBRESCRITOS em runtime por
+  `ambiente_dia.gd::_configurar_ambiente()`.** Editar esses dois campos pelo Inspector não produz
+  efeito nenhum no jogo. Quem manda é o script.
+
+  A causa estrutural continua sem conserto e tem dono: ver `PLANO-SECAGEM-E-QUARTO.md` §6.2 —
+  a janela está 1 m fora do centro da parede dela, e não existe luz indireta no quarto
 - **Fase 3 — menu, modos, save, conquistas:** `estado_jogo.gd` é o autoload `EstadoJogo`, guarda
   modo ativo e `DadosSalvos` salvo em `user://save.tres`. Menu inicial oferece Jogar (seletor de
   modo Rápido/Normal/Realista) ou Continuar, mais visualizador de conquistas. `parede_pintavel.gd`
@@ -199,6 +251,27 @@ estão **completas**, mais uma rodada de refinamento pós-roadmap:
   Isso é o que permite falha de cobertura, sobreposição mais grossa que seca depois, e lap mark —
   nada disso era representável no modelo anterior. `tinta_secando.gd` foi aposentado: a máscara é
   por **parede**, não por pedaço de mesh
+- **Modelo de cor da tinta (02/08/2026, pesquisado antes de mexer):** cada `.tres` de
+  `resources/cores/` tem agora **uma cor autoral só** — `cor_alvo`, a cor cheia. As demãos e o tom
+  molhado saem de curva em `cor_tinta.gd`:
+  - **cobertura acumulada 70% / 91% / 97%** sobre reboco cru (`#EDEBE6`) — converge, não é linear:
+    cada demão cobre a maior parte do que ainda faltava, e a cor "de verdade" chega já na 2ª (é
+    assim que fabricante formula tinta). A 3ª é acabamento, muda pouco **de propósito**
+  - **molhada = seca daquela demão puxada 55% pro leitoso** (`#EDEDF0`), ou seja **mais clara** que
+    a seca. Antes era o contrário e estava errado: o ligante da látex é branco leitoso com água e
+    fica transparente ao secar, então tinta seca MAIS ESCURA — o brilho da superfície molhada é que
+    engana pra "mais clara". O modelo antigo (molhado escuro → seco pálido) dava a leitura de
+    "escureceu e depois lavou", que foi exatamente a queixa do usuário
+  - o véu de 55% é **exagero deliberado**. Começou em 20% (fiel) e o usuário não conseguiu ver a
+    tinta secando nem no modo Rápido. Medido no render, mesma parede e mesma luz: 20% movia ~4
+    valores de RGB ao longo dos 60 s, 40% movia ~17, 55% move ~34 — de um lilás leitoso pro azul
+    cheio, visível sem comparar print. A luz do quarto é baixa e comprime qualquer diferença
+    pequena; como o jogo é literalmente assistir isso, o efeito precisa caber na tela. O estado
+    FINAL não muda com o véu — muda só o caminho até ele
+  - `ROUGHNESS` de tinta molhada foi de 0.55 pra 0.45, pelo mesmo motivo (o brilho de molhado
+    precisa ser perceptível). Continua longe do "quase espelho" que já foi revertido antes
+  - some `variantes_secas`/`cor_molhada_base`; quem precisa de cor pede `cor.seca(i)` /
+    `cor.molhada(i)` / `cor.cor_alvo` (amostra da paleta em `dialogo_pintura.gd` usa a alvo)
 - **Direção low-poly (Fase C):** assoalho virou geometria de tábuas (uma peça por tábua, tom e
   altura próprios; `assoalho.gdshader` apagado); props que dão leitura de quarto
   (`props_quarto.gd`: rodapé, moldura de janela, batente de porta, interruptor, tomada); normal map
@@ -210,7 +283,7 @@ estão **completas**, mais uma rodada de refinamento pós-roadmap:
   os 4 painéis de vidro), `props_quarto.gd::_moldura_janela` (moldura + cruz), as transforms de
   `ParedeOesteNorte`/`Sul` em **`quarto.tscn` e `fundo_menu.tscn`**, e `LuzJanela.area_size`
 
-### Layout do quarto (fonte da verdade)
+### 3.2 Layout do quarto (fonte da verdade)
 
 ```
 Quarto:  X ∈ [-3.5, +3.5],  Z ∈ [-4.0, +2.0]
@@ -231,7 +304,88 @@ sentar); antes disso quem está ativa é a `CameraCutscene`, enquadrando parede+
 **Isso já mudou de layout antes** (versão anterior em L, com puxadinho a sudoeste) — não assuma o
 layout antigo se aparecer em conversa ou documento velho.
 
-### Coisas já tentadas e descartadas ou revertidas
+⚠️ **E vai mudar de novo, se a Fase G for em frente.** `PLANO-SECAGEM-E-QUARTO.md` seção 6 propõe
+encolher X de 7,0 pra 6,0 m (quarto **6 × 6**, as 4 paredes idênticas) e centrar a janela na parede
+oeste (Z = 0 → −1). Motivo: as paredes norte/sul têm 21 m² e as leste/oeste 18 m², o rolo anda 17%
+mais rápido nas longas, e a janela fora do centro faz a parede norte receber ¼ da luz de janela que
+a sul recebe — que é a causa medida da queixa de "sombra mais funda nas paredes distantes". A lista
+fechada de arquivos e valores a mexer está na seção 6.6 daquele documento.
+
+### 3.3 Mapa dos arquivos — quem é dono do quê
+
+Pra não caçar. "Quero mexer em X" → o arquivo é este.
+
+| Quero mexer em… | Arquivo |
+|---|---|
+| Como a tinta seca, cor, brilho, mancha | `shaders/tinta_secando.gdshader` |
+| O que o rolo deposita na máscara | `shaders/carimbo_acumulado.gdshader` · `carimbo_recente.gdshader` |
+| A máscara em si (texturas, carimbo do rolo) | `scripts/mascara_tinta.gd` |
+| Uma parede como unidade de tinta (relógio, material, demão) | `scripts/parede_pintavel.gd` |
+| O caminho que o rolo percorre | `scripts/trajeto_rolo.gd` |
+| As cores da paleta e a curva de demãos | `scripts/cor_tinta.gd` + `resources/cores/*.tres` |
+| A ordem da intro e do loop de demãos | `scripts/ciclo_pintura.gd` |
+| Geometria estática do quarto (paredes, chão, teto, janela, cadeira, assoalho) | `scripts/inicializar_quarto.gd` |
+| Rodapé, moldura de janela, batente, interruptor, tomada | `scripts/props_quarto.gd` |
+| Porta (folha, maçaneta, batentes, abrir/fechar) | `scripts/porta.gd` + `scenes/porta.tscn` |
+| Luz, céu, ambiente | `scripts/ambiente_dia.gd` (script do nó `Sol`) |
+| O que se vê pela janela | `scripts/cenario_externo.gd` |
+| O que se vê pela porta | `scripts/comodo_vizinho.gd` |
+| Personagens (movimento, animação) | `scripts/tio.gd` · `garotinha.gd` + `models/*_modelo.tscn` |
+| Câmera da cadeira | `scripts/camera_cadeira.gd` |
+| Menu, pausa, opções, diálogo, toast | `menu_principal.gd` · `menu_pausa.gd` · `painel_opcoes.gd` · `dialogo_pintura.gd` · `conquista_toast.gd` |
+| Save de progresso · modo de jogo | `estado_jogo.gd` (autoload) + `dados_salvos.gd` · `modo_jogo.gd` |
+| Volume, tela cheia, idioma | `scripts/opcoes.gd` (autoload) |
+| Conquistas | `scripts/conquistas.gd` |
+| Som | `som_ambiente.gd` · `som_pincelada.gd` (sintetizados, sem arquivo de áudio) |
+
+#### Pares que PRECISAM andar juntos
+
+Cada um destes já se desencontrou ou está a um descuido de se desencontrar. **Mexeu num, confira o
+outro na mesma sessão.**
+
+| Se mexer em… | Confira também | Por quê |
+|---|---|---|
+| Qualquer geometria de parede/janela | **`quarto.tscn` E `fundo_menu.tscn`** | `fundo_menu.gd` herda `inicializar_quarto.gd`; a cena do menu tem transforms próprios que não são atualizados sozinhos |
+| `parede_pintavel.gd::ATRASO_POR_ESPESSURA` | `tinta_secando.gdshader::atraso_por_espessura` | São o mesmo número em dois lugares. Se divergirem, a parede é dada como pronta antes de secar |
+| `ciclo_pintura.gd::COR_PAREDE_CRUA` | `cor_tinta.gd::COR_FUNDO_CRU` e o default de `cor_anterior` no shader | Três cópias do mesmo tom de reboco (`0.93, 0.92, 0.90`) |
+| `mascara_tinta.gd::FAIXA_ROLO_M` | `trajeto_rolo.gd::PASSO_CARIMBO` | O perfil do carimbo é **triangular de base = 2 × passo** de propósito (partição da unidade). Quebrar essa razão faz a parede ganhar um ripple regular atravessado |
+| `props_quarto.gd::LIMITE_X` / `LIMITE_Z_*` | Tamanhos em `inicializar_quarto.gd` e transforms no `.tscn` | Os props usam a **face interna** da parede (0,1 m pra dentro do centro), não o centro |
+| Vão da janela | `inicializar_quarto.gd`, `props_quarto.gd::_moldura_janela`, transforms de `ParedeOeste*` nas **duas** cenas, e `LuzJanela.area_size` | Cinco lugares |
+| `ciclo_pintura.gd::VARREDURAS` | Tamanho das paredes | `origem`/`eixo_u`/`eixo_v` definem o UV da máscara a partir da posição de mundo. Errar aqui não dá erro, só desalinha a tinta |
+
+### 3.4 Onde o código NÃO faz o que o plano diz
+
+Auditoria de 02/08/2026, feita lendo o código contra o `PLANO-OVERHAUL-TINTA.md`. **Registrar aqui
+porque as duas fases envolvidas estão marcadas como concluídas e não estão.** Detalhe completo, com
+as contas, em `PLANO-SECAGEM-E-QUARTO.md` §2.
+
+| O que o plano diz que existe | O que o código faz | Fase que conserta |
+|---|---|---|
+| Falha de cobertura por rolo descarregado | Inerte — a carga vive entre 0,82 e 1,0, e o limiar do shader satura em 0,45 | G3 |
+| Lap mark | Inerte — o salto medido é 0,023 s contra um limiar de 0,35 s | G4 |
+| Mancha de secagem vinda da espessura | Inerte — 0,7% de variação; a parede toda seca dentro de 0,4 s | G1 |
+| A 2ª demão cobrir falha da 1ª | Impossível — `cor_anterior` é cor chapada, então a falha some no frame em que a demão começa | G3 |
+| `duracao_total()` corresponder ao que está na tela | ~18% de espera morta por demão em todos os modos (`ESPESSURA_TIPICA` está ~7× alta) | G1 |
+
+**A arquitetura da Fase B está certa** — máscara, carimbos, UV por posição de mundo, brilho e cor em
+curvas separadas. O que falta é calibração e um canal de textura. Não reescrever.
+
+### 3.5 Pendências conhecidas no código
+
+Coisas pequenas achadas na auditoria, sem dono de fase. Baratas, e cada uma é uma pegadinha pra quem
+for ler o código depois.
+
+- `ciclo_pintura.gd::_duracao_secagem_padrao()` — **código morto**, nunca é chamado
+- `trajeto_rolo.gd::CARGA_MINIMA` — **inalcançável**: o consumo máximo por carga é 0,182, então o
+  piso de 0,80 nunca entra em ação
+- ~~**Duas molduras de porta sobrepostas**~~ — ✅ **resolvido na Fase G6**: `props_quarto.gd::_moldura_porta`
+  foi apagada, ficou a de `porta.gd::_criar_batentes`
+- `quarto.tscn` grava `ambient_light_color`/`energy` no `Environment` que **`ambiente_dia.gd`
+  sobrescreve em runtime** — editar pelo Inspector não faz nada (ver 3.1)
+- ~~O rolo anda **17% mais rápido** nas paredes de 7 m que nas de 6 m~~ — ✅ **resolvido na Fase G6**:
+  com o quarto quadrado as 4 varreduras têm a mesma largura, então a velocidade do rolo é a mesma
+
+### 3.6 Coisas já tentadas e descartadas ou revertidas
 
 - Layout em L com puxadinho — trocado pelo retangular atual
 - **Ciclo de dia e noite** (`ciclo_dia_noite.gd`, removido em 31/07/2026) — girava sol e lua e
@@ -253,11 +407,31 @@ layout antigo se aparecer em conversa ou documento velho.
   máscara do rolo (Fase B). O ajuste antigo de borda larga + ruído em duas escalas era maquiagem
   sobre esse limite
 
-### Ideia levantada, ainda não implementada
+### 3.7 Estado do rig — ambíguo, conferir ANTES de continuar a Fase D
 
-Pendurar um rolo na mão do tio. Com a máscara, o rolo e o desenho já são a mesma coisa
-(`trajeto_rolo.gd::posicao_atual`) — falta só o mesh e prendê-lo na mão, o que casa com o rig da
-Fase D.
+⚠️ **Dois trechos do `PLANO-OVERHAUL-TINTA.md` §5.9 se contradizem e ninguém resolveu:**
+
+- O passo 8 está ✅ — "regerar `*_modelo.tscn` no Godot", o que sugere que o rig de **19 ossos já
+  está no jogo**
+- A nota do `.blend` logo abaixo diz que `Tio`/`Tio_Armature` (**7 ossos**) "é o que está no jogo
+  hoje"
+- E o passo 12 ("religar `tio.gd`/`garotinha.gd` e re-testar câmeras/colisão") continua ⬜
+
+**Antes de mexer em qualquer coisa de personagem, rodar esta checagem e anotar o resultado aqui:**
+
+1. Abrir `res://models/tio_modelo.tscn` e contar os ossos do `Skeleton3D`. **19 = rig novo em uso;
+   7 = rig antigo.**
+2. Conferir se existe `TwoBoneIK3D`/`LookAtModifier3D` na árvore (o passo 9 diz que sim, com
+   `active = false`).
+3. `grep` em `tio.gd` pelos nomes de osso e de clipe, pra ver se batem com o rig encontrado.
+
+Sem isso, o risco concreto é **refazer o rig inteiro no Blender achando que a Fase D não começou** —
+ela está em ~10 de 12 passos.
+
+**O rolo na mão do tio** (ideia levantada antes) **não é item solto**: já é a Fase E ("Props: rolo na
+mão, bandeja no chão, banquinho"). Com a máscara, o rolo e o desenho já são a mesma coisa
+(`trajeto_rolo.gd::posicao_atual`) — falta o mesh, prendê-lo na mão e ligar o `TwoBoneIK3D` que o
+passo 9 já deixou montado.
 
 ---
 
@@ -269,43 +443,105 @@ final, nem traduzir texto que ainda pode mudar.
 
 | Etapa | O que é | Estado |
 |---|---|---|
-| **1. Overhaul do miolo** | Parede, tinta, secagem, animação do tio | Em andamento — A, B, C feitas; **faltam D, E, F** |
+| **1. Overhaul do miolo** | Parede, tinta, secagem, animação do tio, apresentação | Em andamento — ver quadro abaixo |
 | **2. Fechamento de conteúdo** | Branding/logo, créditos, tradução dos 5 idiomas pendentes | Não começou (depende da 1 pro visual final) |
 | **3. Steam** | `export_presets`, GodotSteam, conquistas, página de loja, build | Não começou |
 
 ### Etapa 1 — Overhaul do miolo (em andamento)
 
-Plano completo em **`PLANO-OVERHAUL-TINTA.md`** (documento próprio, pra não inflar este). A tinta
-deixou de ser função da posição no shader e virou uma **máscara carimbada pelo trajeto real do
-rolo**; o tio ganha rig com cotovelo/joelho/coluna e **IK nativa do Godot 4.6+**; direção de arte
-virou **low-poly assumida**. As duas peças de engine que viabilizam isso (`DrawableTexture2D` no 4.7
-e o retorno da IK no 4.6) chegaram depois deste projeto ser arquitetado.
+A tinta deixou de ser função da posição no shader e virou uma **máscara carimbada pelo trajeto real
+do rolo**; o tio ganha rig com cotovelo/joelho/coluna e **IK nativa do Godot 4.6+**; a direção de
+arte virou **low-poly assumida**. As duas peças de engine que viabilizam isso (`DrawableTexture2D`
+no 4.7 e o retorno da IK no 4.6) chegaram depois deste projeto ser arquitetado.
 
-- `[x]` **Fase A** — spike técnica: `DrawableTexture2D` confirmado, API real levantada contra o
-  compilador (a documentação oficial do 4.7 está errada sobre `texture_blit`)
-- `[x]` **Fase B** — máscara de tinta. `tinta_secando.gd` aposentado, virou `parede_pintavel.gd`
-- `[x]` **Fase C** — low-poly: assoalho em geometria, props, normal maps fora, SSAO/MSAA,
-  `AreaLight3D`. Junto saiu o ciclo de dia e noite (ver "descartados" na seção 3)
-- `[ ]` **Fase D** — rig de 19 ossos + IK. **É a fase mais cara e destrava a E**: hoje o braço tem
-  1 osso e o tio não consegue agachar nem esticar, só girar o ombro
-- `[ ]` **Fase E** — coreografia (W, verticais, banquinho, rodapé, bandeja). Pacing **já decidido**:
-  ritmo honesto nas demãos, abertura acelerada (volta completa de 3-5 min)
-- `[ ]` **Fase F** — refino: som do rolo casado com a velocidade real da mão (hoje é timer fixo de
-  1,16 s, desligado do movimento), e o teste que importa — gravar 60 s e assistir inteiro
+Reabre a antiga **Fase 1.2** (o rig de 7 ossos não sustenta agachar nem esticar) e acrescenta uma
+frente de material/shader que o roadmap original não previa.
 
-Reabre a antiga Fase 1.2 (rig de 7 ossos não sustenta agachar/esticar) e adiciona uma frente de
-material/shader que o roadmap original não previa.
+#### Quadro das fases
 
-### Etapa 1.5 — Melhorias decididas em 01/08/2026
+| Fase | O que entrega | Depende de | Spec | Estado |
+|---|---|---|---|---|
+| **A** | Spike do `DrawableTexture2D` (a doc oficial do 4.7 está errada sobre `texture_blit`) | — | OVERHAUL §3.7, §6 | ✅ |
+| **B** | Máscara de tinta — `tinta_secando.gd` virou `parede_pintavel.gd` | A | OVERHAUL §3, §6 | ⚠️ **arquitetura ✅, números inertes** (ver 3.4) |
+| **C** | Low-poly: assoalho em geometria, props, normal maps fora, SSAO/MSAA, `AreaLight3D` | — | OVERHAUL §4, §6 | ✅ |
+| **D** | Rig de 19 ossos + IK (cotovelo, joelho, coluna) | — | OVERHAUL §5 | 🟡 **~10 de 12 passos** — ver 3.7, conferir antes |
+| **E** | Coreografia: W, verticais, banquinho, rodapé, bandeja, rolo na mão | D, G6 | OVERHAUL §5.5, §6 | ⬜ |
+| **F** | Refino: som do rolo casado com a mão, passo, porta, o tio olhar pra ela, gravar 60 s | D, E | OVERHAUL §6 | ⬜ |
+| **G1** | **Campo de secagem** — a parede passa a secar desigual e a fase manchada existe | — | SECAGEM §3.1, §5 | ⬜ |
+| **G2** | Cor (saturação antes de valor) e brilho rasante | G1 | SECAGEM §3.3, §3.4 | ⬜ |
+| **G3** | Cobertura com história — a 2ª demão passa a ter função | G1 | SECAGEM §3.6, §3.7 | ⬜ |
+| **G4** | Lap mark relativo e tempo de pintura por modo | E | SECAGEM §3.8, §3.9 | ⬜ |
+| **G5** | **Nitidez** — supersampling, debanding, fim do cintilar | — | SECAGEM §7.1 | ⬜ |
+| **G6** | **Quarto 6 × 6, janela centrada, fresta da porta, tamanho de tela** | — | SECAGEM §6, §7.2, §7.3 | ✅ |
 
-Saíram de uma rodada de sugestões. As duas primeiras entraram na **Fase F** do
-`PLANO-OVERHAUL-TINTA.md` (som e olhar); a terceira é feature de jogo e mora aqui.
+`OVERHAUL` = `PLANO-OVERHAUL-TINTA.md` · `SECAGEM` = `PLANO-SECAGEM-E-QUARTO.md`
+
+#### Ordem recomendada, com o motivo de cada posição
+
+A ordem **não é obrigatória** onde não há dependência, mas esta é a que entrega valor mais cedo e
+evita retrabalho. Cada item traz a definição de pronto — o que precisa ser verdade pra marcar `[x]`.
+
+1. `[x]` **G6 — quarto 6 × 6, janela centrada, porta, tela.** ✅ *Primeiro porque trava geometria:*
+   E escreve coreografia contra a largura das paredes, e o `LightmapGI` só pode ser assado depois
+   que o quarto parar de mudar. Fazer isso depois de E significa reescrever E.
+   **Pronto quando:** as 4 paredes têm 18 m², a câmera está a 3,0 m de todas, não há linha clara
+   sobre a porta fechada, e o jogo abre em 1600 × 900 redimensionável.
+   **Verificado:** as 4 paredes deram 18,0 m² e máscara 876 × 438 cada; da câmera da cadeira
+   (0,00 · 1,20 · −1,00) a distância é 3,00 m para norte, sul, leste e oeste; a porta fechada
+   fotografada de esguelha não tem linha clara nenhuma; a janela ficou centrada na parede oeste
+   (z ∈ [−1,85 · −0,15]); o jogo abre em 1600 × 900. Nenhum erro no log.
+   **De quebra:** havia **duas** molduras de porta sobrepostas — `props_quarto.gd::_moldura_porta` e
+   `porta.gd::_criar_batentes`. Ficou a de `porta.gd`, que é quem conhece as medidas da folha e por
+   isso consegue fechar a fresta do topo. Isso encerra a pendência anotada em 3.4.
+2. `[ ]` **G5 — nitidez.** *Barato e independente.* Vem cedo porque muda a impressão geral do jogo
+   mais que qualquer outro item por unidade de esforço, e porque todo teste visual das fases
+   seguintes fica mais fácil de julgar numa imagem limpa.
+   **Pronto quando:** girando a câmera devagar nada cintila (frestas do assoalho, maçaneta, marca do
+   rolo) e não há banding no gradiente da parede em tela cheia.
+3. `[ ]` **G1 — campo de secagem.** *O item de maior retorno do projeto inteiro.* É o assunto do
+   jogo. Hoje a parede toda seca dentro de 0,4 s de diferença e o modo Realista é duas horas de
+   retângulo uniforme.
+   **Pronto quando:** a razão entre o `duracao_local` máximo e o mínimo de uma parede é ≥ 1,5; a
+   parede fica visivelmente manchada no meio da secagem e uniforme no fim.
+4. `[ ]` **G2 — cor e brilho.** Depende de G1 (mesmo shader, e o véu só pode baixar depois que a
+   estrutura existir).
+   **Pronto quando:** dá pra dizer onde a parede ainda está molhada só movendo a câmera.
+5. `[ ]` **G3 — cobertura com história.** Fecha o que a Fase B prometeu e não entregou.
+   **Pronto quando:** uma falha da 1ª demão continua visível durante a 2ª e some **quando o rolo
+   passa por cima**, não no instante em que a demão começa.
+6. `[ ]` **D — rig + IK.** ⚠️ **Conferir 3.7 antes de tocar em qualquer coisa** — ela está em ~10 de
+   12 passos e o risco real é refazer o Blender inteiro à toa. Faltam a camada procedural (altura do
+   quadril, inclinação do torso), virar o corpo na direção do movimento, e religar `tio.gd`.
+   **Pronto quando:** o tio agacha e estica com os pés no chão, vira o corpo antes de andar, e
+   ninguém teleporta na porta.
+7. `[ ]` **E — coreografia.** Depende de D e de G6. É onde o rolo entra na mão e o trajeto vira W +
+   verticais + banquinho + rodapé + bandeja.
+   **Pronto quando:** pausando durante a pintura, a tinta na parede corresponde exatamente ao que o
+   rolo tocou, incluindo o formato do W.
+8. `[ ]` **G4 — lap mark relativo e tempo de pintura por modo.** Só faz sentido depois de E: com o
+   zigue-zague atual, esticar a pintura pra 180 s é esticar a monotonia.
+   **Pronto quando:** o lap mark aparece onde ele volta num trecho pintado minutos antes, e não
+   aparece onde ele pinta seguido.
+9. `[ ]` **F — refino e verificação.** Som do rolo casado com a velocidade real da mão (hoje é timer
+   fixo de 1,16 s, desligado do movimento), som de passo e de porta, o tio olhar pra garotinha.
+   **Pronto quando:** gravar 60 s, assistir inteiro e dar vontade de continuar olhando.
+10. `[ ]` **`LightmapGI`** (ver "Candidato técnico" abaixo). Por último dentro da Etapa 1, porque
+    trava a geometria de vez.
+
+**Se só der pra fazer uma coisa:** G1. **Se só der pra fazer meia hora:** G6 item de tela + G5.
+
+#### Features de jogo decididas em 01/08/2026
+
+Saíram de uma rodada de sugestões. As duas últimas entraram na **Fase F**; a primeira é feature de
+jogo e não pertence a fase nenhuma.
 
 - `[ ]` **Timer da demão, opcional nas Opções.** Mostra quanto falta a demão atual terminar de
   secar, com liga/desliga na tela de Opções (junto de volume e tela cheia, em `opcoes.gd` —
   persiste em `user://config.cfg` como os outros). **Desligado por padrão**: num jogo cuja proposta
   é esperar sem pressa, contador na tela muda o tom, então quem quiser a informação escolhe tê-la.
-  O dado já existe — `ParedePintavel.get_fracao_seca()` e `duracao_total()`
+  O dado já existe — `ParedePintavel.get_fracao_seca()` e `duracao_total()`.
+  ⚠️ **Depende de G1**: hoje `duracao_total()` erra por ~18% (ver 3.4), então o timer mostraria um
+  número que não corresponde à tela
 - `[ ]` Som de passo e de porta — ver Fase F
 - `[ ]` Tio olhar pra garotinha — ver Fase F
 
@@ -340,7 +576,10 @@ ainda pode mudar.
 - `[ ]` **`LightmapGI`** — virou viável quando a luz deixou de ser dinâmica (ciclo de dia removido).
   Assa sombra e luz indireta numa textura: melhor qualidade e frame mais barato. **Trava a
   geometria** — mexer em parede ou props depois obriga re-bake, então faz sentido só depois da
-  Etapa 1 fechar
+  Etapa 1 fechar. **Ganhou dono:** é o item que de fato iguala a luz entre as 4 paredes (a falta de
+  interreflexão é o que faz a parede longe parecer na sombra). Ver `PLANO-SECAGEM-E-QUARTO.md` 6.5,
+  inclusive a armadilha de assar parede com `ShaderMaterial` de albedo que muda — as paredes têm que
+  ficar como GI dinâmica, o resto do quarto como estático
 
 ### Histórico — rodadas já concluídas
 
@@ -357,7 +596,8 @@ Mantido pelo registro das decisões (por que cada coisa é como é), não como l
 #### Polish de menu, UI e mundo externo
 
 **Menu e UI**
-- `[ ]` Wireframe no Figma — pulado, foi direto pra código (Figma MCP nunca chegou a ser configurado)
+- **Pulado** — wireframe no Figma. Foi direto pra código; o Figma MCP nunca chegou a ser configurado
+  e não fez falta
 - `[x]` Paleta de cor/fonte/estilo — `resources/ui/theme_principal.tres`, tons madeira/tinta,
   aplicado globalmente via `project.godot::[gui]`
 - `[x]` Transição entre painéis — crossfade curto (`DURACAO_FADE = 0.15`) em
@@ -503,8 +743,9 @@ Etapa 2)
 - `[x]` **Seletor de idioma**, canto superior direito do menu principal (`OptionButton`
   `SeletorIdioma`). Ver seção 2 pra detalhe do sistema de localização (arquitetura, armadilhas de
   teste, e o que falta traduzir)
-- `[ ]` Opções — usuário confirmou que o conteúdo básico atual (volume mestre + tela cheia) já
-  serve por enquanto, nada extra a fazer aqui nesta rodada
+- **Encerrado** — Opções. O usuário confirmou que o conteúdo básico (volume mestre + tela cheia) já
+  serve. ⚠️ Isso mudou depois: a Fase **G6** acrescenta seletor de resolução e conserta a volta da
+  tela cheia (ver `PLANO-SECAGEM-E-QUARTO.md` §7.3)
 - `[x]` **Apagar save** — lixeira (`BotaoExcluirSave`, texto "🗑") do lado do "Continuar", só some
   se tiver save; abre `PainelConfirmarExclusao` (mesmo padrão de crossfade dos outros painéis) com
   Apagar/Cancelar. `EstadoJogo.apagar_save()` **preserva conquistas e histórico de cores vistas**

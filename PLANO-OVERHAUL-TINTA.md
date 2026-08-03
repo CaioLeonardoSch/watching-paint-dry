@@ -6,6 +6,17 @@ Documento de planejamento da rodada "overhaul do miolo": parede, tinta, secagem 
 Complementa o `PROJETO.md` (que continua sendo o documento-mãe). Quando este plano fechar, o que
 sobreviver vira parágrafo na seção 3 do `PROJETO.md` e este arquivo pode morrer.
 
+> ⚠️ **Leia isto antes de confiar nas Fases B e C como "concluídas" (02/08/2026).**
+> A arquitetura da Fase B está certa e é a base de tudo, mas uma auditoria dos números mostrou que
+> **três dos quatro recursos que ela existia pra permitir estão inertes**: falha de cobertura (a
+> carga do rolo nunca desce de 0,82, e o limiar do shader satura em 0,45), lap mark (o salto medido
+> é 0,023 s contra um limiar de 0,35 s) e a mancha de espessura (0,7% de variação no tempo de
+> secagem — a parede inteira seca dentro de 0,4 segundo). Além disso, `ESPESSURA_TIPICA` está ~7×
+> alta e produz 18% de espera morta por demão em todos os modos.
+> O conserto é **calibração e um canal de textura**, não reescrita — e está em
+> **`PLANO-SECAGEM-E-QUARTO.md`**, que é a **Fase G** e não depende de D nem de E.
+> Os critérios de aceite 2 e 5 da seção 7 deste documento **não são alcançáveis** sem ela.
+
 **Decisões já tomadas com o Caio (30/07/2026):**
 
 1. Direção de arte: **estética low-poly assumida** — poucos polígonos de propósito, facetado como
@@ -126,9 +137,13 @@ uma fonte única, descolar vira impossível por construção.
 > cabem numa textura só: cada par quer um modo de blend diferente. Viraram **duas texturas RG por
 > parede** — ver 3.7 pro layout final e o porquê.
 
-Uma textura por parede. As 4 paredes têm proporções diferentes, mas dá pra padronizar em **1024×448**
-(≈ 7m × 3m a 146 px/m — resolução de sobra pra ver a marca do rolo, e 1,8 MB cada em RGBA8; 7 MB no
-total, irrelevante).
+Uma textura por parede, a **146 px/m** — resolução de sobra pra ver a marca do rolo (que tem 23 cm),
+e ~7 MB no total, irrelevante.
+
+⚠️ **O "1024×448 padronizado" que este parágrafo propunha não foi implementado assim.** O código
+(`mascara_tinta.gd::PIXELS_POR_METRO`) calcula o tamanho **por parede**, então hoje as paredes de
+7 m ficam em 1022 × 438 e as de 6 m em 876 × 438. Isso deixa de ser uma diferença quando o quarto
+virar 6 × 6 (Fase G6): as quatro passam a ser 876 × 438 iguais.
 
 | Canal | Guarda | Pra quê |
 |---|---|---|
@@ -183,7 +198,19 @@ Repare que `cobertura` entrou onde antes estava `pintado` (um smoothstep de bord
 tudo: agora "meio pintado" não é uma borda de transição, é **falha de cobertura de verdade**, que
 persiste depois de secar e só some quando a próxima demão passa por cima.
 
-### 3.4 As 5 fases da secagem
+### 3.4 As fases da secagem
+
+> ⚠️ **CORREÇÃO IMPORTANTE (02/08/2026) — esta seção estava com o sentido da cor INVERTIDO.**
+> O texto original dizia "látex seca mais claro que molhado" e mandava manter o código como estava.
+> **Está errado, e foi corrigido no código:** o ligante da látex é branco leitoso enquanto tem água
+> e fica transparente ao secar, então **tinta seca MAIS ESCURA e MAIS SATURADA**. Molhada é mais
+> clara e leitosa. O que engana é o brilho da superfície molhada.
+>
+> A linha da tabela abaixo que diz "Molhada → cor mais escura e saturada" também está invertida.
+> A implementação correta está em `cor_tinta.gd` (`COR_LEITOSA` + `VEU_MOLHADO`) e no cabeçalho
+> dele, que documenta a pesquisa. **Não reverter.**
+>
+> As **frações da tabela continuam válidas** e são a referência das curvas do shader.
 
 Da pesquisa sobre tinta látex de verdade
 ([Rodda](https://www.roddapaint.com/problem-solver/lapping-interior/),
@@ -200,12 +227,19 @@ Da pesquisa sobre tinta látex de verdade
 
 Dois pontos importantes:
 
-- **Látex seca mais claro que molhado.** O código atual já acerta isso (`cor_molhada` 0.18/0.38/0.72
-  é mais escura que `cor_seca` 0.38/0.58/0.88). Manter.
+- ~~**Látex seca mais claro que molhado.**~~ **INVERTIDO — ver o aviso no topo desta seção.** Látex
+  seca **mais escuro e mais saturado**; molhado é mais claro e leitoso. As cores citadas aqui
+  (`cor_molhada` 0.18/0.38/0.72, `cor_seca` 0.38/0.58/0.88) **não existem mais**: desde 02/08/2026
+  cada `.tres` tem só `cor_alvo`, e demão/molhado saem de curva em `cor_tinta.gd`.
 - **A fase manchada é o ouro.** "While the paint is drying it will look splotchy and uneven" —
-  isso é o que faz a secagem parecer real em vez de um crossfade. E sai de graça da espessura: onde a
-  camada é mais grossa, seca depois, e a mancha se desenha sozinha a partir do que ele realmente
-  pintou. Hoje isso é simulado com `fbm(coord * 0.4)`, ruído solto sem relação com nada.
+  isso é o que faz a secagem parecer real em vez de um crossfade.
+  ⚠️ **Mas a aposta de "sai de graça da espessura" NÃO se confirmou.** Medido em 02/08/2026: a
+  espessura varia entre 0,037 e 0,048 dentro de uma demão, o que dá **0,7% de diferença no tempo de
+  secagem** — a parede inteira seca dentro de 0,4 segundo. E a variação que sobra é **periódica**
+  (as faixas de sobreposição ficam exatamente a 17 cm), então amplificá-la daria listra, não mancha.
+  A mancha precisa de mais fontes: **substrato, corrente de ar e altura**, além da espessura. É a
+  **Fase G1**, em `PLANO-SECAGEM-E-QUARTO.md` §3.1.
+  *(O `fbm(coord * 0.4)` citado na versão original deste parágrafo já não existe — saiu na Fase B.)*
 
 ### 3.5 Lap marks
 
@@ -367,7 +401,9 @@ próximo em espírito: diorama pequeno, contemplativo, poucas formas).
 ### 5.0 Decisões da Fase D (01/08/2026) — LEIA ANTES DE RETOMAR
 
 Confirmadas com o usuário antes de começar. Se esta fase for retomada em outra sessão, o estado de
-execução está em **5.7**, no fim desta seção.
+execução está em **5.9**, no fim desta seção. ⚠️ **Ler também `PROJETO.md` §3.7** — há uma
+ambiguidade não resolvida sobre qual rig está de fato no jogo, com a checagem exata pra rodar antes
+de tocar em qualquer coisa de personagem.
 
 | Questão | Decisão | Consequência |
 |---|---|---|
@@ -737,10 +773,12 @@ desenhava estrias atravessadas em vez de longitudinais.
   interruptor, tomada — `props_quarto.gd`
 - `[x]` Paleta fechada — constantes no topo de `props_quarto.gd`
 - `[x]` Luz: ambiente **dessaturada** (era o que deixava o quarto laranja), SSAO, MSAA 4x
-- `[x]` `AreaLight3D` na janela (`LuzJanela`), cor e energia seguindo o ciclo do dia. O sol
-  direcional caiu de 2.5 pra 1.4: ele desenhava um retângulo de borda dura e cor estourada na
-  parede, que lia como decalque em vez de luz. Agora quem carrega a iluminação de dia é a luz de
-  área, que dá a penumbra macia que direcional nenhuma dá — e o direcional só marca o recorte
+- `[x]` `AreaLight3D` na janela (`LuzJanela`). O sol direcional caiu de 2.5 pra 1.4: ele desenhava um
+  retângulo de borda dura e cor estourada na parede, que lia como decalque em vez de luz. Agora quem
+  carrega a iluminação de dia é a luz de área, que dá a penumbra macia que direcional nenhuma dá — e
+  o direcional só marca o recorte.
+  ⚠️ *"cor e energia seguindo o ciclo do dia" saiu daqui: o ciclo foi removido em 31/07/2026 e a luz
+  é fixa. Valores em vigor em `PROJETO.md` §3.1.*
 - `[x]` SDFGI conferido, está desligado
 
 **Ciclo de dia e noite removido (31/07/2026), a pedido do usuário.** Depois de a luz ambiente ser
@@ -754,8 +792,10 @@ configurada uma vez em `_ready()`, sem `_process`. Saíram junto os nós `Lua` e
 **A correção de luz que o usuário pediu:** `env.ambient_light_color` recebia a cor crua do horizonte.
 Como luz ambiente incide em tudo por igual, inclusive nas faces internas do quarto, o pôr do sol
 deixava o cômodo inteiro laranja — dava a impressão de que a luz atravessava as paredes. Agora a
-ambiente é dessaturada (`lerp` pra um cinza-azulado) e mais fraca; a névoa, que é o céu de verdade
-visto lá fora, mantém a cor cheia.
+ambiente é dessaturada (`lerp` pra um cinza-azulado) e mais fraca.
+⚠️ *A frase original terminava falando da névoa manter a cor cheia. **A névoa foi removida em
+01/08/2026** (`ambiente_dia.gd` força `fog_enabled = false`): mesmo com `fog_depth_begin` fora do
+quarto, ela deixava um véu leitoso que era metade do "lavado" reclamado.*
 
 **Bug achado pelo usuário — a divisão vertical no meio da parede na abertura:** `pintar_instantaneo`
 gravava **instante fixo = 0** no trecho já pintado, enquanto o trecho animado gravava instante
@@ -776,15 +816,29 @@ interessa no começo é uma só: primeira mão de tinta sobre reboco, igual nas 
 - Esconder o piso antigo debaixo das tábuas abre buraco — as frestas passam a dar no vazio e a luz
   do exterior vaza por elas. Ele continua visível, escuro, como contrapiso
 
-### Fase D — Rig novo + IK
+### Fase D — Rig novo + IK 🟡 ~10 DE 12 PASSOS
 
-- `[ ]` Rig de 19 ossos no Blender (tio e garotinha), medidas preservadas
-- `[ ]` Weight paint (agora precisa de blend de verdade nas articulações, não mais peso 1.0)
-- `[ ]` Export com as armadilhas conhecidas
-- `[ ]` Stack de `SkeletonModifier3D` no Godot
-- `[ ]` Clipes base: `parado_respirando`, `andar`, `molhar_rolo`, banquinho, poses de agachar/esticar
-- `[ ]` Camada procedural: altura do quadril, inclinação do torso
-- `[ ]` `pausa_admira`
+> ⚠️ **Esta lista estava toda desmarcada e contradizia o quadro de execução de 5.9, que registra 10
+> passos concluídos.** Corrigido em 03/08/2026. **A fonte da verdade é a tabela de 5.9** — esta aqui
+> é só o resumo. Antes de retomar, rodar a checagem de `PROJETO.md` §3.7 (há ambiguidade sobre qual
+> rig está de fato no jogo).
+
+- `[x]` Rig de 19 ossos no Blender, medidas preservadas — via **Skin modifier** (`Tio2`, 590 verts;
+  garotinha simplificada em 13 ossos, 494 verts)
+- `[x]` Weight paint — `parent_set(type='ARMATURE_AUTO')` resolveu sozinho. **Teste de dobra passou**
+  (cotovelo a −75°, joelho a −70°): a malha não rasga. Era o risco que a decisão 5.0 assumiu
+- `[x]` Export com as armadilhas conhecidas — e duas novas achadas (`diffuse_color` não exporta,
+  `materials.clear()` zera `material_index`), documentadas em 5.9
+- `[x]` Stack de `SkeletonModifier3D` no Godot — IK do braço e das pernas + `LookAtModifier3D`,
+  **todos com `active = false`** até a Fase E ligar
+- `[x]` Clipes base — **parcial**: `andar`, `parado_respirando`, `pintar_braco` prontos. Faltam os
+  que dependem de props (`molhar_rolo`, banquinho), que são **Fase E** por definição
+- `[ ]` **Camada procedural**: altura do quadril em função da altura do alvo, inclinação do torso
+  (5.4). É o que faz agachar e esticar parecerem esforço em vez de pose trocada
+- `[ ]` **Virar o corpo na direção do movimento e parar de teleportar** (5.7) — hoje `ir_ate()` só
+  interpola `position`, e entrar/sair pela porta é `position =` + `show()`/`hide()`
+- `[ ]` **Religar `tio.gd`/`garotinha.gd`** ao rig novo e re-testar câmeras e colisão
+- `[ ]` `pausa_admira` — pode escorregar pra Fase F sem prejuízo
 
 ### Fase E — Coreografia
 
@@ -798,6 +852,24 @@ interessa no começo é uma só: primeira mão de tinta sobre reboco, igual nas 
   da coreografia
 - `[ ]` Recalibrar o tempo de secagem dos 3 modos — com a pintura durando minutos, o modo Rápido
   (60 s) secaria antes de a parede terminar de ser pintada
+
+### Fase G — Secagem natural + proporção do quarto
+
+Documento próprio: **`PLANO-SECAGEM-E-QUARTO.md`**. Não depende de D nem de E (só o item 3.9 de lá
+depende), então pode ser feita antes delas — e provavelmente deveria, porque é ela que faz a Fase B
+entregar o que prometeu.
+
+- `[ ]` **G1** — campo de secagem (espessura relativa + mancha de substrato + mancha da demão +
+  janela/altura/canto). É o item de maior retorno do documento inteiro
+- `[ ]` **G2** — cor (saturação antes de valor, véu 0.55 → 0.32) e brilho rasante
+- `[ ]` **G3** — cobertura com história (canal B da acumulada), carga do rolo com números físicos
+- `[ ]` **G4** — lap mark relativo e tempo de pintura por modo ⚠️ depende da Fase E
+- `[ ]` **Quarto 6 × 6** e janela centrada (seção 6 de lá) — precede o `LightmapGI`, que trava a
+  geometria
+- `[ ]` **G5** — nitidez: supersampling/MSAA/debanding + os dois consertos de material e shader
+  (seção 7.1 de lá). MSAA sozinho não pega cintilar especular nem aliasing de shader
+- `[ ]` **G6** — fresta no topo da porta (a folha tem 5 cm a menos que o vão) e tamanho da janela do
+  jogo (seção 7.2 e 7.3 de lá). O item mais barato de todo o plano
 
 ### Fase F — Refino e verificação
 
@@ -828,18 +900,20 @@ interessa no começo é uma só: primeira mão de tinta sobre reboco, igual nas 
 
 ## 7. Critérios de aceite
 
-Testáveis, não subjetivos:
+Testáveis, não subjetivos. **A coluna "quem entrega" foi acrescentada em 03/08/2026** — dois destes
+critérios estavam impossíveis de alcançar com o que a Fase B implementou (ver `PROJETO.md` §3.4), e
+passaram a ter dono explícito. Os critérios das Fases G estão em `PLANO-SECAGEM-E-QUARTO.md` §8.
 
-1. Pausar a qualquer momento durante a pintura: **a tinta na parede corresponde exatamente ao que o
-   rolo tocou**, incluindo o formato do W e a falha onde ele passou de leve
-2. A 2ª demão **visivelmente cobre falhas** da 1ª — comparar screenshot antes/depois
-3. Existe pelo menos um momento em que ele **olha pro que está pintando** e a cabeça acompanha
-4. Ele **agacha** pro rodapé e **sobe no banquinho** pro topo, e os pés não atravessam nada
-5. Durante a secagem a parede fica **manchada** numa fase intermediária, e a mancha coincide com
-   onde ele passou duas vezes
-6. Nenhum normal map procedural sobrou nas paredes
-7. Zero warnings no build (convenção do projeto: warning é erro)
-8. Roda a 60 fps com as 4 máscaras ativas
+| # | Critério | Quem entrega |
+|---|---|---|
+| 1 | Pausar durante a pintura: **a tinta corresponde exatamente ao que o rolo tocou**, incluindo o formato do W e a falha onde passou de leve | Fase E (W) + G3 (falha) |
+| 2 | A 2ª demão **visivelmente cobre falhas** da 1ª — comparar screenshot antes/depois | **G3** (hoje impossível: `cor_anterior` é cor chapada) |
+| 3 | Existe pelo menos um momento em que ele **olha pro que está pintando** e a cabeça acompanha | Fase F (`LookAtModifier3D` já montado) |
+| 4 | Ele **agacha** pro rodapé e **sobe no banquinho** pro topo, e os pés não atravessam nada | Fase D (camada procedural) + E |
+| 5 | Durante a secagem a parede fica **manchada** numa fase intermediária | **G1** — ⚠️ o critério original dizia "e a mancha coincide com onde ele passou duas vezes". **Isso não se sustenta**: a espessura sozinha dá 0,7% de variação e é periódica. A mancha passa a vir de espessura **+ substrato + ar + altura** |
+| 6 | Nenhum normal map procedural sobrou nas paredes | ✅ Fase C |
+| 7 | Zero warnings no build (warning é erro neste projeto) | todas |
+| 8 | Roda a 60 fps com as 4 máscaras ativas | todas |
 
 ---
 
