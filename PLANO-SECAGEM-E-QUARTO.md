@@ -1109,14 +1109,90 @@ contemplativo, dá alt-tab sem engasgo. Falta:
 
 ### 7.4 Ordem
 
-- `[ ]` **G5 — Nitidez.** Configurações de 7.1, medindo Caminho A × Caminho B, mais os dois
-  consertos de material/shader. Independente de tudo
+- `[x]` **G5 — Nitidez.** ✅ **feito em 03/08/2026.** Configurações de 7.1 medidas de verdade, mais
+  os dois consertos de material/shader. Ver 7.5 — **o Caminho A do plano estava com o número errado**
 - `[x]` **G6 — Porta e janela do jogo.** ✅ **feito em 03/08/2026.** Fresta (7.2, **junto com o
   quarto 6 × 6**) e tamanho de tela Opção A (7.3). Ver 6.8 pro que foi medido depois
 
-G5 é barato e não depende de nenhuma das outras fases. Se a ideia for ver o jogo melhorar rápido
-antes de encarar G1, **começar por ele** é defensável: muda a impressão geral mais do que qualquer
-outro item deste documento por unidade de esforço.
+---
+
+### 7.5 O que a G5 entregou de fato — 03/08/2026
+
+**Configuração final** (`project.godot`, seção `[rendering]`):
+
+```ini
+scaling_3d/scale=2.0                      ; NAO 1.5 — ver abaixo
+anti_aliasing/quality/msaa_3d=2           ; 4x
+anti_aliasing/quality/use_debanding=true
+; FXAA, TAA e msaa_2d ficaram de fora, os tres medidos e reprovados
+```
+
+Mais `porta.gd::_criar_macaneta` com `roughness` 0,35 → 0,45 e a atenuação por `fwidth` no
+`tinta_secando.gdshader`, os dois consertos que 7.1 pedia.
+
+#### Como foi medido — e por que a primeira medição foi jogada fora
+
+A primeira tentativa foi girar a câmera devagar e olhar a **segunda diferença temporal**
+(`|I(n−1) − 2·I(n) + I(n+1)|`), que é o que cintilação faz com um sinal. **Não convergiu:** o mesmo
+teste deu 3,96 e depois 5,29 pra configuração idêntica, e teve um outlier de 14,7. Pior, ela tem um
+viés que invalida a comparação: **imagem mais nítida tem segunda diferença maior sob movimento sem
+estar cintilando**, então a métrica premiava quem borra mais — foi por isso que FXAA "ganhou" nela.
+
+O que funcionou é como AA se mede de verdade: renderizar a mesma pose com **supersampling 3× + MSAA
+8×** (referência praticamente sem aliasing) e medir o erro de cada candidata contra ela. Aliasing
+**é** a diferença pra imagem certa. Sem movimento, sem ruído de medição, e reprodutível. Três poses:
+olho da cadeira, assoalho de raspão (as frestas de 1,2 cm no ângulo mais cruel) e parede pintada de
+perto.
+
+| Configuração | Erro médio | Pior pixel | Custo |
+|---|---|---|---|
+| Antes da G5 (MSAA 4×, mais nada) | 0,173 | 178 | 0,89 ms |
+| Caminho A do plano — 1,5× + MSAA 4× | 0,143 | 127 | 1,25 ms |
+| **2,0× + MSAA 4×** ✅ | **0,034** | 126 | 3,47 ms |
+| Caminho B — MSAA 8× + FXAA | 0,241 | 232 | 0,86 ms |
+| MSAA 8× sozinho | 0,148 | 126 | — |
+
+Erro em níveis de 255. Custo medido a 1600 × 900 numa RTX 5070.
+
+#### ⚠️ O plano pedia `scale = 1.5` e esse número está errado
+
+**1,5× quase não serve** — 0,143 contra 0,173 de não fazer nada, uma melhora de 17% pra 40% de custo
+a mais. **2,0× dá 0,034**, quatro vezes melhor.
+
+O motivo é o filtro, não a quantidade de amostras: **o downsample do Godot é bilinear**. Em 2,0× os
+quatro taps do bilinear caem simétricos entre os texels de origem, e ele vira uma **média de caixa
+2 × 2 exata** — supersampling de verdade. Em 1,5× as amostras não alinham com a grade e sobra
+aliasing, com o agravante de a fase do erro mudar conforme a câmera anda.
+
+**Consequência prática: não trocar 2,0 por um valor "intermediário" pra economizar.** 1,75 não dá 87%
+do benefício, dá quase nada. A escala é uma escolha binária aqui: 1,0 ou 2,0.
+
+#### FXAA e TAA foram reprovados, não esquecidos
+
+- **FXAA piorou a imagem** — erro 0,241, **pior que não fazer nada** (0,173), e o pior pixel saltou
+  pra 232. Ele borra pra longe da verdade em vez de resolver detalhe: nas capturas, a linha fina da
+  almofada da porta continuou pontilhada com FXAA e virou linha contínua com supersampling
+- **TAA fantasmou e apagou a marca do rolo na parede.** A ressalva de 7.1 era sobre borrar a frente
+  do rolo; o problema real foi maior — ele alisou a variação da parede inteira, que é **o assunto do
+  jogo**. Mais um retângulo claro de ghosting no canto ao mover a câmera. Fora
+- **MSAA 4× continua se pagando** mesmo por cima do supersampling: 0,105 sem ele contra 0,034 com,
+  por 0,32 ms (10% do quadro). Não subir pra 8×: 4× já empata com a referência
+- **`msaa_2d` fica em 0.** A UI do menu foi capturada e não serrilha — texto e cantos arredondados
+  saem limpos, o 2D do Godot já resolve isso sozinho
+
+#### Debanding — o aceite 13
+
+Medido contando **linhas chapadas** numa faixa de 600 px da parede (linha inteira com um único valor
+de 8 bits = faixa de banding): **236 de 600 linhas chapadas (39%) antes, 0 depois.** Contar tons
+distintos não serve como medida — dá 15 nos dois casos, porque o dither espalha os pixels entre dois
+níveis sem criar níveis novos.
+
+#### Ressalva pra Etapa 3 (Steam)
+
+`scale = 2.0` renderiza a **3200 × 1800**. Aqui sobra folga (288 fps), mas numa GPU integrada isso
+pesa. **Antes da Steam, expor a escala como opção de qualidade** em `Opções` — é uma propriedade de
+`Viewport` (`scaling_3d_scale`), trocável em runtime sem reiniciar. Não foi feito agora porque a
+disciplina do projeto é não adicionar opção por adicionar (7.3).
 
 ---
 

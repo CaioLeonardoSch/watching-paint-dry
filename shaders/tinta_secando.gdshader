@@ -102,15 +102,29 @@ void fragment() {
 	float seco_brilho = smoothstep(0.02, 0.30, fracao);
 	float seco_cor    = smoothstep(0.22, 0.95, fracao);
 
+	// ── Nitidez: quantos texels da máscara cabem num pixel ─────────
+	// A máscara tem ~146 px/m e o `DrawableTexture2D` NÃO tem mipmap, então
+	// `filter_linear` não filtra nada quando o pixel fica maior que o texel —
+	// e aí a marca do rolo cintila e as faixas de 17 cm fazem moiré. `fwidth`
+	// mede a derivada do UV por pixel, que é exatamente a conta de Nyquist.
+	// Onde um pixel cobre mais de um texel, o detalhe some. É o que um mipmap
+	// faria; como não temos um, apagamos o detalhe na mão (Fase G5).
+	vec2 tam_mascara = vec2(textureSize(mascara_recente, 0));
+	float texels_por_pixel = length(fwidth(uv) * tam_mascara);
+	float nitidez = clamp(1.0 / max(texels_por_pixel, 0.001), 0.0, 1.0);
+
 	// ── Lap mark ───────────────────────────────────────────────────
 	// Onde pincelada nova encostou em tinta já secando, fica uma linha. Isso
 	// é um degrau no instante: dois pontos vizinhos pintados em momentos bem
 	// distantes. Sai de graça do gradiente da máscara recente.
-	vec2 texel = 1.0 / vec2(textureSize(mascara_recente, 0));
+	vec2 texel = 1.0 / tam_mascara;
 	float r_dx = texture(mascara_recente, uv + vec2(texel.x, 0.0)).r - rec.r;
 	float r_dy = texture(mascara_recente, uv + vec2(0.0, texel.y)).r - rec.r;
 	float salto = length(vec2(r_dx, r_dy)) * janela_demao;
-	float lap = smoothstep(limiar_lap, limiar_lap * 2.0, salto) * cobertura;
+	// A diferença finita acima é derivada de textura por pixel multiplicando um
+	// smoothstep estreito — gerador clássico de aliasing. `nitidez` desliga ela
+	// justamente onde ela não teria como estar certa.
+	float lap = smoothstep(limiar_lap, limiar_lap * 2.0, salto) * cobertura * nitidez;
 
 	// ── Cor ────────────────────────────────────────────────────────
 	// Látex seca MAIS ESCURO que molhado: o véu leitoso do ligante some e
@@ -125,7 +139,7 @@ void fragment() {
 	// parede de virar cor chapada no instante em que uma demão começa: a
 	// camada de baixo continua exibindo o relevo que ela deixou.
 	// `relevo` só aparece depois de secar — tinta molhada escorre e nivela.
-	float marca = (relevo - 0.5) * forca_marca * suavidade_demao;
+	float marca = (relevo - 0.5) * forca_marca * suavidade_demao * nitidez;
 	vec3 base_anterior = cor_anterior.rgb * (1.0 - marca);
 	cor_nova *= (1.0 - marca * seco_cor);
 

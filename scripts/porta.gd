@@ -106,7 +106,11 @@ func _criar_macaneta() -> void:
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = Color(0.72, 0.66, 0.42)  # latão
 	mat.metallic     = 0.9
-	mat.roughness    = 0.35
+	# 0.45, não 0.35: a haste tem 2,8 cm e ocupa fração de pixel a 3 m. Com
+	# roughness baixo o realce especular aparecia e sumia entre frames, e MSAA
+	# não pega isso (ele amostra cobertura, não sombreamento). Latão fosco
+	# continua lendo como latão. Mesma lição que fez o normal map do teto sair.
+	mat.roughness    = 0.45
 
 	# Maçaneta fica na borda livre da folha (longe da dobradiça), dos dois lados
 	_macaneta.position = Vector3(0, -0.05, -0.35)

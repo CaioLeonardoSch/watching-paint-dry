@@ -406,6 +406,16 @@ for ler o código depois.
   posição num eixo, o que limitava a pintura a uma linha reta atravessando a parede. Trocada pela
   máscara do rolo (Fase B). O ajuste antigo de borda larga + ruído em duas escalas era maquiagem
   sobre esse limite
+- **FXAA** (Fase G5) — medido contra referência supersampleada e deu **pior que não fazer nada**
+  (erro 0,241 contra 0,173). Ele borra pra longe da imagem certa em vez de resolver detalhe: a linha
+  fina da almofada da porta continuava pontilhada com FXAA e virou contínua com supersampling
+- **TAA** (Fase G5) — a ressalva prevista era borrar a frente do rolo; o problema real foi maior:
+  **ele alisou a variação da parede inteira**, que é o assunto do jogo, mais ghosting no canto ao
+  mover a câmera. Câmera parada e movimento lento não bastam pra salvar TAA quando o sinal que
+  interessa é justamente uma textura de baixo contraste
+- **`scaling_3d/scale = 1.5`** (Fase G5) — parece um meio-termo econômico e não é: dá 0,143 de erro
+  contra 0,173 de não fazer nada. O downsample do Godot é bilinear e **só em 2,0× os quatro taps
+  caem simétricos e viram média de caixa 2 × 2**. A escala é escolha binária: 1,0 ou 2,0
 
 ### 3.7 Estado do rig — ambíguo, conferir ANTES de continuar a Fase D
 
@@ -471,7 +481,7 @@ frente de material/shader que o roadmap original não previa.
 | **G2** | Cor (saturação antes de valor) e brilho rasante | G1 | SECAGEM §3.3, §3.4 | ⬜ |
 | **G3** | Cobertura com história — a 2ª demão passa a ter função | G1 | SECAGEM §3.6, §3.7 | ⬜ |
 | **G4** | Lap mark relativo e tempo de pintura por modo | E | SECAGEM §3.8, §3.9 | ⬜ |
-| **G5** | **Nitidez** — supersampling, debanding, fim do cintilar | — | SECAGEM §7.1 | ⬜ |
+| **G5** | **Nitidez** — supersampling, debanding, fim do cintilar | — | SECAGEM §7.1, §7.5 | ✅ |
 | **G6** | **Quarto 6 × 6, janela centrada, fresta da porta, tamanho de tela** | — | SECAGEM §6, §7.2, §7.3 | ✅ |
 
 `OVERHAUL` = `PLANO-OVERHAUL-TINTA.md` · `SECAGEM` = `PLANO-SECAGEM-E-QUARTO.md`
@@ -493,11 +503,18 @@ evita retrabalho. Cada item traz a definição de pronto — o que precisa ser v
    **De quebra:** havia **duas** molduras de porta sobrepostas — `props_quarto.gd::_moldura_porta` e
    `porta.gd::_criar_batentes`. Ficou a de `porta.gd`, que é quem conhece as medidas da folha e por
    isso consegue fechar a fresta do topo. Isso encerra a pendência anotada em 3.4.
-2. `[ ]` **G5 — nitidez.** *Barato e independente.* Vem cedo porque muda a impressão geral do jogo
+2. `[x]` **G5 — nitidez.** ✅ *Barato e independente.* Vem cedo porque muda a impressão geral do jogo
    mais que qualquer outro item por unidade de esforço, e porque todo teste visual das fases
    seguintes fica mais fácil de julgar numa imagem limpa.
    **Pronto quando:** girando a câmera devagar nada cintila (frestas do assoalho, maçaneta, marca do
    rolo) e não há banding no gradiente da parede em tela cheia.
+   **Verificado:** medindo o erro contra uma referência supersampleada 3×, a configuração escolhida
+   (`scaling_3d/scale=2.0` + MSAA 4× + debanding) dá **0,034 contra 0,173 de antes** — 5× menos
+   aliasing, a 288 fps. Banding: 39% das linhas da parede eram faixas chapadas, agora 0%.
+   ⚠️ **O plano pedia `scale = 1.5` e o número estava errado** — 1,5× dá 0,143, quase nada, porque o
+   downsample do Godot é bilinear e só em 2,0× ele vira média de caixa 2 × 2 de verdade. FXAA e TAA
+   foram medidos e **reprovados** (FXAA fica pior que não fazer nada; TAA apaga a marca do rolo).
+   Detalhe em SECAGEM §7.5.
 3. `[ ]` **G1 — campo de secagem.** *O item de maior retorno do projeto inteiro.* É o assunto do
    jogo. Hoje a parede toda seca dentro de 0,4 s de diferença e o modo Realista é duas horas de
    retângulo uniforme.
