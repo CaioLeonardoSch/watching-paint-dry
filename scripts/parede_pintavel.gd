@@ -59,6 +59,22 @@ const CARGA_TIPICA: float = 0.627
 ## Se a Fase E mudar carga ou trajeto do rolo, remedir os dois.
 const ESPESSURA_DEMAO: float = 0.033
 
+## Faixa da carga que conta como "coberto" (Fase G3).
+##
+## Mora AQUI, não nos shaders, porque dois shaders precisam do mesmo par:
+## `tinta_secando` pra desenhar e `copia_cobertura` pra gravar o histórico com o
+## mesmo critério. Se divergirem, a costura entre demãos reabre.
+##
+## ⚠️ Não dá pra ler isto de volta do material com `get_shader_parameter`: ele
+## devolve **null** pra uniform que nunca foi setado explicitamente (o default
+## do shader não conta), e o null vazava como argumento tipado. Foi assim que
+## `iniciar_demao` quebrou com "Cannot convert argument 1 from Nil to float".
+##
+## O máximo é o **ganho visual da falha de cobertura**, e está baixo de
+## propósito — ver SECAGEM §5.3. Menor = satura antes = falha mais discreta.
+const COBERTURA_MIN: float = 0.0
+const COBERTURA_MAX: float = 0.16
+
 ## Quanto cada demão nova atrasa a secagem, uniformemente. É real: o substrato
 ## vai selando e absorve menos água a cada camada. Entra como fator explícito
 ## de propósito — antes isso saía como efeito colateral do acumulador crescendo,
@@ -114,6 +130,8 @@ func configurar(
 	material.set_shader_parameter("mancha_secagem", mascara.mancha)
 	material.set_shader_parameter("mancha_escala", mascara.mancha_escala)
 	material.set_shader_parameter("passo_carimbo_texels", MascaraTinta.passo_carimbo_texels())
+	material.set_shader_parameter("cobertura_min", COBERTURA_MIN)
+	material.set_shader_parameter("cobertura_max", COBERTURA_MAX)
 	material.set_shader_parameter("carga_tipica", CARGA_TIPICA)
 	material.set_shader_parameter("espessura_demao", ESPESSURA_DEMAO)
 	material.set_shader_parameter("variacao_max", VARIACAO_MAX)
@@ -195,10 +213,7 @@ func iniciar_demao(
 
 	# E a cobertura desta demão entra pro histórico (Fase G3). Tem que ser AQUI:
 	# depois de a demão anterior ter terminado e antes de a recente ser limpa.
-	# Os limiares vêm do material pra os dois shaders não divergirem.
-	mascara.guardar_historico(
-		material.get_shader_parameter("cobertura_min"),
-		material.get_shader_parameter("cobertura_max"))
+	mascara.guardar_historico(COBERTURA_MIN, COBERTURA_MAX)
 	mascara.limpar_demao()
 	material.set_shader_parameter("cor_anterior",    anterior)
 	material.set_shader_parameter("cor_molhada",     molhada)

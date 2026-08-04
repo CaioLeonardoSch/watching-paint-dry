@@ -348,7 +348,23 @@ outro na mesma sessão.**
 | Qualquer geometria de parede/janela | **`quarto.tscn` E `fundo_menu.tscn`** | `fundo_menu.gd` herda `inicializar_quarto.gd`; a cena do menu tem transforms próprios que não são atualizados sozinhos |
 | `parede_pintavel.gd::VARIACAO_MAX` | `tinta_secando.gdshader::variacao_max` | São o mesmo número em dois lugares — é o clamp do campo de secagem, e `duracao_total()` só é honesta porque ele existe |
 | `parede_pintavel.gd::CARGA_TIPICA` e `ESPESSURA_DEMAO` | Carga e trajeto em `trajeto_rolo.gd` | São **medidos**, não escolhidos (0,627 e 0,033). Mexer na carga do rolo ou no trajeto desregula os dois. Remedir lendo a máscara de volta — receita em SECAGEM §5.1 |
-| `tinta_secando.gdshader::cobertura_min/max` | `copia_cobertura.gdshader` | O histórico é gravado com o MESMO `smoothstep`, e é isso que fecha a costura entre demãos. `parede_pintavel.gd` passa os dois valores pra não divergirem — não chumbar |
+| `tinta_secando.gdshader::cobertura_min/max` | `copia_cobertura.gdshader` | O histórico é gravado com o MESMO `smoothstep`, e é isso que fecha a costura entre demãos. A fonte da verdade é `parede_pintavel.gd::COBERTURA_MIN/MAX`, que **empurra** pros dois — não chumbar nos `.gdshader` |
+
+**⚠️ `get_shader_parameter()` devolve `null` pra uniform que nunca foi setada.** O valor default
+escrito no `.gdshader` **não conta** — ele só existe no shader, não no material. Ler um uniform de
+volta pra passar adiante (`guardar_historico(material.get_shader_parameter("cobertura_min"), …)`)
+estourou com *"Cannot convert argument 1 from Nil to float"* só quando o jogo rodou de verdade.
+Se um número precisa ser compartilhado entre GDScript e shader, ele mora no **GDScript** e é
+empurrado com `set_shader_parameter`.
+
+**⚠️ Não filtrar a saída do Godot enquanto se testa.** `... | Select-Object -Last N` e
+`| Select-String` no PowerShell **seguram a saída até o processo sair** e cortam as linhas do meio —
+foi assim que o erro acima passou por vários testes seguidos sem eu ver. Pra rodar o jogo e ler tudo:
+
+```powershell
+Start-Process -FilePath "…\Godot….exe" -ArgumentList '--path','…','--script','…' `
+  -RedirectStandardOutput saida.log -RedirectStandardError saida.err -Wait -NoNewWindow
+```
 | `ciclo_pintura.gd::COR_PAREDE_CRUA` | `cor_tinta.gd::COR_FUNDO_CRU` e o default de `cor_anterior` no shader | Três cópias do mesmo tom de reboco (`0.93, 0.92, 0.90`) |
 | `mascara_tinta.gd::FAIXA_ROLO_M` | `trajeto_rolo.gd::PASSO_CARIMBO` | O perfil do carimbo é **triangular de base = 2 × passo** de propósito (partição da unidade). Quebrar essa razão faz a parede ganhar um ripple regular atravessado |
 | `props_quarto.gd::LIMITE_X` / `LIMITE_Z_*` | Tamanhos em `inicializar_quarto.gd` e transforms no `.tscn` | Os props usam a **face interna** da parede (0,1 m pra dentro do centro), não o centro |
@@ -366,7 +382,7 @@ as contas, em `PLANO-SECAGEM-E-QUARTO.md` §2.
 | ~~Falha de cobertura por rolo descarregado~~ | ✅ **G3**: a carga cai de 1,00 pra 0,37 por carga e a falha aparece. Amplitude baixa até a Fase E | ~~G3~~ |
 | Lap mark | Inerte — o salto medido é 0,023 s contra um limiar de 0,35 s | G4 |
 | ~~Mancha de secagem vinda da espessura~~ | ✅ **G1**: campo de 4 termos, razão medida 2,27–2,33 (era 1,00) | ~~G1~~ |
-| ~~A 2ª demão cobrir falha da 1ª~~ | ✅ **G3**: o fundo tem história; salto de 0,0 de 255 na troca de demão | ~~G3~~ |
+| ~~A 2ª demão cobrir falha da 1ª~~ | ✅ **G3**: o fundo tem história; salto de 0,1 de 255 na troca contra 57 quando o rolo passa | ~~G3~~ |
 | ~~`duracao_total()` corresponder ao que está na tela~~ | ✅ **G1**: espera morta 21% → 3,9%. `ESPESSURA_TIPICA` não estava 7× alta, estava **10× alta** — o depósito medido é 0,033, não 0,35 | ~~G1~~ |
 
 **A arquitetura da Fase B está certa** — máscara, carimbos, UV por posição de mundo, brilho e cor em
@@ -551,8 +567,9 @@ evita retrabalho. Cada item traz a definição de pronto — o que precisa ser v
 5. `[x]` **G3 — cobertura com história.** ✅ Fecha o que a Fase B prometeu e não entregou.
    **Pronto quando:** uma falha da 1ª demão continua visível durante a 2ª e some **quando o rolo
    passa por cima**, não no instante em que a demão começa.
-   **Verificado:** o salto da parede no instante em que a demão troca é **0,0 de 255** (média e pior
-   pixel), e a falha da 1ª demão está lá na captura do começo da 2ª. A chave foi o histórico guardar
+   **Verificado:** no ponto de pior cobertura da 1ª demão, a mudança ao trocar de demão é **0,1 de
+   255** contra **57,2** quando o rolo passa por cima; na parede inteira o salto médio é 1,2. E a
+   falha da 1ª demão está lá na captura do começo da 2ª. A chave foi o histórico guardar
    **o valor de cobertura que o shader mostrou**, não a máscara crua — duas versões com máscara crua
    falharam, uma por saturação do acumulador (a 2ª e a 3ª demão paravam de aparecer) e outra por
    comparar grandezas diferentes (salto de 130 de 255 no pior ponto).

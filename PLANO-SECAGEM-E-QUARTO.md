@@ -901,9 +901,17 @@ verificável por screenshot.
 
 ### 5.3 O que a G3 entregou de fato — 04/08/2026
 
-A falha de cobertura **sobrevive à troca de demão** e só some quando o rolo passa por cima. Medido: o
-salto da parede no instante em que a demão troca é de **0,0 de 255 na média e 0,0 no pior pixel** —
-antes disso ela trocava de cara inteira num frame.
+A falha de cobertura **sobrevive à troca de demão** e só some quando o rolo passa por cima. Medido no
+ponto de pior cobertura da 1ª demão: **0,1 de 255** de mudança no instante em que a demão troca,
+contra **57,2** quando o rolo passa por cima. Na parede inteira, o salto na troca é de 1,2 de 255 na
+média — antes disso ela trocava de cara inteira num frame.
+
+> ⚠️ **Uma versão anterior desta seção publicou "0,0 de 255" e o número era de um build quebrado.**
+> `guardar_historico` estava sendo chamada com os limiares lidos de
+> `material.get_shader_parameter()`, que devolve **null** pra uniform que nunca foi setada
+> explicitamente — o default escrito no `.gdshader` não conta. A chamada morria em silêncio no meu
+> teste, o histórico nunca era escrito, e a costura media zero porque nada mudava. Ver a armadilha
+> completa no `PROJETO.md` 3.3.
 
 #### O histórico guarda a COBERTURA, não a máscara crua
 
@@ -922,7 +930,11 @@ uma textura separada, 1,5 MB por parede.
 
 O que funciona é guardar **o mesmo número que o shader mostrou na tela**: `copia_cobertura.gdshader`
 aplica o mesmo box e o mesmo `smoothstep` e soma o resultado no histórico. Aí a costura fecha por
-construção, e é por isso que ela dá exatamente zero.
+construção, e é por isso que ela dá 0,1 de 255.
+
+Os limiares moram em `parede_pintavel.gd` (`COBERTURA_MIN`/`COBERTURA_MAX`) e são **empurrados** pros
+dois shaders. Não podem ser lidos de volta do material, e não podem ficar chumbados em dois
+`.gdshader` diferentes — se divergirem, a costura reabre sem dar erro.
 
 #### ⚠️ `cobertura_min` tem que ser zero ou positivo
 
