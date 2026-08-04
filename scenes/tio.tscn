@@ -2,25 +2,12 @@
 
 [ext_resource type="Script" path="res://scripts/tio.gd" id="1_tio"]
 [ext_resource type="Script" path="res://scripts/som_pincelada.gd" id="2_som"]
+[ext_resource type="PackedScene" path="res://models/tio_modelo.tscn" id="3_modelo"]
 
 [node name="Tio" type="Node3D"]
 script = ExtResource("1_tio")
 
-[node name="Corpo" type="MeshInstance3D" parent="."]
-
-[node name="Cabeca" type="MeshInstance3D" parent="."]
-
-[node name="PernaEsquerda" type="MeshInstance3D" parent="."]
-
-[node name="PernaDireita" type="MeshInstance3D" parent="."]
-
-[node name="PivoBracoEsquerdo" type="Node3D" parent="."]
-
-[node name="BracoEsquerdo" type="MeshInstance3D" parent="PivoBracoEsquerdo"]
-
-[node name="PivoBracoDireito" type="Node3D" parent="."]
-
-[node name="BracoDireito" type="MeshInstance3D" parent="PivoBracoDireito"]
+[node name="Modelo" parent="." instance=ExtResource("3_modelo")]
 
 [node name="SomPincelada" type="AudioStreamPlayer3D" parent="."]
 script = ExtResource("2_som")

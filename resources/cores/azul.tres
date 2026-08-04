@@ -5,5 +5,4 @@
 [resource]
 script = ExtResource("1_script")
 nome = "Azul"
-cor_molhada_base = Color(0.25, 0.42, 0.7, 1)
-variantes_secas = Array[Color]([Color(0.62, 0.72, 0.88, 1), Color(0.42, 0.58, 0.82, 1), Color(0.16, 0.34, 0.68, 1)])
+cor_alvo = Color(0.16, 0.34, 0.68, 1)

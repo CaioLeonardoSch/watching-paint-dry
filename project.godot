@@ -18,11 +18,35 @@ config/icon="res://icon.svg"
 [autoload]
 
 EstadoJogo="*res://scripts/estado_jogo.gd"
+Opcoes="*res://scripts/opcoes.gd"
 
 [display]
 
+; A janela abre a 1600x900 e a base de UI continua em 1152x648. Com stretch
+; "canvas_items" o 3D ja renderiza na resolucao real da janela (a base so'
+; escala a UI), entao janela maior = imagem mais nitida de verdade. Sem estes
+; dois campos o Godot usava o padrao de fabrica, 1152x648.
+; Nao subir a BASE pra 1920x1080 antes da Etapa 2: isso obrigaria a revisar
+; todos os tamanhos de fonte do theme_principal.tres.
+window/size/viewport_width=1152
+window/size/viewport_height=648
+window/size/window_width_override=1600
+window/size/window_height_override=900
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/godot_mcp/plugin.cfg")
+
+[gui]
+
+theme/custom="res://resources/ui/theme_principal.tres"
+
+[internationalization]
+
+locale/translations=PackedStringArray("res://resources/localizacao/textos.pt_BR.translation", "res://resources/localizacao/textos.en.translation")
+locale/fallback="pt_BR"
 
 [physics]
 
@@ -31,3 +55,30 @@ window/stretch/aspect="expand"
 [rendering]
 
 rendering_device/driver.windows="d3d12"
+
+; ── Nitidez (Fase G5) ────────────────────────────────────────────────────
+; MSAA sozinho nao resolvia o problema daqui: ele amostra COBERTURA, entao
+; suaviza silhueta e passa reto pelo que cintila por sombreamento — o realce
+; especular das pecas fininhas (fresta de 1,2 cm do assoalho, macaneta, cruz
+; da janela) e o shader da tinta. Supersampling resolve sombreamento.
+;
+; ⚠️ scale=2.0, NAO 1.5. O plano pedia 1.5; medido contra uma referencia
+; supersampleada 3x, 1.5 quase nao serve (erro 0.143 contra 0.173 de nao fazer
+; nada) e 2.0 da' 0.035 — 4x melhor. O motivo e' o filtro: o downsample do
+; Godot e' bilinear, e so' em 2.0 os 4 taps caem simetricos e ele vira uma
+; media de caixa 2x2 de verdade. Em 1.5 as amostras nao alinham com a grade
+; de texels e sobra aliasing. Nao trocar por um numero "intermediario".
+scaling_3d/scale=2.0
+; MSAA 4x se paga mesmo por cima do supersampling: erro 0.105 -> 0.034 por
+; 0.32 ms (10% do quadro). 8x nao foi testado junto porque 4x ja' empata com
+; a referencia. Custo total: 3,5 ms/quadro, ~288 fps — 4,8x o orcamento.
+anti_aliasing/quality/msaa_3d=2
+; A parede e' um gradiente lento de uma cor so' ocupando meia tela: pior caso
+; possivel pra quantizacao de 8 bits. Sem isto, 39% das linhas da parede eram
+; faixas chapadas; com, nenhuma. E' o item mais barato da lista.
+anti_aliasing/quality/use_debanding=true
+; FXAA e TAA ficaram DE FORA de proposito, os dois medidos e reprovados:
+; FXAA piorou a imagem (erro 0.241, pior que nao fazer nada — ele borra pra
+; longe da verdade em vez de resolver detalhe); TAA fantasmou e apagou a marca
+; do rolo na parede, que e' o assunto do jogo. msaa_2d fica em 0: a UI nao
+; serrilha (conferido no menu). Ver PLANO-SECAGEM-E-QUARTO.md 7.5.

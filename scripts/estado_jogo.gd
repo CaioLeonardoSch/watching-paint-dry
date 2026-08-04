@@ -39,12 +39,29 @@ func continuar_jogo() -> void:
 	modo_atual = dados.modo
 
 
+## Apaga a partida em andamento (cor atual, demão, modo) — o "Continuar" some
+## do menu depois disso. Conquistas desbloqueadas e o histórico de cores já
+## vistas (cores_completas_*) são preservados de propósito: é reset de
+## partida, não perda de progresso permanente/conquistas.
+func apagar_save() -> void:
+	var conquistas := dados.conquistas_desbloqueadas
+	var cores_geral := dados.cores_completas_geral
+	var cores_rapido := dados.cores_completas_rapido
+	var cores_normal := dados.cores_completas_normal
+	var cores_realista := dados.cores_completas_realista
+
+	dados = DadosSalvos.new()
+	dados.conquistas_desbloqueadas = conquistas
+	dados.cores_completas_geral = cores_geral
+	dados.cores_completas_rapido = cores_rapido
+	dados.cores_completas_normal = cores_normal
+	dados.cores_completas_realista = cores_realista
+
+	salvar()
+
+
 func tempo_secagem_atual() -> float:
 	return ModoJogo.TEMPO_SECAGEM[modo_atual]
-
-
-func duracao_dia_atual() -> float:
-	return ModoJogo.DURACAO_DIA[modo_atual]
 
 
 ## Checkpoint — só chamado depois que uma demão seca de verdade, nunca no
