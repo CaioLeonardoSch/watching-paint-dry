@@ -82,7 +82,25 @@ const float PESO_SUBSTRATO = 0.28;
 const float PESO_DEMAO     = 0.16;
 const float PESO_AMBIENTE  = 0.18;
 
-uniform float limiar_lap = 0.35;  // segundos de diferença que já marcam lap
+// Segundos de diferença entre duas pinceladas vizinhas que já marcam lap.
+//
+// ⚠️ **Estava em 0,35 e acendia em 20,7% da parede.** O `PROJETO.md` listava o
+// lap como inerte, com "salto medido de 0,023 s" — o número estava errado por
+// ~25×. Medindo a distribuição de verdade na máscara: p50 0,143 · p90 0,546 ·
+// p99 0,959 · máximo 1,250. Com limiar 0,35 um quinto da parede ficava marcado,
+// e como o desenho segue as emendas entre passadas, o resultado eram **listras
+// verticais** no espaçamento do rolo. Foi o que o Caio viu na tela.
+//
+// O limiar tem que ficar acima do intervalo entre passadas VIZINHAS, que num
+// zigue-zague contínuo é `janela_demao / n_passadas` = 8 / 36 = **0,222 s**.
+// Duas passadas separadas por um quinto de segundo não formam lap mark nenhum:
+// lap de verdade é tinta que já começou a formar película, o que leva minutos.
+//
+// 1,5 fica acima do máximo medido (1,250), então com o trajeto de hoje o lap
+// não acende em lugar nenhum — que é o comportamento correto pra um zigue-zague
+// sem revisita. Quem faz ele voltar a ter função é a coreografia da Fase E, e a
+// G4 troca este número absoluto por um relativo à secagem local (SECAGEM §3.8).
+uniform float limiar_lap = 1.5;
 
 // Quanto a queda de cobertura na borda de baixo vira bead. A cobertura cai de
 // ~0,6 pra 0 ao longo da borda, e o gradiente é medido num passo de carimbo.

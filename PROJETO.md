@@ -387,6 +387,14 @@ permanente — então `get_bone_pose_position()` e `get_bone_global_pose()` devo
 mostrava o tio agachando. O que funciona é medir a **silhueta na imagem**: diferença contra um quadro
 do cenário vazio, com `cast_shadow` desligado no personagem pra a sombra não virar parte dele.
 
+**⚠️ RMS contra média móvel NÃO isola listra — ela captura a curvatura do fundo junto.** A queda de
+uma lâmpada é inverso do quadrado, ou seja curva; uma média móvel de 121 colunas não acompanha curva,
+e o resíduo entra na conta como se fosse listra. O número subia junto com o brilho, e por isso
+*nenhuma* mudança de luz parecia resolver — eu estava medindo a rampa, não o defeito. **Listra pede
+passa-banda:** média curta (7 colunas) menos média longa (31), que deixa passar só período de ~10 a
+~60 px. Com a métrica certa, a mesma cena foi de "0,52, nada resolve" pra "0,151, e o lap mark
+explica tudo". Ver SECAGEM §5.5.
+
 **⚠️ Duas maneiras de medir textura errado**, as duas pagas em 04/08/2026 (detalhe em SECAGEM §5.4):
 contraste local pixel a pixel mede o **dither do debanding**, não a tinta — a métrica ficou em 0,7 em
 toda configuração testada, inclusive quando as barras brancas sumiram da tela. E
@@ -402,7 +410,7 @@ as contas, em `PLANO-SECAGEM-E-QUARTO.md` §2.
 | O que o plano diz que existe | O que o código faz | Fase que conserta |
 |---|---|---|
 | Falha de cobertura por rolo descarregado | A máquina existe e está calibrada (a carga cai de 1,00 pra 0,37 por carga), mas a falha está **desligada** (`COBERTURA_MAX` 0,10): com passada de altura inteira ela sai como barra de ponta quadrada, não como rolo secando. Ver SECAGEM §5.4 | E |
-| Lap mark | Inerte — o salto medido é 0,023 s contra um limiar de 0,35 s | G4 |
+| ~~Lap mark inerte~~ | ⚠️ **Não estava inerte — estava aceso em 20,7% da parede.** "Salto de 0,023 s" era um número errado por ~25×: medido de verdade, p50 0,143 · p99 0,959 · máximo 1,250. Com limiar 0,35 o lap marcava toda emenda entre passadas e desenhava **listras verticais**. Limiar foi pra 1,5 (acima do máximo), então agora ele é inerte de fato — ver SECAGEM §5.5 | G4 |
 | ~~Mancha de secagem vinda da espessura~~ | ✅ **G1**: campo de 4 termos, razão medida 2,27–2,33 (era 1,00) | ~~G1~~ |
 | ~~A 2ª demão cobrir falha da 1ª~~ | ✅ **G3**: o fundo tem história; salto de 0,1 de 255 na troca contra 57 quando o rolo passa | ~~G3~~ |
 | ~~`duracao_total()` corresponder ao que está na tela~~ | ✅ **G1**: espera morta 21% → 3,9%. `ESPESSURA_TIPICA` não estava 7× alta, estava **10× alta** — o depósito medido é 0,033, não 0,35 | ~~G1~~ |
