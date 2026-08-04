@@ -610,15 +610,77 @@ saltos acima.
 | 6 | Corpo + rig simplificado da garotinha | ✅ 13 ossos, 494 verts |
 | 7 | Export `.glb` das duas (com as armadilhas de export) | ✅ |
 | 8 | Regerar `*_modelo.tscn` no Godot (`GLTFDocument` + converter `ImporterMeshInstance3D`) | ✅ |
-| 9 | Stack de `SkeletonModifier3D` (ver 5.2) | ✅ IK do braço e das pernas + `LookAtModifier3D`, todos com `active = false` até a Fase E ligar |
+| 9 | Stack de `SkeletonModifier3D` (ver 5.2) | ✅ — mas ⚠️ **esta linha dizia "IK do braço e das pernas" e a das pernas não existia.** Só havia `IKBracoDireito` + `OlharCabeca`. As duas das pernas foram criadas em 04/08/2026, junto com `Postura` |
 | 10 | Clipes base (ver 5.3) | ✅ parcial — `andar`, `parado_respirando`, `pintar_braco`. Faltam os que dependem de props (`molhar_rolo`, banquinho), que são Fase E |
-| 11 | Camada procedural: altura do quadril, inclinação do torso (5.4) | ⬜ |
-| 11b | **Virar o corpo na direção do movimento** (ver 5.7) | ⬜ |
-| 12 | Religar `tio.gd`/`garotinha.gd` e re-testar câmeras/colisão | ⬜ |
+| 11 | Camada procedural: altura do quadril, inclinação do torso (5.4) | ✅ `postura_modifier.gd` |
+| 11b | **Virar o corpo na direção do movimento** (ver 5.7) | ✅ `personagem.gd` |
+| 12 | Religar `tio.gd`/`garotinha.gd` e re-testar câmeras/colisão | ✅ |
 
-**Estado do `.blend` (salvo):** convivem os dois — `Tio`/`Tio_Armature` (7 ossos, é o que está no
-jogo hoje) e `Tio2`/`Tio2_Armature` (19 ossos, novo). A garotinha ainda só tem a versão antiga. Só
-trocar quando o novo estiver validado no Godot.
+**Estado do `.blend` (salvo):** convivem os dois — `Tio`/`Tio_Armature` (7 ossos) e
+`Tio2`/`Tio2_Armature` (19 ossos). ⚠️ **A frase "7 ossos é o que está no jogo hoje" ficou obsoleta e
+enganou:** o jogo usa `Tio2` desde o passo 8, e a garotinha usa `Garotinha2` (13 ossos). Contado no
+`Skeleton3D` em 04/08/2026 — ver `PROJETO.md` 3.7.
+
+### 5.10 O que a Fase D entregou de fato — 04/08/2026
+
+**Nada foi modelado.** A conferência que o `PROJETO.md` 3.7 mandava fazer antes de tocar em qualquer
+coisa evitou exatamente o desperdício que ela existia pra evitar: o rig já estava no jogo, e o que
+faltava era código.
+
+#### Os três critérios, medidos
+
+| Critério | Antes | Depois |
+|---|---|---|
+| Agacha com os pés no chão | não existia | topo da silhueta desce **144 px**, base anda **8 px** (≈1,7 cm, o pé rolando) |
+| Vira o corpo antes de andar | 0 quadros | **45** (tio) e **78** (garotinha) girando com o pé parado |
+| Ninguém teleporta na porta | `position = ponto` + `show()` dentro do quarto | maior salto num quadro: **0,007 m** (tio), **0,036 m** (garotinha) |
+
+#### A locomoção virou uma classe só
+
+`tio.gd` e `garotinha.gd` tinham o mesmo `ir_ate` duplicado, e **nenhum dos dois tocava em
+`rotation`** — o personagem deslizava de lado com o clipe `andar` tocando como se fosse pra frente.
+Agora os dois estendem `personagem.gd`, que gira com `lerp_angle` (caminho curto) **antes** de
+começar a andar, e atravessa o vão da porta em dois trechos (vão primeiro, destino depois) pra não
+rasgar o batente na diagonal.
+
+Quem entra é posicionado **fora, no cômodo vizinho** (X = 4,2, que é modelado e iluminado), com a
+porta ainda fechada — então ele fica ocluído e o `show()` não é visto. Quem sai atravessa e só some
+depois da parede. É por isso que o cômodo vizinho, feito em 01/08 só pra a porta não abrir pro preto,
+acabou virando peça funcional.
+
+#### Sentar virou pose de osso
+
+A garotinha dobra quadril e joelho na cadeira, e **o pé fica balançando**: a canela dela tem 24 cm e o
+assento está a 47,5 — criança em cadeira de adulto não alcança o chão. É o detalhe que entrega a idade
+dela sem dizer nada. Antes era um Tween de `position.y` de 15 cm seguido de `hide()`: ela afundava no
+chão e evaporava.
+
+O corpo agora **continua visível a descida inteira**; quem esconde é a troca pra câmera da cadeira,
+que é a visão em primeira pessoa dela.
+
+#### ⚠️ Duas armadilhas de medição, e as duas disseram "não mudou nada"
+
+Nem `get_bone_pose_position()`/`get_bone_global_pose()` nem `get_aabb()` servem pra conferir um
+`SkeletonModifier3D`:
+
+- o `Skeleton3D` **salva a pose antes de rodar os modifiers e restaura depois**, pra não corromper a
+  animação de forma permanente — a leitura de volta mostra sempre o valor da animação;
+- `get_aabb()` de `MeshInstance3D` com skin devolve a AABB **estática** da malha.
+
+As duas deram "0,000 de diferença" enquanto a tela mostrava o tio agachado. A medida honesta é a
+**silhueta na imagem** (diferença contra o cenário vazio), com `cast_shadow` desligado no personagem
+pra a sombra não entrar na conta.
+
+#### O que continua dormente, e por quê
+
+- **IK do braço** (`IKBracoDireito`) — o alvo dela é o rolo, que só entra na mão na Fase E
+- **`LookAtModifier3D`** — o alvo é o ponto sendo pintado, mesma dependência
+- **Camada procedural** — está pronta e testada, mas a passada de altura inteira não dá nada pra ela
+  seguir: o rolo varre 3 m de altura em 0,22 s, e um quadril acompanhando isso seria convulsão, não
+  esforço. É E que dá a ela um alvo que sobe e desce devagar (rodapé agachado, topo no banquinho)
+
+Junto com o bead (SECAGEM §5.2), a falha de cobertura (§5.4) e o lap mark (§3.8), são **seis** coisas
+esperando a Fase E. Vale tratar como um pacote.
 
 **Armadilhas do Skin modifier** (custaram uma rodada cada):
 - Ele deixa **vértices soltos** nas junções de ombro (sem face nenhuma). Passam despercebidos até

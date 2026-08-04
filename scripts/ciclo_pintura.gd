@@ -25,9 +25,7 @@ enum Estado { INTRO, PINTANDO, SECANDO, PERGUNTANDO, CONTEMPLANDO }
 @export var demaos_por_ciclo: int = 3
 @export var duracao_pintura_segundos: float = 8.0
 
-const PONTO_PORTA_TIO: Vector3          = Vector3(2.5, 0, 0)
 const PONTO_PERTO_CADEIRA_TIO: Vector3  = Vector3(0.9, 0, -1.6)
-const PONTO_PORTA_GAROTINHA: Vector3    = Vector3(2.3, 0, 0.5)
 const PONTO_CADEIRA_GAROTINHA: Vector3  = Vector3(0, 0, -1)
 const PONTO_OLHAR_CUTSCENE: Vector3     = Vector3(0.8, 1.3, -2.0)  # entre parede, porta e cadeira
 
@@ -203,14 +201,24 @@ func _sequencia_abertura() -> void:
 
 	var ponto_atual: Vector3 = de.lerp(para, FRACAO_JA_PINTADA_ABERTURA)
 	var restante: float = duracao_pintura_segundos * (1.0 - FRACAO_JA_PINTADA_ABERTURA)
+	# Posiciona ANTES de mostrar: ele já entra em cena no lugar certo e virado
+	# pra parede, então não há giro nem salto na frente do jogador. É a única
+	# aparição que não passa pela porta — aqui ele já está no meio do serviço.
+	_tio.position = ponto_atual
+	_tio.rotation_degrees.y = angulo
 	_tio.show()
 	# o rolo continua de onde parou, em paralelo com a caminhada do tio
 	_trajeto.pintar(_paredes[PAREDE_ABERTURA], duracao_pintura_segundos, false, FRACAO_JA_PINTADA_ABERTURA)
-	await _tio.pintar_varrendo(ponto_atual, para, restante, angulo)
+	await _tio.pintar_varrendo(para, restante, angulo)
 
 	await _tio.ir_ate(PONTO_PERTO_CADEIRA_TIO, 2.5)
 	await _garotinha_entra_e_senta()
+	# Ela só some AGORA: a câmera da cadeira é a visão em primeira pessoa dela,
+	# então daqui pra frente o corpo dela seria clipping na frente da lente. A
+	# descida inteira até sentar acontece com ela visível, que é o ponto do
+	# sentar ter virado pose de osso (OVERHAUL §5.7).
 	_camera_cadeira.ativar()
+	_garotinha.hide()
 	await _tio_sai()
 
 	estado = Estado.SECANDO
@@ -225,21 +233,28 @@ func _sequencia_abertura() -> void:
 ## Wrappers de entrada/saída — a porta abre antes de alguém passar e fecha
 ## depois. Centralizado aqui pra tio.gd/garotinha.gd continuarem sem saber
 ## que existe porta (mesma razão de eles não saberem de som nem de save).
+##
+## `posicionar_fora()` vem ANTES de abrir de propósito: com a folha ainda
+## fechada o personagem fica ocluído, então ele já está lá quando a porta abre,
+## em vez de aparecer do nada no meio do vão. Onde é "fora" é o cômodo vizinho,
+## que é modelado — quem sabe disso é `personagem.gd`, não este arquivo.
 func _tio_entra(destino: Vector3) -> void:
+	_tio.posicionar_fora()
 	await _porta.abrir()
-	await _tio.entrar_pela_porta(PONTO_PORTA_TIO, destino)
+	await _tio.entrar_pela_porta(destino)
 	await _porta.fechar()
 
 
 func _tio_sai() -> void:
 	await _porta.abrir()
-	await _tio.sair_pela_porta(PONTO_PORTA_TIO)
+	await _tio.sair_pela_porta()
 	await _porta.fechar()
 
 
 func _garotinha_entra_e_senta() -> void:
+	_garotinha.posicionar_fora()
 	await _porta.abrir()
-	await _garotinha.entrar_e_sentar(PONTO_PORTA_GAROTINHA, PONTO_CADEIRA_GAROTINHA)
+	await _garotinha.entrar_e_sentar(PONTO_CADEIRA_GAROTINHA)
 	await _porta.fechar()
 
 
@@ -269,10 +284,13 @@ func _rodada_de_pintura(indice_demao: int) -> void:
 		var angulo: float  = v["angulo"]
 		if i > 0:
 			await _tio.ir_ate(de, 1.2)   # canto a canto, o trajeto é curto
+		# Virar pra parede ANTES de soltar o rolo: `pintar()` não é aguardado, e
+		# um giro depois dele deixaria o rolo meio segundo andando sozinho.
+		await _tio.encarar_parede(angulo)
 		_iniciar_demao_parede(i, indice_demao)
 		# rolo e tio andam juntos: o trajeto carimba enquanto ele caminha
 		_trajeto.pintar(_paredes[i], duracao_pintura_segundos)
-		await _tio.pintar_varrendo(de, para, duracao_pintura_segundos, angulo)
+		await _tio.pintar_varrendo(para, duracao_pintura_segundos, angulo)
 
 	await _tio_sai()
 

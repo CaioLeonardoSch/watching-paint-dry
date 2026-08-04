@@ -1,5 +1,7 @@
 [gd_scene format=4 uid="uid://d02caek0uxebh"]
 
+[ext_resource type="Script" path="res://scripts/postura_modifier.gd" id="4_postura"]
+
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_fa6t8"]
 resource_name = "Tio2_roupa"
 cull_mode = 2
@@ -422,6 +424,36 @@ settings/0/pole_direction = 0
 settings/0/end_bone_name = "Mao_D"
 settings/0/end_bone = -1
 
+[node name="Postura" type="SkeletonModifier3D" parent="Tio2_Armature/Skeleton3D"]
+script = ExtResource("4_postura")
+queda_maxima = 0.3
+
+[node name="IKPernaDireita" type="TwoBoneIK3D" parent="Tio2_Armature/Skeleton3D"]
+active = false
+setting_count = 1
+settings/0/target_node = NodePath("../../AlvoPeDireito")
+settings/0/pole_node = NodePath("../../PoloJoelhoDireito")
+settings/0/root_bone_name = "Coxa_D"
+settings/0/root_bone = -1
+settings/0/middle_bone_name = "Canela_D"
+settings/0/middle_bone = -1
+settings/0/pole_direction = 0
+settings/0/end_bone_name = "Pe_D"
+settings/0/end_bone = -1
+
+[node name="IKPernaEsquerda" type="TwoBoneIK3D" parent="Tio2_Armature/Skeleton3D"]
+active = false
+setting_count = 1
+settings/0/target_node = NodePath("../../AlvoPeEsquerdo")
+settings/0/pole_node = NodePath("../../PoloJoelhoEsquerdo")
+settings/0/root_bone_name = "Coxa_E"
+settings/0/root_bone = -1
+settings/0/middle_bone_name = "Canela_E"
+settings/0/middle_bone = -1
+settings/0/pole_direction = 0
+settings/0/end_bone_name = "Pe_E"
+settings/0/end_bone = -1
+
 [node name="OlharCabeca" type="LookAtModifier3D" parent="Tio2_Armature/Skeleton3D" unique_id=572815199]
 active = false
 influence = 0.75
@@ -436,6 +468,18 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.55, 1.1, 0.9)
 
 [node name="AlvoOlhar" type="Node3D" parent="Tio2_Armature" unique_id=775475770]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6, -1)
+
+[node name="AlvoPeDireito" type="Node3D" parent="Tio2_Armature"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.15, 0.08, 0)
+
+[node name="AlvoPeEsquerdo" type="Node3D" parent="Tio2_Armature"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.15, 0.08, 0)
+
+[node name="PoloJoelhoDireito" type="Node3D" parent="Tio2_Armature"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.15, 0.44, -0.8)
+
+[node name="PoloJoelhoEsquerdo" type="Node3D" parent="Tio2_Armature"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.15, 0.44, -0.8)
 
 [node name="AnimationPlayerPernas" type="AnimationPlayer" parent="." unique_id=723059568]
 libraries/ = SubResource("AnimationLibrary_c7k4p")
