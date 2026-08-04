@@ -61,13 +61,13 @@ func _criar_meshes() -> void:
 	# micro-relevo fingido, que só denuncia a face plana quando a luz raspa.
 	var mat_teto := _criar_material_teto()
 
-	var nos_teto  := ["TetoQP"]
-	# material gerenciado por parede_pintavel.gd (a parede inteira é pintável)
-	var nos_tinta := [
-		"ParedeNorteSolida", "ParedeSul",
-		"ParedeOesteNorte", "ParedeOesteSul", "ParedeOesteAcima", "ParedeOesteAbaixo",
-		"ParedeLesteNorte", "ParedeLesteSul", "ParedeLesteAcima",
-	]
+	var nos_teto := ["TetoQP"]
+
+	# As 9 peças de parede NÃO recebem material aqui — quem manda nelas é
+	# `parede_pintavel.gd`, que aplica o material da tinta por parede inteira
+	# (ParedeNorteSolida, ParedeSul, as 4 de ParedeOeste* e as 3 de ParedeLeste*).
+	# Isto era uma lista de nomes que ninguém lia; virou comentário, que é o que
+	# ela sempre foi.
 
 	for nome in meshes:
 		var no := get_node_or_null(nome)

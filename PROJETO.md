@@ -347,12 +347,43 @@ outro na mesma sessão.**
 |---|---|---|
 | Qualquer geometria de parede/janela | **`quarto.tscn` E `fundo_menu.tscn`** | `fundo_menu.gd` herda `inicializar_quarto.gd`; a cena do menu tem transforms próprios que não são atualizados sozinhos |
 | `parede_pintavel.gd::VARIACAO_MAX` | `tinta_secando.gdshader::variacao_max` | São o mesmo número em dois lugares — é o clamp do campo de secagem, e `duracao_total()` só é honesta porque ele existe |
-| `parede_pintavel.gd::CARGA_TIPICA` e `ESPESSURA_DEMAO` | Carga e trajeto em `trajeto_rolo.gd` | São **medidos**, não escolhidos (0,627 e 0,033). Mexer na carga do rolo ou no trajeto desregula os dois. Remedir lendo a máscara de volta — receita em SECAGEM §5.1 |
+| `parede_pintavel.gd::CARGA_TIPICA` e `ESPESSURA_DEMAO` | Carga e trajeto em `trajeto_rolo.gd`, **e o peso em `carimbo_recente.gdshader`** | São **medidos**, não escolhidos (0,511 e 0,033). Mexer na carga do rolo, no trajeto ou no peso da mistura desregula os dois. Remedir lendo a máscara de volta — receita em SECAGEM §5.1 |
+| `carimbo_recente.gdshader::peso` | O que é gravado em `COLOR0.g` | A carga pode entrar **em um dos dois, nunca nos dois**. Estava nos dois e o canal andava com o quadrado dela (SECAGEM §5.4) |
+| `tinta_secando.gdshader::relevo_largo` (fator 30) | `TrajetoRolo::PASSO_METROS` | O borrão largo é a média local do passa-alta da marca do rolo. Tem que ser **≥ 3× o período da passada**, senão ele acompanha o sinal e o passa-alta apaga a marca |
+| `tinta_secando.gdshader::cobertura_min/max` | `copia_cobertura.gdshader` | O histórico é gravado com o MESMO `smoothstep`, e é isso que fecha a costura entre demãos. A fonte da verdade é `parede_pintavel.gd::COBERTURA_MIN/MAX`, que **empurra** pros dois — não chumbar nos `.gdshader` |
 | `ciclo_pintura.gd::COR_PAREDE_CRUA` | `cor_tinta.gd::COR_FUNDO_CRU` e o default de `cor_anterior` no shader | Três cópias do mesmo tom de reboco (`0.93, 0.92, 0.90`) |
 | `mascara_tinta.gd::FAIXA_ROLO_M` | `trajeto_rolo.gd::PASSO_CARIMBO` | O perfil do carimbo é **triangular de base = 2 × passo** de propósito (partição da unidade). Quebrar essa razão faz a parede ganhar um ripple regular atravessado |
 | `props_quarto.gd::LIMITE_X` / `LIMITE_Z_*` | Tamanhos em `inicializar_quarto.gd` e transforms no `.tscn` | Os props usam a **face interna** da parede (0,1 m pra dentro do centro), não o centro |
 | Vão da janela | `inicializar_quarto.gd`, `props_quarto.gd::_moldura_janela`, transforms de `ParedeOeste*` nas **duas** cenas, e `LuzJanela.area_size` | Cinco lugares |
 | `ciclo_pintura.gd::VARREDURAS` | Tamanho das paredes | `origem`/`eixo_u`/`eixo_v` definem o UV da máscara a partir da posição de mundo. Errar aqui não dá erro, só desalinha a tinta |
+
+**⚠️ `get_shader_parameter()` devolve `null` pra uniform que nunca foi setada.** O valor default
+escrito no `.gdshader` **não conta** — ele só existe no shader, não no material. Ler um uniform de
+volta pra passar adiante (`guardar_historico(material.get_shader_parameter("cobertura_min"), …)`)
+estourou com *"Cannot convert argument 1 from Nil to float"* só quando o jogo rodou de verdade.
+Se um número precisa ser compartilhado entre GDScript e shader, ele mora no **GDScript** e é
+empurrado com `set_shader_parameter`.
+
+**⚠️ Não filtrar a saída do Godot enquanto se testa.** `... | Select-Object -Last N` e
+`| Select-String` no PowerShell **seguram a saída até o processo sair** e cortam as linhas do meio —
+foi assim que o erro acima passou por vários testes seguidos sem eu ver. Pra rodar o jogo e ler tudo:
+
+```powershell
+Start-Process -FilePath "…\Godot….exe" -ArgumentList '--path','…','--script','…' `
+  -RedirectStandardOutput saida.log -RedirectStandardError saida.err -Wait -NoNewWindow
+```
+
+**⚠️ `--script` compila ANTES de os autoloads existirem.** Um harness que nomeia `ParedePintavel`,
+`MascaraTinta` ou `TrajetoRolo` estaticamente (`ParedePintavel.COBERTURA_MAX`) força compilar
+`parede_pintavel.gd`, que usa `EstadoJogo` — e sai *"Identifier not found: EstadoJogo"*. Carregar a
+cena em runtime funciona; nomear a classe em tempo de compilação, não. Nos harnesses, copiar a
+constante e anotar de onde veio.
+
+**⚠️ Duas maneiras de medir textura errado**, as duas pagas em 04/08/2026 (detalhe em SECAGEM §5.4):
+contraste local pixel a pixel mede o **dither do debanding**, não a tinta — a métrica ficou em 0,7 em
+toda configuração testada, inclusive quando as barras brancas sumiram da tela. E
+`adiantar(duracao_total())` **não seca a parede toda**, porque `duracao_total()` usa um percentil e
+não o teto da variação; medir "estado final" naquele quadro mede mancha de secagem junto.
 
 ### 3.4 Onde o código NÃO faz o que o plano diz
 
@@ -362,14 +393,21 @@ as contas, em `PLANO-SECAGEM-E-QUARTO.md` §2.
 
 | O que o plano diz que existe | O que o código faz | Fase que conserta |
 |---|---|---|
-| Falha de cobertura por rolo descarregado | Inerte — a carga vive entre 0,82 e 1,0, e o limiar do shader satura em 0,45 | G3 |
+| Falha de cobertura por rolo descarregado | A máquina existe e está calibrada (a carga cai de 1,00 pra 0,37 por carga), mas a falha está **desligada** (`COBERTURA_MAX` 0,10): com passada de altura inteira ela sai como barra de ponta quadrada, não como rolo secando. Ver SECAGEM §5.4 | E |
 | Lap mark | Inerte — o salto medido é 0,023 s contra um limiar de 0,35 s | G4 |
 | ~~Mancha de secagem vinda da espessura~~ | ✅ **G1**: campo de 4 termos, razão medida 2,27–2,33 (era 1,00) | ~~G1~~ |
-| A 2ª demão cobrir falha da 1ª | Impossível — `cor_anterior` é cor chapada, então a falha some no frame em que a demão começa | G3 |
+| ~~A 2ª demão cobrir falha da 1ª~~ | ✅ **G3**: o fundo tem história; salto de 0,1 de 255 na troca contra 57 quando o rolo passa | ~~G3~~ |
 | ~~`duracao_total()` corresponder ao que está na tela~~ | ✅ **G1**: espera morta 21% → 3,9%. `ESPESSURA_TIPICA` não estava 7× alta, estava **10× alta** — o depósito medido é 0,033, não 0,35 | ~~G1~~ |
 
 **A arquitetura da Fase B está certa** — máscara, carimbos, UV por posição de mundo, brilho e cor em
 curvas separadas. O que falta é calibração e um canal de textura. Não reescrever.
+
+**Atualização de 04/08/2026 (queixas na tela):** a linha da falha de cobertura **voltou a ser
+pendência**, e não por regressão — por medição. A máquina está certa e calibrada; o que não funciona é
+o desenho que ela produz enquanto o trajeto for passada de altura inteira com recarga instantânea.
+Isso mudou o estado de "amplitude baixa até E" pra "desligada até E", que é mais honesto. Junto veio
+um bug de verdade: `carimbo_recente` multiplicava a carga **duas vezes**, então a falha saía com o
+dobro da profundidade física. Detalhe em SECAGEM §5.4.
 
 **Atualização de 03/08/2026 (G1):** as duas linhas riscadas caíram, e a lição vale pras que sobraram
 — **os três "inertes" restantes são todos erro de escala, não de arquitetura.** No caso da mancha, a
@@ -384,8 +422,8 @@ Coisas pequenas achadas na auditoria, sem dono de fase. Baratas, e cada uma é u
 for ler o código depois.
 
 - `ciclo_pintura.gd::_duracao_secagem_padrao()` — **código morto**, nunca é chamado
-- `trajeto_rolo.gd::CARGA_MINIMA` — **inalcançável**: o consumo máximo por carga é 0,182, então o
-  piso de 0,80 nunca entra em ação
+- ~~`trajeto_rolo.gd::CARGA_MINIMA` — **inalcançável**~~ — ✅ **resolvido na Fase G3**: com 9 m por
+  carga e 0,070 por metro a carga cai pra 0,37, e o piso de 0,30 é encostado pelo jitter
 - ~~**Duas molduras de porta sobrepostas**~~ — ✅ **resolvido na Fase G6**: `props_quarto.gd::_moldura_porta`
   foi apagada, ficou a de `porta.gd::_criar_batentes`
 - `quarto.tscn` grava `ambient_light_color`/`energy` no `Environment` que **`ambiente_dia.gd`
@@ -486,8 +524,8 @@ frente de material/shader que o roadmap original não previa.
 | **E** | Coreografia: W, verticais, banquinho, rodapé, bandeja, rolo na mão | D, G6 | OVERHAUL §5.5, §6 | ⬜ |
 | **F** | Refino: som do rolo casado com a mão, passo, porta, o tio olhar pra ela, gravar 60 s | D, E | OVERHAUL §6 | ⬜ |
 | **G1** | **Campo de secagem** — a parede passa a secar desigual e a fase manchada existe | — | SECAGEM §3.1, §5, §5.1 | ✅ |
-| **G2** | Cor (saturação antes de valor) e brilho rasante | G1 | SECAGEM §3.3, §3.4 | ⬜ |
-| **G3** | Cobertura com história — a 2ª demão passa a ter função | G1 | SECAGEM §3.6, §3.7 | ⬜ |
+| **G2** | Cor (saturação antes de valor) e brilho rasante | G1 | SECAGEM §3.3, §3.4, §5.2 | ✅ (bead inerte até E) |
+| **G3** | Cobertura com história — a 2ª demão passa a ter função | G1 | SECAGEM §3.6, §3.7, §5.3, §5.4 | ✅ (a máquina; a **falha em si está desligada** até E — §5.4) |
 | **G4** | Lap mark relativo e tempo de pintura por modo | E | SECAGEM §3.8, §3.9 | ⬜ |
 | **G5** | **Nitidez** — supersampling, debanding, fim do cintilar | — | SECAGEM §7.1, §7.5 | ✅ |
 | **G6** | **Quarto 6 × 6, janela centrada, fresta da porta, tamanho de tela** | — | SECAGEM §6, §7.2, §7.3 | ✅ |
@@ -529,18 +567,36 @@ evita retrabalho. Cada item traz a definição de pronto — o que precisa ser v
    **Pronto quando:** a razão entre o `duracao_local` máximo e o mínimo de uma parede é ≥ 1,5; a
    parede fica visivelmente manchada no meio da secagem e uniforme no fim.
    **Verificado:** razão **2,27–2,33** nas 4 paredes e nas 3 demãos, com só 0,1–0,3% da parede
-   tocando o clamp. O contraste espacial da parede sobe de 0,66 (molhada) pra **2,96** no meio da
-   secagem e volta pra 0,64 (seca) — a mancha é um evento com começo e fim. Espera morta 21% → 3,9%.
+   tocando o clamp. Isolando a mancha (render com e sem a textura), a contribuição dela vai de 0,00
+   (molhada) a **0,86** no meio e volta a 0,00 (seca) — é um evento com começo e fim. Espera morta
+   21% → 2,3% (o 2,3% veio depois, com o ajuste de curvas da G2).
    ⚠️ **Três números do plano estavam errados**, todos achados medindo: a espessura tem que vir da
    máscara **recente** (com a acumulada, a dispersão crescia a cada demão em vez de encolher), o
    `relevo_base` precisa ser **medido** por demão (o acumulador vale 0,5 vindo de save), e o anúncio
    de conclusão usa um **percentil**, não o teto do clamp. Detalhe em SECAGEM §5.1.
-4. `[ ]` **G2 — cor e brilho.** Depende de G1 (mesmo shader, e o véu só pode baixar depois que a
+4. `[x]` **G2 — cor e brilho.** ✅ Depende de G1 (mesmo shader, e o véu só pode baixar depois que a
    estrutura existir).
    **Pronto quando:** dá pra dizer onde a parede ainda está molhada só movendo a câmera.
-5. `[ ]` **G3 — cobertura com história.** Fecha o que a Fase B prometeu e não entregou.
+   **Verificado:** a aparência da parede molhada varia de 0,432 a 0,718 conforme a geometria de vista;
+   a seca varia de 0,288 a 0,300. **22× mais sensível ao ângulo.** O véu caiu de 0,55 pra 0,32 e a
+   secagem ficou **mais** visível, não menos: 47,4 valores de 255 de percurso contra ~34 de antes,
+   porque agora a saturação e o valor somam em vez de a saturação fazer tudo. Cotovelo de 28%.
+   De quebra, ajustar as curvas fechou a espera morta da G1 de 3,9% pra **2,3%** — dentro do aceite.
+   ⚠️ **O bead está implementado e inerte até a Fase E** — ele é gravidade e precisa de borda de baixo
+   no traço; o trajeto atual são passadas verticais de altura inteira. Anotado em SECAGEM §5.2 pra
+   não virar mais um "número inerte" esquecido.
+5. `[x]` **G3 — cobertura com história.** ✅ Fecha o que a Fase B prometeu e não entregou.
    **Pronto quando:** uma falha da 1ª demão continua visível durante a 2ª e some **quando o rolo
    passa por cima**, não no instante em que a demão começa.
+   **Verificado:** no ponto de pior cobertura da 1ª demão, a mudança ao trocar de demão é **0,1 de
+   255** contra **57,2** quando o rolo passa por cima; na parede inteira o salto médio é 1,2. E a
+   falha da 1ª demão está lá na captura do começo da 2ª. A chave foi o histórico guardar
+   **o valor de cobertura que o shader mostrou**, não a máscara crua — duas versões com máscara crua
+   falharam, uma por saturação do acumulador (a 2ª e a 3ª demão paravam de aparecer) e outra por
+   comparar grandezas diferentes (salto de 130 de 255 no pior ponto).
+   ⚠️ **A amplitude da falha está baixa de propósito.** Com passadas de altura inteira, uma carga
+   dura 3 passadas e qualquer variação vira barra vertical — testei de 42% a 85% de cobertura mínima
+   e o padrão de listra não muda, só o contraste. Abre na Fase E. Ver SECAGEM §5.3.
 6. `[ ]` **D — rig + IK.** ⚠️ **Conferir 3.7 antes de tocar em qualquer coisa** — ela está em ~10 de
    12 passos e o risco real é refazer o Blender inteiro à toa. Faltam a camada procedural (altura do
    quadril, inclinação do torso), virar o corpo na direção do movimento, e religar `tio.gd`.

@@ -24,32 +24,37 @@ signal secagem_concluida
 ## de cada demão, que no modo Realista é hora de relógio.
 const VARIACAO_MAX: float = 0.40
 
-## Variação usada pra ANUNCIAR que a parede secou — não é o teto, é um
-## percentil.
+## Variação usada pra ANUNCIAR que a parede secou — é um percentil, não o teto.
 ##
 ## `VARIACAO_MAX` limita o pior texel possível, mas medindo a distribuição real
-## só 0,3% da parede chega perto dele. Anunciar a conclusão pelo pior caso
-## custava 12% de espera morta com a parede já parada na tela — a mesma queixa
-## que a Fase G1 existe pra resolver, só que por outro motivo.
+## só 0,2% da parede chega perto dele, e anunciar pelo pior caso custa 11,6% de
+## espera morta com a parede já parada na tela. 0,24 saiu de medir na tela
+## quando o último pixel entra em 1/255 da cor final (70,2 s), com margem pra
+## não anunciar cedo: dá 71,2 s, 1,4% de folga.
 ##
-## 0,20 saiu de medir na tela quando o último pixel entra em 1/255 da cor final:
-## 74,1 s contra 79,3 s anunciados com 0,25. Com 0,20 a folga cai pra ~3%.
-##
-## Consequência aceita de propósito: numa demão de sorte pior, um punhado de
-## texels ainda pode estar mudando 1 nível de 255 quando o sinal dispara.
-## Ninguém vê isso; esperar por eles, no modo Realista, seriam 14 minutos de
-## parede parada na tela.
-const VARIACAO_CONCLUSAO: float = 0.20
+## ⚠️ Medir isto exige **congelar a cena** — tirar Tio e Garotinha da árvore e
+## parar `ciclo_pintura`. A cutscene continua rodando durante o teste, e um
+## personagem entrando em quadro depois do quadro de referência vira uma
+## diferença permanente que não decai. Isso já produziu um resultado falso de
+## "4,22% da parede nunca converge", idêntico em quatro configurações
+## diferentes do shader — que era justamente a pista de que não era o shader.
+const VARIACAO_CONCLUSAO: float = 0.24
 
-## Onde `seco_cor` fecha no shader (`smoothstep(0.22, 0.95, fracao)`). Depois
-## disto a cor não muda mais, então esperar `fracao` chegar a 1,0 é esperar à toa.
-const FIM_DA_COR: float = 0.95
+## Onde `k_valor` fecha no shader (`smoothstep(0.34, 0.85, fracao)`) — é a
+## última das curvas da secagem. Depois disto a cor não muda mais, então esperar
+## `fracao` chegar a 1,0 é esperar à toa. **Espelha o 0,85 do shader e os dois
+## PRECISAM bater**, senão a parede é anunciada como pronta antes da hora.
+const FIM_DA_COR: float = 0.85
 
 ## Carga típica na máscara RECENTE depois de uma passada. MEDIDA lendo a
-## máscara de volta com o trajeto real: média 0,627, desvio 0,113. É o divisor
-## do termo de espessura do campo de secagem — o filme molhado desta demão,
-## que é o que de fato atrasa a secagem.
-const CARGA_TIPICA: float = 0.627
+## máscara de volta com o trajeto real nas 4 paredes: média 0,511, mediana
+## 0,505, p05 0,288, p90 0,719. É o divisor do termo de espessura do campo de
+## secagem — o filme molhado desta demão, que é o que atrasa a secagem.
+##
+## Era 0,627 até `carimbo_recente` parar de multiplicar a carga DUAS vezes (uma
+## no peso da mistura e outra no valor gravado). O canal andava com o quadrado
+## da carga; agora anda com ela.
+const CARGA_TIPICA: float = 0.511
 
 ## Depósito médio de UMA demão no ACUMULADOR. Medido do mesmo jeito: média
 ## 0,033, pico 0,043, desvio 0,005. Divisor da marca do rolo, que é relevo
@@ -57,6 +62,30 @@ const CARGA_TIPICA: float = 0.627
 ##
 ## Se a Fase E mudar carga ou trajeto do rolo, remedir os dois.
 const ESPESSURA_DEMAO: float = 0.033
+
+## Faixa da carga que conta como "coberto" (Fase G3).
+##
+## Mora AQUI, não nos shaders, porque dois shaders precisam do mesmo par:
+## `tinta_secando` pra desenhar e `copia_cobertura` pra gravar o histórico com o
+## mesmo critério. Se divergirem, a costura entre demãos reabre.
+##
+## ⚠️ Não dá pra ler isto de volta do material com `get_shader_parameter`: ele
+## devolve **null** pra uniform que nunca foi setado explicitamente (o default
+## do shader não conta), e o null vazava como argumento tipado. Foi assim que
+## `iniciar_demao` quebrou com "Cannot convert argument 1 from Nil to float".
+##
+## O máximo é o **ganho visual da falha de cobertura**, e está DESLIGADO de
+## propósito: 0,10 fica abaixo do pior texel do miolo (medido, 0,140), então
+## dentro da parede a cobertura fecha em 1 e só canto de verdade falha.
+##
+## Não é covardia, é a conclusão da própria Fase G3 aplicada: com passadas de
+## altura inteira e recarga instantânea, a falha sai como **barra vertical de
+## ponta quadrada**, uma passada de largura — lê como risco na parede, não como
+## rolo secando. O Caio pegou isso na tela antes de eu pegar na medição.
+## Reabrir junto com a coreografia da Fase E, que é o que quebra a passada de
+## altura inteira. Ver SECAGEM §5.3 e §5.4.
+const COBERTURA_MIN: float = 0.0
+const COBERTURA_MAX: float = 0.10
 
 ## Quanto cada demão nova atrasa a secagem, uniformemente. É real: o substrato
 ## vai selando e absorve menos água a cada camada. Entra como fator explícito
@@ -101,6 +130,8 @@ func configurar(
 	material.shader = load("res://shaders/tinta_secando.gdshader")
 	material.set_shader_parameter("mascara_acumulada", mascara.acumulada)
 	material.set_shader_parameter("mascara_recente", mascara.recente)
+	material.set_shader_parameter("mascara_historico", mascara.historico)
+	material.set_shader_parameter("cor_crua", CorTinta.COR_FUNDO_CRU)
 	material.set_shader_parameter("origem_parede", origem)
 	material.set_shader_parameter("eixo_u", eixo_u)
 	material.set_shader_parameter("eixo_v", eixo_v)
@@ -111,6 +142,8 @@ func configurar(
 	material.set_shader_parameter("mancha_secagem", mascara.mancha)
 	material.set_shader_parameter("mancha_escala", mascara.mancha_escala)
 	material.set_shader_parameter("passo_carimbo_texels", MascaraTinta.passo_carimbo_texels())
+	material.set_shader_parameter("cobertura_min", COBERTURA_MIN)
+	material.set_shader_parameter("cobertura_max", COBERTURA_MAX)
 	material.set_shader_parameter("carga_tipica", CARGA_TIPICA)
 	material.set_shader_parameter("espessura_demao", ESPESSURA_DEMAO)
 	material.set_shader_parameter("variacao_max", VARIACAO_MAX)
@@ -154,7 +187,7 @@ func _process(delta: float) -> void:
 ##
 ## Isto é ancorado no shader, não estimado, e é o que o `clamp` do campo compra:
 ## o tempo local é `duracao_secagem * (1 + variacao)` com `variacao` limitada, e
-## `seco_cor` fecha em FIM_DA_COR. Continua certo se alguém mexer nos pesos.
+## `k_valor` fecha em FIM_DA_COR.
 ##
 ## Usa VARIACAO_CONCLUSAO (percentil), não VARIACAO_MAX (teto) — ver lá em cima.
 func duracao_total() -> float:
@@ -175,9 +208,11 @@ func duracao_total() -> float:
 func iniciar_demao(
 	anterior: Color,
 	molhada: Color,
+	meio: Color,
 	seca: Color,
 	janela_segundos: float,
-	numero_demao: int = 0
+	numero_demao: int = 0,
+	total_demaos: int = 3
 ) -> void:
 	_janela_demao     = maxf(janela_segundos, 0.01)
 	_tempo_decorrido  = 0.0
@@ -185,20 +220,24 @@ func iniciar_demao(
 	_ativo            = true
 	_duracao_demao    = tempo_secagem_segundos * (1.0 + ATRASO_POR_DEMAO * float(numero_demao))
 
-	# Antes de limpar a recente: o relevo que já está na parede vira a linha de
-	# base da espessura desta demão. Medido, não estimado — ver _medir_relevo_base.
-	var base: float = _medir_relevo_base()
-
+	# A cobertura desta demão entra pro histórico (Fase G3). Tem que ser AQUI:
+	# depois de a demão anterior ter terminado e antes de a recente ser limpa.
+	mascara.guardar_historico(COBERTURA_MIN, COBERTURA_MAX)
 	mascara.limpar_demao()
 	material.set_shader_parameter("cor_anterior",    anterior)
 	material.set_shader_parameter("cor_molhada",     molhada)
+	material.set_shader_parameter("cor_meio",        meio)
 	material.set_shader_parameter("cor_seca",        seca)
 	material.set_shader_parameter("janela_demao",    _janela_demao)
 	material.set_shader_parameter("duracao_secagem", _duracao_demao)
 	material.set_shader_parameter("tempo_decorrido", 0.0)
-	material.set_shader_parameter("relevo_base",     base)
-	# cada demão deixa a superfície mais uniforme
-	material.set_shader_parameter("suavidade_demao", 1.0 / (1.0 + float(numero_demao) * 0.9))
+	# Cada demão deixa a superfície mais uniforme — mas só ATRÁS DO ROLO. Os dois
+	# valores são o que a parede mostra antes e depois desta camada cobrir; o
+	# shader escolhe entre eles pela `cobertura`. Ver `suavidade_anterior` lá.
+	material.set_shader_parameter("suavidade_anterior",
+		suavidade_marca(numero_demao - 1, total_demaos))
+	material.set_shader_parameter("suavidade_demao",
+		suavidade_marca(numero_demao, total_demaos))
 
 	# Desloca a amostra da mancha desta demão. Sem isto a 2ª demão secaria com
 	# exatamente o mesmo desenho de nuvens da 1ª, e o truque se denunciaria na
@@ -208,27 +247,17 @@ func iniciar_demao(
 		Vector2(randf() * folga, randf() * folga))
 
 
-## Relevo médio já na parede, lido de volta da máscara.
+## Quanto da marca do rolo ainda aparece depois da demão `numero` (0 = primeira).
 ##
-## Precisa ser MEDIDO. O shader compara contra o acumulador absoluto, que cresce
-## a cada demão e já chega em 0,50 quando o jogo retoma de um save
-## (`preencher_coberta`). Com uma constante no lugar disto, `esp_rel` daria ~13
-## em vez de ~0 e o termo de espessura saturaria o clamp na parede inteira.
+## Fecha em ZERO na última: a recompensa de três demãos é a parede ficar lisa.
+## A curva antiga era `1 / (1 + n * 0.9)`, que parava em 0,36 na terceira — a
+## marca da PRIMEIRA demão continuava aparecendo na parede acabada.
 ##
-## Amostra 1 texel a cada 8 nos dois eixos: são ~6 mil amostras numa parede de
-## 876 × 438, de sobra pra uma média. Ler os 383 mil em GDScript levaria perto
-## de meio segundo, e isto roda no começo de cada demão.
-func _medir_relevo_base() -> float:
-	var img := mascara.acumulada.get_image()
-	if img == null:
-		return 0.0
-	var soma: float = 0.0
-	var n: int = 0
-	for y in range(0, img.get_height(), 8):
-		for x in range(0, img.get_width(), 8):
-			soma += img.get_pixel(x, y).g
-			n += 1
-	return soma / float(maxi(n, 1))
+## `numero` negativo devolve 1,0 de propósito: é o "antes da 1ª demão", quando o
+## que está na parede é reboco cru e nada foi alisado ainda.
+static func suavidade_marca(numero: int, total: int) -> float:
+	var ultima: float = float(maxi(total - 1, 1))
+	return clampf(1.0 - float(numero) / ultima, 0.0, 1.0)
 
 
 ## Carimba o rastro do rolo. `de`/`para` são UV 0-1 na parede; `instante` é

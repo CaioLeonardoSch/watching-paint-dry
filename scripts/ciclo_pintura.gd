@@ -286,9 +286,11 @@ func _iniciar_demao_parede(indice_parede: int, indice_demao: int) -> void:
 	_paredes[indice_parede].iniciar_demao(
 		_cor_antes_da_demao(indice_demao),
 		cor_atual.molhada(indice_demao),
+		cor_atual.meio(indice_demao),
 		cor_atual.seca(indice_demao),
 		duracao_pintura_segundos,
-		indice_demao)
+		indice_demao,
+		demaos_por_ciclo)
 
 
 ## O que está na parede ANTES desta demão — a demão anterior da mesma cor,

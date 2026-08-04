@@ -741,17 +741,25 @@ Entre p05 e p95 fica 1,45–1,58, e o clamp é tocado por só 0,1–0,3% da pare
 saturado, está distribuído. A parede oeste seca consistentemente antes (média 56 s contra 59 s das
 outras): é o termo da janela funcionando.
 
-A mancha como **evento** (aceites 2 e 3), medindo o contraste espacial da parede norte:
+A mancha como **evento** (aceites 2 e 3), medindo o contraste espacial da parede norte. A coluna
+"só a mancha" é a diferença entre renderizar com e sem a textura de mancha — o contraste total
+inclui a estrutura de brilho que a G2 põe na parede molhada, e misturar as duas escondia o que
+importa aqui:
 
 | `fracao` | 0,02 | 0,15 | 0,30 | 0,50 | 0,70 | 1,00 |
 |---|---|---|---|---|---|---|
-| contraste | 0,66 | 0,57 | 1,61 | **2,96** | 1,31 | 0,64 |
+| total | 1,42 | 1,19 | 0,93 | **2,67** | 1,86 | 0,57 |
+| só a mancha | 0,00 | 0,03 | 0,07 | 0,13 | **0,86** | 0,00 |
 
-Nasce, atinge 4,6× a linha de base no meio, e morre. Quem só olhar antes e depois não vê mancha
-nenhuma, que era exatamente a proposta.
+Nasce, chega ao pico no meio, e morre — zero nas duas pontas. Quem só olhar antes e depois não vê
+mancha nenhuma, que era exatamente a proposta.
 
-Espera morta (aceite 7): **21% → 3,9%**. O alvo do plano é 2% e não foi alcançado; apertar mais faz
-o sinal disparar cedo em demãos de sorte pior, porque o campo é estocástico. Fica em 3,9%.
+Espera morta (aceite 7): **21% → 3,9%**, e depois → **2,3%** com o ajuste de curvas da G2 (ver 5.2).
+
+⚠️ **Estes números foram remedidos.** O harness original não congelava a cena, e os personagens
+entrando em quadro depois do quadro de referência viravam uma diferença permanente — a medição
+travava num "4,22% da parede nunca converge" que não era do shader. `VARIACAO_CONCLUSAO` foi
+recalibrado com o harness limpo e ficou em **0,24** (era 0,20).
 
 ⚠️ **Como medir isso de novo, se precisar:** comparar quadro com quadro **não funciona** — o limiar
 é por passo, então passo menor deixa o detector menos sensível e a resposta muda com a resolução do
@@ -759,24 +767,311 @@ teste (60 passos deram 77 s; 160 deram 74 s pro mesmo jogo). A formulação que 
 comparar cada quadro com o **estado final**: "a cor parou" = "a imagem chegou a menos de 1 nível de
 255 do que ela vai virar".
 
-### G2 — Cor e superfície
+### G2 — Cor e superfície ✅ **feito em 04/08/2026**
 
-- `[ ]` `cor_tinta.gd`: `meio()`, `VEU_MOLHADO` 0.55 → 0.32
-- `[ ]` Shader: `k_sat`/`k_valor` e os dois mixes (3.3)
-- `[ ]` Shader: `SPECULAR` com termo rasante, `ROUGHNESS` 0.36 (3.4)
-- `[ ]` Bead na borda molhada (3.5)
+- `[x]` `cor_tinta.gd`: `meio()`, `VEU_MOLHADO` 0.55 → 0.32
+- `[x]` Shader: `k_brilho`/`k_sat`/`k_valor` e os dois mixes (3.3)
+- `[x]` Shader: `SPECULAR` com termo rasante, `ROUGHNESS` 0.36 (3.4)
+- `[x]` Bead na borda molhada (3.5) — implementado, **inerte até a Fase E**, ver 5.2
 
 **Entrega:** a escala de segundos — o jogador descobre o molhado movendo a cabeça.
 
-### G3 — Cobertura com consequência
+### 5.2 O que a G2 entregou de fato — 04/08/2026
 
-- `[ ]` Shader de cópia `R → B` + chamada em `iniciar_demao` (3.6)
-- `[ ]` Shader: fundo histórico em vez de `cor_anterior` chapada
-- `[ ]` `trajeto_rolo.gd`: números da carga + jitter (3.7)
-- `[ ]` Recalibrar `cobertura_min`/`cobertura_max`
+#### O véu caiu pra 0,32 e a secagem ficou MAIS visível, não menos
+
+Era o risco óbvio: `VEU_MOLHADO` tinha subido de 0,20 pra 0,55 justamente porque a secagem sumia.
+Medido no render depois da mudança, o percurso da cor de molhada a seca é de **47,4 valores de 255**
+— contra os ~34 que o véu de 0,55 entregava. Baixar o véu aumentou o percurso.
+
+O motivo é que o percurso agora tem duas pernas em vez de uma. Antes, molhada e seca diferiam quase
+só em **saturação**, e o `mix` atravessava o cinza. Agora a saturação sobe primeiro e o valor cai
+depois, e as duas somam.
+
+| `fracao` | 0,00 | 0,20 | 0,40 | 0,60 | 0,80 | 1,00 |
+|---|---|---|---|---|---|---|
+| saturação | 0,11 | 0,26 | 0,49 | 0,54 | 0,55 | 0,55 |
+| valor | 0,51 | 0,49 | 0,49 | 0,45 | 0,42 | 0,42 |
+
+O cotovelo é mensurável: o caminho se afasta **14%** da reta que liga as duas pontas no RGB.
+
+#### ⚠️ `meio()` em HSV e com salto de 22%, não `lerp` pro branco de 10%
+
+3.3 sugere `seca(i).lerp(Color(1,1,1), 0.10)`. Duas coisas erradas nisso.
+
+**Puxar pro branco em RGB dessatura.** Na tinta laranja, um lerp de 0,10 já levava a razão B/R de
+0,19 pra 0,29 — repetiria no meio da travessia exatamente o defeito que a G2 existe pra tirar do
+começo dela. Feito com `Color.from_hsv`, mantendo matiz e saturação.
+
+**E 10% de salto de valor é pouco demais**, por um motivo que só aparece medindo junto com a G1: com
+10%, a perna do valor ficava com ~18 valores de 255 contra ~40 da perna da saturação. Como a
+saturação fecha em `fracao` 0,48 — **antes** da janela da mancha (0,10–0,92) — sobrava pouca
+inclinação de cor justamente onde a mancha precisa aparecer, e a contribuição dela caiu 5×
+(de 1,9 na G1 pra 0,35). Com 22% ela volta pra 0,86, e o cotovelo dobra de 14% pra 28% do percurso.
+22% também é mais fiel: látex escurece bastante ao consolidar.
+
+#### ⚠️ As curvas são mais estreitas que as de 3.2
+
+3.2 propõe `k_sat = smoothstep(0.05, 0.55)` e `k_valor = smoothstep(0.38, 0.95)`. Com essas faixas,
+**no meio da secagem as duas curvas estão em região plana ao mesmo tempo** — a saturação já
+terminando, o valor mal começando. Pouca inclinação no meio significa pouca mancha, porque é a
+inclinação que converte variação de `fracao` em variação de cor.
+
+Ficou `k_sat = smoothstep(0.05, 0.48)` e `k_valor = smoothstep(0.34, 0.85)`.
+
+O `0,85` tem uma segunda função: **`FIM_DA_COR` em `parede_pintavel.gd` espelha esse número**. Com
+`k_valor` fechando em 0,95, a cauda da curva é plana e não muda nada na tela, mas adiava a conclusão
+— foi o que obrigou a G1 a usar um percentil em vez do teto do clamp. Com o fim da curva no lugar
+certo, a conta de `duracao_total()` volta a bater com o que se vê.
+
+#### O brilho rasante funciona — mas só na linha de reflexão de uma luz
+
+Aqui quase concluí que o mecanismo era inerte, e o erro estava na medição. **Comparar a parede vista
+de frente com a parede vista de raspão amostrando regiões diferentes não mede specular** — de raspão
+a parede inteira fica mais escura porque a luz chega diferente, e essa mudança geométrica afoga o
+efeito. Tem que ser o **mesmo ponto da superfície**, visto de dois lugares: aí o termo difuso é
+idêntico e só o termo de vista muda.
+
+Com o ponto fixo, um passeio de ângulo no plano horizontal ainda dá quase nada (+49 de 255 de frente,
++51 a 85°). O que faltava era a geometria certa: o brilho especular só aparece onde o **reflexo da
+parede aponta pra uma luz**. Pondo a câmera em cima da linha de reflexão:
+
+| linha de reflexão | molhada | seca | diferença |
+|---|---|---|---|
+| nenhuma (85° horizontal) | 0,518 | 0,316 | +51 de 255 |
+| lâmpada do teto | 0,619 | 0,289 | **+84** |
+| luz do cômodo vizinho | 0,718 | 0,299 | **+107** |
+
+Resumindo o aceite: a aparência da parede **molhada** varia de 0,432 a 0,718 conforme a geometria de
+vista (oscilação 0,286); a **seca** varia de 0,288 a 0,300 (0,013). **A molhada é 22× mais sensível
+ao ângulo que a seca** — que é exatamente "o jogador move a cabeça e descobre coisa".
+
+Como a câmera da cadeira é fixa em posição e só gira, cada ponto da parede tem a sua própria direção
+de vista: o que o jogador vê é uma **região** da parede brilhando, e ela se move conforme ele olha
+em volta. Melhor do que um efeito uniforme.
+
+#### O bead está certo e está inerte até a Fase E
+
+Implementado, e **sem efeito nenhum hoje**: com `escala_bead` em 0, 3 e 8, a imagem é byte a byte a
+mesma (maior degrau vertical 0,2 de 255 nos três).
+
+O motivo é geometria de trajeto, não de código. O bead é **gravidade**: ele mora na borda de baixo do
+traço, e portanto precisa de um gradiente de cobertura em `v`. O trajeto atual são passadas verticais
+de altura inteira, então a frente de pintura é uma linha **vertical** — não tem borda horizontal no
+meio da parede pra ele agir. As únicas bordas em `v` são o topo e o rodapé.
+
+É a mesma dependência que 3.8 já anota pro lap mark: **só faz sentido depois da Fase E**, quando o W,
+as verticais curtas e o banquinho criarem traços com borda de baixo. O código fica, custa dois taps
+que já eram calculados pro lap, e está anotado aqui pra não virar mais um "número inerte" esquecido.
+
+⚠️ **Uma coisa mudou em relação a 3.5:** o bead sai do gradiente da **cobertura**, não do `instante`
+como o plano sugeria. O gradiente do instante traria de volta o pente do carimbo que o conserto do
+lap acabou de tirar — e a cobertura é mais fiel de todo jeito, porque o bead é uma borda de tinta,
+não uma borda de "quando foi pintado".
+
+#### ⚠️ Como medir estas coisas sem se enganar
+
+Três armadilhas de medição apareceram nesta fase, e todas produziram números convincentes e errados.
+
+**1. Comparar regiões diferentes não mede specular.** Ver acima: de raspão a parede inteira fica mais
+escura por geometria de luz, e isso afoga o efeito. Fixar o ponto da superfície.
+
+**2. O brilho especular só existe na linha de reflexão de uma luz.** Varrer ângulo a esmo dá quase
+nada e leva à conclusão errada de que o mecanismo é inerte. Espelhar a luz no plano da parede e pôr
+a câmera na direção resultante.
+
+**3. Congelar a cena.** A cutscene continua rodando durante o teste: `set_process(false)` nas paredes
+não basta, porque `ciclo_pintura` pode remostrar os personagens e um deles entrando em quadro depois
+do quadro de referência vira uma diferença **permanente**. Isso produziu um "4,22% da parede nunca
+converge" — idêntico em quatro configurações diferentes do shader, que era justamente a pista de que
+não era o shader. Tirar Tio e Garotinha da árvore e parar `ciclo_pintura`.
+
+Junto com a lição da G1 (comparar quadro com quadro depende do passo; comparar com o estado final,
+não), são quatro maneiras de medir errado neste projeto. Todas custaram uma rodada.
+
+### G3 — Cobertura com consequência ✅ **feito em 04/08/2026**
+
+- `[x]` Shader de cópia + chamada em `iniciar_demao` (3.6) — mas **não** `R → B`, ver 5.3
+- `[x]` Shader: fundo histórico em vez de `cor_anterior` chapada
+- `[x]` `trajeto_rolo.gd`: números da carga + jitter (3.7)
+- `[x]` Recalibrar `cobertura_min`/`cobertura_max` — **ganho visual baixo de propósito**, ver 5.3
 
 **Entrega:** o critério de aceite nº 2 do overhaul (a 2ª demão cobre falha da 1ª) passa a ser
 verificável por screenshot.
+
+### 5.3 O que a G3 entregou de fato — 04/08/2026
+
+A falha de cobertura **sobrevive à troca de demão** e só some quando o rolo passa por cima. Medido no
+ponto de pior cobertura da 1ª demão: **0,1 de 255** de mudança no instante em que a demão troca,
+contra **57,2** quando o rolo passa por cima. Na parede inteira, o salto na troca é de 1,2 de 255 na
+média — antes disso ela trocava de cara inteira num frame.
+
+> ⚠️ **Uma versão anterior desta seção publicou "0,0 de 255" e o número era de um build quebrado.**
+> `guardar_historico` estava sendo chamada com os limiares lidos de
+> `material.get_shader_parameter()`, que devolve **null** pra uniform que nunca foi setada
+> explicitamente — o default escrito no `.gdshader` não conta. A chamada morria em silêncio no meu
+> teste, o histórico nunca era escrito, e a costura media zero porque nada mudava. Ver a armadilha
+> completa no `PROJETO.md` 3.3.
+
+#### O histórico guarda a COBERTURA, não a máscara crua
+
+3.6 propõe copiar `R → B` dentro da acumulada no começo de cada demão. Duas coisas impedem.
+
+**Não dá pra copiar dentro da mesma textura.** Um blit que lê e escreve a mesma imagem é hazard de
+leitura/escrita. Como `DrawableTexture2D` é `Texture2D`, ela serve de fonte pra outra — então virou
+uma textura separada, 1,5 MB por parede.
+
+**E o conteúdo não pode ser a máscara crua.** Duas tentativas, as duas medidas e descartadas:
+
+| Guardando | O que quebrou |
+|---|---|
+| `acumulada.r` (depósito somado), cobertura da demão = `acum.r − hist.r` | A acumulada é RGBA8 com `blend_add` e **satura em 1**. Depois que a 1ª demão cobre um ponto, a 2ª e a 3ª depositam zero ali e **não aparecem** — a parede simplesmente parava de mudar. Pego pelo teste da mancha da G1, que ficou chapado em 0,648 do começo ao fim |
+| `recente.g` (carga), com um par de limiares só pro histórico | Carga e depósito somado não se correspondem ponto a ponto: onde duas passadas se sobrepõem o depósito soma, mas a carga (escrita com `blend_mix`) é ~a da última. **Nenhum par de limiares casa as duas** — tentei resolver por quantis, com a inversa fechada do `smoothstep`, e o salto na troca ficou em 8,9 de 255 na média e **130 no pior ponto** |
+
+O que funciona é guardar **o mesmo número que o shader mostrou na tela**: `copia_cobertura.gdshader`
+aplica o mesmo box e o mesmo `smoothstep` e soma o resultado no histórico. Aí a costura fecha por
+construção, e é por isso que ela dá 0,1 de 255.
+
+Os limiares moram em `parede_pintavel.gd` (`COBERTURA_MIN`/`COBERTURA_MAX`) e são **empurrados** pros
+dois shaders. Não podem ser lidos de volta do material, e não podem ficar chumbados em dois
+`.gdshader` diferentes — se divergirem, a costura reabre sem dar erro.
+
+#### ⚠️ `cobertura_min` tem que ser zero ou positivo
+
+Tentei um mínimo negativo pra suavizar a falha (a curva fica mais macia). **Carga zero passou a ler
+como 68% coberto** — a cor nova aparecia na parede inteira no instante em que a demão começava, que é
+precisamente o que a G3 existe pra impedir. O salto médio na troca pulou de 6 pra 16 de 255 e
+entregou o erro. Com o mínimo preso em zero, quem controla a amplitude é só o máximo.
+
+#### A marca do rolo virou passa-alta
+
+Ela ainda tinha um centro guardado (`relevo - relevo_base`, herdado da G1). Como `relevo_base` é
+remedido a cada demão, o termo saltava de +0,5 pra −0,5 na troca e **a parede inteira dava um pulo de
+~15 de 255**. Agora é `relevo` menos a média local dele — os dois lados vêm da mesma textura no mesmo
+instante, então é contínuo por construção, e não há centro pra errar. É o terceiro centro tentado
+neste termo; o passa-alta é o primeiro que não tem um.
+
+> A largura do borrão largo estava errada e isso só foi pego em 5.4 — ver lá.
+
+#### ⚠️ A amplitude da falha está baixa de propósito, e destravar é da Fase E
+
+`CONSUMO_POR_METRO` foi pros números físicos do plano (9 m por carga, carga caindo de 1,00 pra 0,37),
+e a falha **existia** — mas nunca no valor que 3.7 pede.
+
+O motivo não é gosto, é o trajeto. Uma carga dá 9 m e uma passada de altura inteira dá 3 m, então
+**uma carga dura 3 passadas** e a carga cai 21% de uma passada pra vizinha. Com passadas de altura
+inteira, qualquer variação por passada vira barra vertical de cima a baixo: a parede sai como código
+de barras. Testei cobertura mínima de 42% (o número de 3.7) até 85% — **o padrão de listra não muda,
+só o contraste dele.**
+
+O W, as verticais curtas e o banquinho da Fase E quebram a passada de altura inteira, e é lá que a
+falha vira mosqueado em vez de listra. É a terceira coisa desta fase G que depende de E, junto com o
+bead (5.2) e o lap mark (3.8) — vale tratar as três como um pacote quando E chegar.
+
+Em 5.4 a falha foi **desligada** (`cobertura_max` 0,16 → 0,10): mesmo na amplitude discreta ela ainda
+saía como barra, e o Caio pegou na tela. O jitter de ±15% no tamanho da carga continua no lugar,
+esperando E.
+
+### 5.4 Três queixas do Caio na tela, e o que cada uma era — 04/08/2026
+
+Ele jogou o resultado da G3 e trouxe três coisas. Nenhuma das três era a que eu teria chutado.
+
+| O que ele viu | O que era |
+|---|---|
+| "quando uma nova demão vai começar, a textura da parede fica lisa" | **Duas causas somadas.** `suavidade_demao` multiplicava a marca do relevo **já na parede**, então a demão nova alisava retroativamente a camada de baixo num frame. E o `historico` é `blend_add`: depois de duas demãos ele satura em 1 e toda a falha lembrada some sozinha ao começar a 3ª |
+| "a 1ª demão ficou com partes brancas, não parece o rolo ficando sem tinta" | Era o rolo ficando sem tinta — mas **não parece** porque a recarga é instantânea no meio de uma passada de altura inteira. O resultado é uma barra vertical com **a ponta quadrada**. E tinha um bug somando: a carga entrava **duas vezes** no canal (ver abaixo) |
+| "a última demão devia ficar homogênea depois de secar" | `suavidade_demao = 1/(1+0,9n)` parava em **0,36** na 3ª demão: um terço da marca da 1ª ainda aparecia na parede acabada |
+
+#### A carga entrava ao quadrado
+
+`carimbo_recente.gdshader` usava `peso = carimbo.r * carga` como peso da mistura **e** gravava `carga`
+no canal G. Estar nos dois lugares faz o canal convergir pro quadrado da carga: com o rolo no fundo
+(0,30) o G ia pra ~0,15, e a falha saía com o dobro da profundidade que a física pede.
+
+Medido antes: G médio **0,398** numa parede cuja carga média é ~0,685, com mínimo **0,000** no miolo.
+Depois de tirar a carga do peso: médio **0,511**, mínimo **0,164**. `CARGA_TIPICA` foi de 0,627 pra
+0,511 por causa disso.
+
+#### O canto que o laço das passadas não alcançava
+
+`_gerar_pontos` somava `PASSO_METROS` até estourar a largura, então o resto da divisão ficava sem
+tinta — 2 cm numa parede de 6 m, uma faixa clara vertical no encontro das paredes. Agora o número de
+passadas é `ceil(largura / PASSO)` e o passo efetivo é `largura / n`: primeira e última a meio passo
+de cada canto, e o passo fica um pouco menor, o que só aumenta a sobreposição.
+
+#### A suavidade da marca virou duas, e a última demão fecha em zero
+
+O shader tem `suavidade_anterior` (quanto a marca aparece no que **já está** na parede) e
+`suavidade_demao` (quanto vai aparecer **depois que esta demão cobrir**). O `mix` por `cobertura`
+escolhe entre as duas, então o degrau entra **atrás do rolo** em vez de na parede inteira de uma vez.
+
+E a curva virou `1 − numero/(total−1)`: 1,00 · 0,50 · **0,00**. A última demão apaga a marca do rolo
+enquanto passa, que é a recompensa de ter pintado três vezes.
+
+#### ⚠️ O passa-alta da marca estava comendo o próprio sinal
+
+`relevo_largo` era um borrão de 3 taps espaçados de `passo * 7` — largura total **17 texels**. O sinal
+que ele deveria preservar é a passada do rolo, de período `0,167 m × 146 px/m` = **24,3 texels**. Uma
+média local mais estreita que o período do sinal **acompanha o sinal**, e o passa-alta subtrai
+exatamente o que existia pra mostrar.
+
+Medido na máscara, RMS da marca depois da 1ª demão, variando o fator:
+
+| fator | largura | marca RMS | pico |
+|---|---|---|---|
+| 7 (era) | 17 texels | 0,0083 | 0,038 |
+| 12 | 29 texels | 0,0121 | 0,043 |
+| 20 | 49 texels | 0,0156 | 0,048 |
+| **30** | **73 texels** | **0,0181** | **0,050** |
+| 45 | 110 texels | 0,0172 | 0,048 |
+
+30 (três períodos da passada) é o topo; de 45 pra cima o viés da borda começa a comer de volta. A
+regra geral: **o borrão largo tem que ser ≥ 3× o período do que ele não pode apagar.**
+
+#### Resultado
+
+Listra vertical do rolo, RMS relativa do perfil por coluna, em por mil (piso de ruído do render ≈ 10):
+
+| Momento | Antes | Depois |
+|---|---|---|
+| 1ª demão seca | 46,8 | 19,7 |
+| 2ª demão começou | 46,0 | 18,2 |
+| **salto na troca 1→2** | 1,1 médio / **31,6 pior** | 0,7 médio / **6,6 pior** |
+| 2ª demão seca | 41,8 | 17,1 |
+| 3ª demão começou | **6,9** (colapso de 83%) | 15,1 (queda de 11%) |
+| **salto na troca 2→3** | 1,9 médio / **50,6 pior** | 0,7 médio / **5,5 pior** |
+| 3ª demão seca | 10,9 | **10,0** (= o piso) |
+
+Antes: as duas primeiras demãos eram dominadas pelas barras brancas, e o desenho todo desaparecia
+num frame ao começar a 3ª. Depois: declínio monótono da 1ª à 3ª, terminando no piso de medição — a
+parede acabada é homogênea.
+
+> ⚠️ `mancha_offset` e `_sortear_molhadas()` usam `randf()` **sem semente**, então cada execução
+> pinta com outro sorteio: as colunas "depois" variam ~10% de rodada pra rodada (medi 17,6 e 19,7 na
+> mesma configuração). A diferença pro "antes" é grande demais pra ser isso, mas quem for comparar
+> duas mudanças pequenas tem que semear primeiro.
+
+A G1 foi re-verificada depois de tudo isso (`CARGA_TIPICA` mudou, e é divisor do termo de espessura):
+razão 2,33 nas 12 combinações de parede × demão, com 0,9–2,0% no clamp.
+
+#### ⚠️ Duas armadilhas de medição novas
+
+**Contraste local pixel a pixel não mede textura neste jogo.** Com `use_debanding` ligado, o dither de
+~1/255 domina a métrica: ela deu 0,7 em *toda* configuração testada e não mexeu nem quando as barras
+brancas sumiram da tela. A marca do rolo é listra **vertical** — então média por coluna (o dither é
+independente por pixel e morre na média), menos uma média móvel larga (mata o gradiente de luz), RMS
+do resto. E **relativa ao brilho médio**, senão parede escura parece mais lisa só por ser escura.
+
+**`adiantar(duracao_total())` não seca a parede toda.** `duracao_total()` usa `VARIACAO_CONCLUSAO`
+(percentil 0,24), não `VARIACAO_MAX` (0,40): nos pontos mais lentos sobra `fracao` ≈ 0,75, onde
+`k_mancha` ainda vale ~0,59. Medir "textura permanente" nesse quadro mede mancha de secagem junto.
+Quem quiser o estado final de verdade tem que adiantar bem além — 3× resolve.
+
+#### `relevo_base` estava morto
+
+Sobrou da versão pré-passa-alta: `uniform float relevo_base` era declarado e **nunca lido** no
+`fragment()`, e `_medir_relevo_base()` fazia um readback da máscara inteira mais ~6 mil `get_pixel`
+no começo de cada demão pra alimentar ele. Removidos os três.
 
 ### G4 — Depende da Fase E
 
