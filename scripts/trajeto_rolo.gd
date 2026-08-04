@@ -26,9 +26,12 @@ class_name TrajetoRolo
 
 signal terminou
 
-## Distância entre passadas verticais. Precisa ser menor que a largura do rolo
-## (23 cm), senão sobra parede crua entre uma passada e a seguinte. 17 cm
+## Distância ALVO entre passadas verticais. Precisa ser menor que a largura do
+## rolo (23 cm), senão sobra parede crua entre uma passada e a seguinte. 17 cm
 ## deixa ~25% de sobreposição, que é como se pinta de verdade.
+##
+## O passo de fato usado é `largura / ceil(largura / isto)`, um pouco menor —
+## ver `_gerar_pontos`. É o que faz a última passada fechar no canto.
 const PASSO_METROS: float = 0.17
 
 ## Espaçamento entre carimbos ao longo do traço. Metade da faixa de contato
@@ -139,9 +142,18 @@ func _gerar_pontos(invertido: bool) -> void:
 	var topo: float = -TRANSBORDO
 	var base: float = _altura_m + TRANSBORDO
 
-	var x: float = PASSO_METROS * 0.5
+	# Passadas distribuídas por igual entre os dois cantos, a primeira e a última
+	# a meio passo da borda. Antes o laço só somava PASSO_METROS até estourar a
+	# largura, e o resto da divisão virava parede crua no canto final — 2 cm numa
+	# parede de 6 m, que aparecia como faixa clara vertical no encontro das
+	# paredes. O passo efetivo fica um pouco menor que PASSO_METROS, o que só
+	# aumenta a sobreposição.
+	var n_passadas: int = maxi(int(ceil(_largura_m / PASSO_METROS)), 1)
+	var passo: float = _largura_m / float(n_passadas)
+
 	var descendo := true
-	while x < _largura_m:
+	for i in range(n_passadas):
+		var x: float = passo * (float(i) + 0.5)
 		var u: float = _largura_m - x if invertido else x
 		if descendo:
 			_pontos.append(Vector2(u, topo))
@@ -150,7 +162,6 @@ func _gerar_pontos(invertido: bool) -> void:
 			_pontos.append(Vector2(u, base))
 			_pontos.append(Vector2(u, topo))
 		descendo = not descendo
-		x += PASSO_METROS
 
 	_medir()
 

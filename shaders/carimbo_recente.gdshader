@@ -30,11 +30,19 @@ void blit() {
 	if (r.x < 0.0 || r.x > 1.0 || r.y < 0.0 || r.y > 1.0) {
 		COLOR0 = vec4(0.0);
 	} else {
-		// Peso da substituição = quanto de tinta chegou aqui.
+		// Peso da substituição = QUANTO DO ROLO encostou aqui, e só isso.
+		//
+		// ⚠️ A carga NÃO entra no peso. Ela já é o valor gravado em G, e estar
+		// nos dois lugares fazia o canal andar com o QUADRADO da carga: com o
+		// rolo no fundo (0,30) o G convergia pra ~0,15, e a falha de cobertura
+		// saía com o dobro da profundidade que a física pedia. Medido antes de
+		// tirar: G médio 0,398 numa parede cuja carga média é 0,685.
+		//
 		// G guarda a carga e serve de marcador de "passei aqui nesta demão" —
 		// é zerado no início de cada demão e o shader da parede lê isso como
-		// cobertura da camada atual.
-		float peso = texture(carimbo, r).r * carga;
+		// cobertura da camada atual. Com o peso puramente geométrico, ele
+		// converge pra carga de verdade, que é o que o nome dele promete.
+		float peso = texture(carimbo, r).r;
 		COLOR0 = vec4(instante, carga, 0.0, peso);
 	}
 }

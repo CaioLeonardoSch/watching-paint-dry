@@ -62,14 +62,10 @@ uniform sampler2D mancha_secagem : filter_linear, repeat_disable;
 uniform float mancha_escala = 0.6667;
 uniform vec2  mancha_offset = vec2(0.0);
 
-// Carga típica na máscara recente depois de uma passada. Medido: 0,627.
+// Carga típica na máscara recente depois de uma passada. Medido: 0,511.
 // É daqui que sai a espessura DESTA demão — não do acumulador. Ver fragment().
-uniform float carga_tipica = 0.627;
+uniform float carga_tipica = 0.511;
 
-// Relevo médio já na parede antes desta demão. É MEDIDO por parede_pintavel.gd,
-// não estimado: o acumulador é absoluto e chega em 0,50 quando o jogo retoma de
-// um save. Sem descontar, o termo saturaria o clamp na parede toda.
-uniform float relevo_base = 0.0;
 // Depósito médio de UMA demão no acumulador. Medido: 0,033 (pico 0,043).
 uniform float espessura_demao = 0.033;
 // Teto da variação. Não é higiene, é contrato: com ele duracao_total() no
@@ -93,8 +89,16 @@ uniform float limiar_lap = 0.35;  // segundos de diferença que já marcam lap
 uniform float escala_bead = 3.0;
 
 // Quanto a marca do rolo aparece. Cai a cada demão (ver iniciar_demao): a
-// primeira camada sobre reboco cru mostra bastante variação, a terceira já
-// está quase lisa — que é como parede pintada de verdade se comporta.
+// primeira camada sobre reboco cru mostra bastante variação, a última fecha
+// lisa — que é como parede pintada de verdade se comporta.
+//
+// ⚠️ São DOIS valores, e isso não é redundância. `suavidade_anterior` é o
+// quanto a marca aparece no que JÁ ESTÁ na parede; `suavidade_demao` é o quanto
+// ela vai aparecer depois que ESTA demão cobrir. Com um valor só, o degrau
+// entre as duas era aplicado na parede inteira no frame em que a demão trocava
+// — e a parede alisava de uma vez, antes de o rolo encostar nela. Agora o
+// degrau entra junto com `cobertura`, ou seja, atrás do rolo.
+uniform float suavidade_anterior = 1.0;
 uniform float suavidade_demao = 1.0;
 uniform float forca_marca = 0.09;
 
@@ -109,28 +113,27 @@ uniform float forca_marca = 0.09;
 //
 // Com o mínimo preso em zero, quem controla o quanto a falha aparece é só o
 // máximo: menor = satura antes = falha mais discreta. Percentis medidos de
-// `rec_suave.g` com a carga da G3: p01 0,09 · p05 0,14 · p25 0,25 · mediana
-// 0,38. Com máximo 0,19, o p05 cobre 85% e o p25 pra cima cobre tudo.
+// `rec_suave.g` no miolo das 4 paredes: pior 0,140 · p01 0,249 · p05 0,294 ·
+// mediana 0,506 · p90 0,719.
 //
-// ⚠️ **ESTE É O GANHO VISUAL DA FALHA DE COBERTURA, E ELE ESTÁ BAIXO DE
-// PROPÓSITO — abrir na Fase E, não antes.**
+// ⚠️ **A FALHA POR CARGA ESTÁ DESLIGADA (0,10 < 0,140) — reabrir na Fase E.**
 //
 // A tabela de SECAGEM §3.7 pede 42% de cobertura no fim de uma carga. Testado:
 // fica horrível, e o problema não é a amplitude, é o TRAJETO. Uma carga dá 9 m
-// e uma passada de altura inteira dá 3 m, então **uma carga dura 3 passadas** e
-// a carga cai 21% de uma passada pra vizinha. Com passadas de altura inteira,
-// qualquer variação por passada vira barra vertical de cima a baixo: a parede
-// sai como código de barras, não como tinta. Testei de 42% a 85% de cobertura
-// mínima — o padrão de listra não muda, só o contraste dele.
+// e uma passada de altura inteira dá 3 m, então **uma carga dura 3 passadas**, e
+// a recarga é instantânea no meio de uma delas. O resultado na tela é uma barra
+// vertical de uma passada de largura com a **ponta quadrada** no ponto da
+// recarga: lê como risco de estilete, não como rolo secando. Testei de 42% a
+// 85% de cobertura mínima — o padrão não muda, só o contraste dele.
 //
 // O W, as verticais curtas e o banquinho da Fase E quebram a passada de altura
-// inteira, e é lá que a falha vira mosqueado em vez de listra. Aí este par abre.
+// inteira, e é lá que a falha vira mosqueado em vez de barra. Aí este par abre.
 // (A mesma dependência que o plano já anota pro lap mark em §3.8.)
 //
 // Quem mexer aqui tem que mexer no mesmo par em `copia_cobertura.gdshader` —
 // ou melhor, deixar `parede_pintavel.gd` passar os dois, que é o que ele faz.
 uniform float cobertura_min = 0.0;
-uniform float cobertura_max = 0.21;
+uniform float cobertura_max = 0.10;
 
 varying vec3 pos_mundo;
 
@@ -187,13 +190,21 @@ void fragment() {
 	// — mas só aproximadamente, porque `carimbar_traco` arredonda o número de
 	// passos pra cima. Sobra um resto, e o mesmo box resolve.
 	float relevo = 0.0;
-	// e um borrão bem mais largo do relevo, pra tirar a média local dele
+	// E um borrão bem mais largo do relevo, que serve de média local dele — é o
+	// que faz a marca do rolo virar passa-alta (ver `marca_base` lá embaixo).
+	//
+	// ⚠️ A largura NÃO é livre. O sinal que a marca quer mostrar é a passada do
+	// rolo, cujo período é 0,167 m × 146 px/m = **24,3 texels**. O borrão largo
+	// tem que ser bem MAIOR que isso, senão ele acompanha o próprio sinal e o
+	// passa-alta subtrai o que deveria preservar. Estava em 7 (17 texels, MENOR
+	// que o período) e cancelava metade da marca: RMS medida 0,0083 contra
+	// 0,0181 em 30. De 30 pra cima o ganho para e o viés de borda começa.
 	float relevo_largo = 0.0;
 	for (int i = -1; i <= 1; i++) {
 		for (int j = -1; j <= 1; j++) {
 			vec2 desloc = vec2(float(i), float(j));
 			relevo       += texture(mascara_acumulada, uv + desloc * passo).g;
-			relevo_largo += texture(mascara_acumulada, uv + desloc * passo * 7.0).g;
+			relevo_largo += texture(mascara_acumulada, uv + desloc * passo * 30.0).g;
 		}
 	}
 	relevo /= 9.0;
@@ -369,16 +380,22 @@ void fragment() {
 	// no mesmo instante, então ele é contínuo por construção. E é o que a marca
 	// do rolo é de verdade — variação local de espessura, não desvio de uma
 	// média histórica.
+	//
+	// E a atenuação por demão é aplicada DEPOIS de separar as duas camadas: o
+	// relevo é o mesmo (é a mesma parede), o que muda é quanto dele cada lado do
+	// `mix` deixa ver. Demão nova não alisa o que ela ainda não cobriu.
 	float relevo_rel = (relevo - relevo_largo) / max(espessura_demao, 1e-4);
-	float marca = relevo_rel * forca_marca * suavidade_demao * nitidez;
+	float marca_base = relevo_rel * forca_marca * nitidez;
+	float marca_anterior = marca_base * suavidade_anterior;
+	float marca_nova     = marca_base * suavidade_demao;
 
 	// Onde a demão anterior falhou, o reboco continua aparecendo — e continua
 	// aparecendo DURANTE esta demão, até o rolo passar por cima daquele ponto.
 	// É isso que faz três demãos serem três acontecimentos, em vez de três
 	// trocas de valor de saturação.
 	vec3 base_anterior = mix(cor_crua.rgb, cor_anterior.rgb, cob_anterior)
-		* (1.0 - marca);
-	cor_nova *= (1.0 - marca * k_valor);
+		* (1.0 - marca_anterior);
+	cor_nova *= (1.0 - marca_nova * k_valor);
 
 	// Manchado de tinta secando é mais diferença de BRILHO que de cor — por
 	// isso aqui a cor leva metade do peso que a rugosidade leva lá embaixo.

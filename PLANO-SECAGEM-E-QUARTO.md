@@ -951,10 +951,12 @@ remedido a cada demão, o termo saltava de +0,5 pra −0,5 na troca e **a parede
 instante, então é contínuo por construção, e não há centro pra errar. É o terceiro centro tentado
 neste termo; o passa-alta é o primeiro que não tem um.
 
+> A largura do borrão largo estava errada e isso só foi pego em 5.4 — ver lá.
+
 #### ⚠️ A amplitude da falha está baixa de propósito, e destravar é da Fase E
 
 `CONSUMO_POR_METRO` foi pros números físicos do plano (9 m por carga, carga caindo de 1,00 pra 0,37),
-e a falha **existe** — mas `cobertura_max` está em 0,21, bem acima do que 3.7 pede.
+e a falha **existia** — mas nunca no valor que 3.7 pede.
 
 O motivo não é gosto, é o trajeto. Uma carga dá 9 m e uma passada de altura inteira dá 3 m, então
 **uma carga dura 3 passadas** e a carga cai 21% de uma passada pra vizinha. Com passadas de altura
@@ -966,8 +968,110 @@ O W, as verticais curtas e o banquinho da Fase E quebram a passada de altura int
 falha vira mosqueado em vez de listra. É a terceira coisa desta fase G que depende de E, junto com o
 bead (5.2) e o lap mark (3.8) — vale tratar as três como um pacote quando E chegar.
 
-O jitter de ±15% no tamanho da carga entrou como o plano pede, e é o que impede a falha de sair
-periódica enquanto as idas à bandeja não são coreografia de verdade.
+Em 5.4 a falha foi **desligada** (`cobertura_max` 0,16 → 0,10): mesmo na amplitude discreta ela ainda
+saía como barra, e o Caio pegou na tela. O jitter de ±15% no tamanho da carga continua no lugar,
+esperando E.
+
+### 5.4 Três queixas do Caio na tela, e o que cada uma era — 04/08/2026
+
+Ele jogou o resultado da G3 e trouxe três coisas. Nenhuma das três era a que eu teria chutado.
+
+| O que ele viu | O que era |
+|---|---|
+| "quando uma nova demão vai começar, a textura da parede fica lisa" | **Duas causas somadas.** `suavidade_demao` multiplicava a marca do relevo **já na parede**, então a demão nova alisava retroativamente a camada de baixo num frame. E o `historico` é `blend_add`: depois de duas demãos ele satura em 1 e toda a falha lembrada some sozinha ao começar a 3ª |
+| "a 1ª demão ficou com partes brancas, não parece o rolo ficando sem tinta" | Era o rolo ficando sem tinta — mas **não parece** porque a recarga é instantânea no meio de uma passada de altura inteira. O resultado é uma barra vertical com **a ponta quadrada**. E tinha um bug somando: a carga entrava **duas vezes** no canal (ver abaixo) |
+| "a última demão devia ficar homogênea depois de secar" | `suavidade_demao = 1/(1+0,9n)` parava em **0,36** na 3ª demão: um terço da marca da 1ª ainda aparecia na parede acabada |
+
+#### A carga entrava ao quadrado
+
+`carimbo_recente.gdshader` usava `peso = carimbo.r * carga` como peso da mistura **e** gravava `carga`
+no canal G. Estar nos dois lugares faz o canal convergir pro quadrado da carga: com o rolo no fundo
+(0,30) o G ia pra ~0,15, e a falha saía com o dobro da profundidade que a física pede.
+
+Medido antes: G médio **0,398** numa parede cuja carga média é ~0,685, com mínimo **0,000** no miolo.
+Depois de tirar a carga do peso: médio **0,511**, mínimo **0,164**. `CARGA_TIPICA` foi de 0,627 pra
+0,511 por causa disso.
+
+#### O canto que o laço das passadas não alcançava
+
+`_gerar_pontos` somava `PASSO_METROS` até estourar a largura, então o resto da divisão ficava sem
+tinta — 2 cm numa parede de 6 m, uma faixa clara vertical no encontro das paredes. Agora o número de
+passadas é `ceil(largura / PASSO)` e o passo efetivo é `largura / n`: primeira e última a meio passo
+de cada canto, e o passo fica um pouco menor, o que só aumenta a sobreposição.
+
+#### A suavidade da marca virou duas, e a última demão fecha em zero
+
+O shader tem `suavidade_anterior` (quanto a marca aparece no que **já está** na parede) e
+`suavidade_demao` (quanto vai aparecer **depois que esta demão cobrir**). O `mix` por `cobertura`
+escolhe entre as duas, então o degrau entra **atrás do rolo** em vez de na parede inteira de uma vez.
+
+E a curva virou `1 − numero/(total−1)`: 1,00 · 0,50 · **0,00**. A última demão apaga a marca do rolo
+enquanto passa, que é a recompensa de ter pintado três vezes.
+
+#### ⚠️ O passa-alta da marca estava comendo o próprio sinal
+
+`relevo_largo` era um borrão de 3 taps espaçados de `passo * 7` — largura total **17 texels**. O sinal
+que ele deveria preservar é a passada do rolo, de período `0,167 m × 146 px/m` = **24,3 texels**. Uma
+média local mais estreita que o período do sinal **acompanha o sinal**, e o passa-alta subtrai
+exatamente o que existia pra mostrar.
+
+Medido na máscara, RMS da marca depois da 1ª demão, variando o fator:
+
+| fator | largura | marca RMS | pico |
+|---|---|---|---|
+| 7 (era) | 17 texels | 0,0083 | 0,038 |
+| 12 | 29 texels | 0,0121 | 0,043 |
+| 20 | 49 texels | 0,0156 | 0,048 |
+| **30** | **73 texels** | **0,0181** | **0,050** |
+| 45 | 110 texels | 0,0172 | 0,048 |
+
+30 (três períodos da passada) é o topo; de 45 pra cima o viés da borda começa a comer de volta. A
+regra geral: **o borrão largo tem que ser ≥ 3× o período do que ele não pode apagar.**
+
+#### Resultado
+
+Listra vertical do rolo, RMS relativa do perfil por coluna, em por mil (piso de ruído do render ≈ 10):
+
+| Momento | Antes | Depois |
+|---|---|---|
+| 1ª demão seca | 46,8 | 19,7 |
+| 2ª demão começou | 46,0 | 18,2 |
+| **salto na troca 1→2** | 1,1 médio / **31,6 pior** | 0,7 médio / **6,6 pior** |
+| 2ª demão seca | 41,8 | 17,1 |
+| 3ª demão começou | **6,9** (colapso de 83%) | 15,1 (queda de 11%) |
+| **salto na troca 2→3** | 1,9 médio / **50,6 pior** | 0,7 médio / **5,5 pior** |
+| 3ª demão seca | 10,9 | **10,0** (= o piso) |
+
+Antes: as duas primeiras demãos eram dominadas pelas barras brancas, e o desenho todo desaparecia
+num frame ao começar a 3ª. Depois: declínio monótono da 1ª à 3ª, terminando no piso de medição — a
+parede acabada é homogênea.
+
+> ⚠️ `mancha_offset` e `_sortear_molhadas()` usam `randf()` **sem semente**, então cada execução
+> pinta com outro sorteio: as colunas "depois" variam ~10% de rodada pra rodada (medi 17,6 e 19,7 na
+> mesma configuração). A diferença pro "antes" é grande demais pra ser isso, mas quem for comparar
+> duas mudanças pequenas tem que semear primeiro.
+
+A G1 foi re-verificada depois de tudo isso (`CARGA_TIPICA` mudou, e é divisor do termo de espessura):
+razão 2,33 nas 12 combinações de parede × demão, com 0,9–2,0% no clamp.
+
+#### ⚠️ Duas armadilhas de medição novas
+
+**Contraste local pixel a pixel não mede textura neste jogo.** Com `use_debanding` ligado, o dither de
+~1/255 domina a métrica: ela deu 0,7 em *toda* configuração testada e não mexeu nem quando as barras
+brancas sumiram da tela. A marca do rolo é listra **vertical** — então média por coluna (o dither é
+independente por pixel e morre na média), menos uma média móvel larga (mata o gradiente de luz), RMS
+do resto. E **relativa ao brilho médio**, senão parede escura parece mais lisa só por ser escura.
+
+**`adiantar(duracao_total())` não seca a parede toda.** `duracao_total()` usa `VARIACAO_CONCLUSAO`
+(percentil 0,24), não `VARIACAO_MAX` (0,40): nos pontos mais lentos sobra `fracao` ≈ 0,75, onde
+`k_mancha` ainda vale ~0,59. Medir "textura permanente" nesse quadro mede mancha de secagem junto.
+Quem quiser o estado final de verdade tem que adiantar bem além — 3× resolve.
+
+#### `relevo_base` estava morto
+
+Sobrou da versão pré-passa-alta: `uniform float relevo_base` era declarado e **nunca lido** no
+`fragment()`, e `_medir_relevo_base()` fazia um readback da máscara inteira mais ~6 mil `get_pixel`
+no começo de cada demão pra alimentar ele. Removidos os três.
 
 ### G4 — Depende da Fase E
 

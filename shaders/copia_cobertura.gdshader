@@ -33,7 +33,7 @@ uniform sampler2D fonte : hint_blit_source0;
 // os MESMOS limiares, senão a costura reabre por diferença de suavização.
 uniform vec2  passo = vec2(0.001);
 uniform float cobertura_min = 0.0;
-uniform float cobertura_max = 0.21;
+uniform float cobertura_max = 0.10;
 
 void blit() {
 	float s = 0.0;
