@@ -20,8 +20,15 @@ shader_type spatial;
 
 uniform sampler2D mascara_acumulada : filter_linear, repeat_disable;
 uniform sampler2D mascara_recente   : filter_linear, repeat_disable;
+// Cobertura congelada no fim da demão anterior (Fase G3). É o que transforma
+// "meio pintado" em falha com HISTÓRIA: ela sobrevive à troca de demão e só
+// some quando o rolo passa por cima.
+uniform sampler2D mascara_historico : filter_linear, repeat_disable;
 
-uniform vec4 cor_anterior : source_color = vec4(0.93, 0.92, 0.90, 1.0);  // o que já estava na parede
+uniform vec4 cor_anterior : source_color = vec4(0.93, 0.92, 0.90, 1.0);  // a demão de baixo
+// O reboco, embaixo de tudo. Antes da G3 o fundo era só `cor_anterior` chapada,
+// então uma falha da 1ª demão sumia no frame em que a 2ª começava.
+uniform vec4 cor_crua : source_color = vec4(0.93, 0.92, 0.90, 1.0);
 // Molhada é MAIS CLARA que a seca: o ligante da látex é branco leitoso
 // enquanto tem água e fica transparente ao secar (ver cor_tinta.gd).
 uniform vec4 cor_molhada  : source_color = vec4(0.44, 0.57, 0.76, 1.0);
@@ -91,13 +98,39 @@ uniform float escala_bead = 3.0;
 uniform float suavidade_demao = 1.0;
 uniform float forca_marca = 0.09;
 
-// Faixa da carga gravada que conta como "coberto". A máscara recente é escrita
-// com blend_mix, então o valor converge pra ALGO ABAIXO da carga real do rolo
-// (cada carimbo mistura parcialmente, e as bordas pesam pouco). Normalizar
-// pela carga cheia deixava um quarto da cor de baixo aparecendo e a parede
-// saía lavada. O limiar baixo faz uma passada de rolo já cobrir de verdade.
-uniform float cobertura_min = 0.03;
-uniform float cobertura_max = 0.45;
+// Faixa da carga gravada que conta como "coberto".
+//
+// ⚠️ `cobertura_min` tem que ser **zero ou positivo**, e isso não é estética.
+// Carga zero PRECISA dar cobertura zero: com um mínimo negativo (que eu tentei,
+// pra suavizar a falha), um ponto onde o rolo nunca passou já lia como 68%
+// coberto — a cor nova aparecia na parede inteira no instante em que a demão
+// começava, que é exatamente o que a G3 existe pra impedir. O salto médio da
+// parede na troca pulou de 6 pra 16 de 255 e me entregou o erro.
+//
+// Com o mínimo preso em zero, quem controla o quanto a falha aparece é só o
+// máximo: menor = satura antes = falha mais discreta. Percentis medidos de
+// `rec_suave.g` com a carga da G3: p01 0,09 · p05 0,14 · p25 0,25 · mediana
+// 0,38. Com máximo 0,19, o p05 cobre 85% e o p25 pra cima cobre tudo.
+//
+// ⚠️ **ESTE É O GANHO VISUAL DA FALHA DE COBERTURA, E ELE ESTÁ BAIXO DE
+// PROPÓSITO — abrir na Fase E, não antes.**
+//
+// A tabela de SECAGEM §3.7 pede 42% de cobertura no fim de uma carga. Testado:
+// fica horrível, e o problema não é a amplitude, é o TRAJETO. Uma carga dá 9 m
+// e uma passada de altura inteira dá 3 m, então **uma carga dura 3 passadas** e
+// a carga cai 21% de uma passada pra vizinha. Com passadas de altura inteira,
+// qualquer variação por passada vira barra vertical de cima a baixo: a parede
+// sai como código de barras, não como tinta. Testei de 42% a 85% de cobertura
+// mínima — o padrão de listra não muda, só o contraste dele.
+//
+// O W, as verticais curtas e o banquinho da Fase E quebram a passada de altura
+// inteira, e é lá que a falha vira mosqueado em vez de listra. Aí este par abre.
+// (A mesma dependência que o plano já anota pro lap mark em §3.8.)
+//
+// Quem mexer aqui tem que mexer no mesmo par em `copia_cobertura.gdshader` —
+// ou melhor, deixar `parede_pintavel.gd` passar os dois, que é o que ele faz.
+uniform float cobertura_min = 0.0;
+uniform float cobertura_max = 0.21;
 
 varying vec3 pos_mundo;
 
@@ -154,18 +187,30 @@ void fragment() {
 	// — mas só aproximadamente, porque `carimbar_traco` arredonda o número de
 	// passos pra cima. Sobra um resto, e o mesmo box resolve.
 	float relevo = 0.0;
+	// e um borrão bem mais largo do relevo, pra tirar a média local dele
+	float relevo_largo = 0.0;
 	for (int i = -1; i <= 1; i++) {
 		for (int j = -1; j <= 1; j++) {
-			relevo += texture(mascara_acumulada,
-				uv + vec2(float(i), float(j)) * passo).g;
+			vec2 desloc = vec2(float(i), float(j));
+			relevo       += texture(mascara_acumulada, uv + desloc * passo).g;
+			relevo_largo += texture(mascara_acumulada, uv + desloc * passo * 7.0).g;
 		}
 	}
 	relevo /= 9.0;
+	relevo_largo /= 9.0;
 
-	// A acumulada atravessa as demãos: é o relevo real da parede, quantas
-	// camadas passaram por cada ponto. A recente é limpa a cada demão, então
-	// a carga (G) vira o marcador de "o rolo passou aqui NESTA demão".
-	float cobertura = smoothstep(cobertura_min, cobertura_max, rec_suave.g);
+	// ── Cobertura, e ela tem história (Fase G3) ────────────────────
+	//
+	// A desta demão sai da máscara recente, que é limpa a cada demão. A das
+	// anteriores já vem PRONTA no histórico: `copia_cobertura.gdshader` grava lá
+	// este mesmo número no fim de cada demão, em vez de uma máscara crua.
+	//
+	// Assim a costura fecha por construção — no instante em que a demão troca, a
+	// cobertura nova zera e o fundo vira exatamente o que estava na tela. Medido:
+	// o salto médio da parede na troca é 1,0 de 255 (era 8,9, com pico de 130).
+	float cobertura    = smoothstep(cobertura_min, cobertura_max, rec_suave.g);
+	float cob_anterior = min(texture(mascara_historico, uv).r, 1.0);
+
 	float instante  = rec_suave.r * janela_demao;   // volta pra segundos
 	float carga_suave = rec_suave.g;
 
@@ -312,14 +357,27 @@ void fragment() {
 	// `relevo` só aparece depois de secar — tinta molhada escorre e nivela.
 	//
 	// Aqui SIM é a acumulada: a marca é o relevo que ficou, de todas as demãos.
-	// Mas relativa à base medida, não a `relevo - 0.5`. O 0,5 era um centro
-	// chumbado que só batia por acidente, porque `preencher_coberta` grava
-	// G=0,5 — numa parede pintada do zero o relevo vale ~0,033 e o termo virava
-	// um escurecimento chapado de -0,47. Era essa a origem do "números inertes"
-	// anotado na Fase B: o desvio real (±0,005) sumia ao lado do erro de centro.
-	float relevo_rel = (relevo - relevo_base) / max(espessura_demao, 1e-4) - 0.5;
+	//
+	// E é um PASSA-ALTA — relevo menos a média local dele — não uma diferença
+	// contra um centro guardado. Dois centros já deram errado aqui: `relevo -
+	// 0.5` (chumbado, só batia porque `preencher_coberta` grava 0,5) e
+	// `relevo - relevo_base` (medido, mas `relevo_base` é remedido a cada demão,
+	// então o termo saltava de +0,5 pra -0,5 na troca e a parede inteira dava um
+	// pulo de ~15 de 255 no instante em que a demão trocava).
+	//
+	// O passa-alta não tem centro pra errar: os dois lados vêm da mesma textura
+	// no mesmo instante, então ele é contínuo por construção. E é o que a marca
+	// do rolo é de verdade — variação local de espessura, não desvio de uma
+	// média histórica.
+	float relevo_rel = (relevo - relevo_largo) / max(espessura_demao, 1e-4);
 	float marca = relevo_rel * forca_marca * suavidade_demao * nitidez;
-	vec3 base_anterior = cor_anterior.rgb * (1.0 - marca);
+
+	// Onde a demão anterior falhou, o reboco continua aparecendo — e continua
+	// aparecendo DURANTE esta demão, até o rolo passar por cima daquele ponto.
+	// É isso que faz três demãos serem três acontecimentos, em vez de três
+	// trocas de valor de saturação.
+	vec3 base_anterior = mix(cor_crua.rgb, cor_anterior.rgb, cob_anterior)
+		* (1.0 - marca);
 	cor_nova *= (1.0 - marca * k_valor);
 
 	// Manchado de tinta secando é mais diferença de BRILHO que de cor — por

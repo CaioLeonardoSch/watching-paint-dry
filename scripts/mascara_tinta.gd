@@ -51,6 +51,21 @@ const MARGEM_MANCHA: float = 1.5
 var acumulada: DrawableTexture2D
 var recente: DrawableTexture2D
 
+## Cobertura das demãos ANTERIORES, no canal G (Fase G3).
+##
+## É isto que faz uma falha da 1ª demão continuar na parede enquanto a 2ª está
+## sendo pintada, e sumir **quando o rolo passa por cima**, não no frame em que
+## a demão começa.
+##
+## Guarda no canal R a cobertura que as demãos anteriores mostraram na tela —
+## o mesmo número, não a máscara crua. É isso que faz a troca de demão não dar
+## salto — ver `copia_cobertura.gdshader`.
+##
+## ⚠️ Textura separada, não o canal B da acumulada como SECAGEM §3.6 propõe.
+## Escrever no canal B da acumulada exigiria um blit que lê e escreve a mesma
+## imagem, que é hazard de leitura/escrita. Custa 1,5 MB por parede.
+var historico: DrawableTexture2D
+
 ## Campo de variação da secagem desta parede (Fase G1). Canal R, 0-1, centrado
 ## em 0,5. O shader lê duas vezes: uma fixa (o substrato, que é o mesmo reboco
 ## em todas as demãos) e uma deslocada (a irregularidade desta demão).
@@ -65,6 +80,7 @@ var altura_m: float
 
 var _mat_acumulado: ShaderMaterial
 var _mat_recente: ShaderMaterial
+var _mat_historico: ShaderMaterial
 var _carimbo: ImageTexture
 
 
@@ -81,18 +97,23 @@ func _init(largura_metros: float, altura_metros: float, carimbo: ImageTexture,
 
 	acumulada = DrawableTexture2D.new()
 	recente   = DrawableTexture2D.new()
+	historico = DrawableTexture2D.new()
 	limpar()
 
 	_mat_acumulado = ShaderMaterial.new()
 	_mat_acumulado.shader = load("res://shaders/carimbo_acumulado.gdshader")
 	_mat_recente = ShaderMaterial.new()
 	_mat_recente.shader = load("res://shaders/carimbo_recente.gdshader")
+	_mat_historico = ShaderMaterial.new()
+	_mat_historico.shader = load("res://shaders/copia_cobertura.gdshader")
 
 
-## Zera as duas — parede como se nunca tivesse recebido tinta. Só no início.
+## Zera as três — parede como se nunca tivesse recebido tinta. Só no início.
+## O histórico em zero significa "embaixo é reboco cru".
 func limpar() -> void:
 	acumulada.setup(largura_px, altura_px, DrawableTexture2D.DRAWABLE_FORMAT_RGBA8, Color(0, 0, 0, 1), false)
 	recente.setup(largura_px, altura_px, DrawableTexture2D.DRAWABLE_FORMAT_RGBA8, Color(0, 0, 0, 1), false)
+	historico.setup(largura_px, altura_px, DrawableTexture2D.DRAWABLE_FORMAT_RGBA8, Color(0, 0, 0, 1), false)
 
 
 ## Prepara pra uma demão nova preservando o relevo já existente.
@@ -105,6 +126,22 @@ func limpar_demao() -> void:
 	recente.setup(largura_px, altura_px, DrawableTexture2D.DRAWABLE_FORMAT_RGBA8, Color(0, 0, 0, 1), false)
 
 
+## Soma no histórico a cobertura que a demão que acabou mostrou na tela.
+##
+## Chamado no começo de cada demão, ANTES de `limpar_demao()` — é a recente que
+## ele lê. Uma blit de textura inteira; a Fase A mediu 0,022 ms, irrelevante.
+## Os limiares e o passo têm que bater com os do shader da parede — ver
+## `copia_cobertura.gdshader`.
+func guardar_historico(cobertura_min: float, cobertura_max: float) -> void:
+	_mat_historico.set_shader_parameter("passo", Vector2(
+		passo_carimbo_texels() / 3.0 / float(largura_px),
+		passo_carimbo_texels() / 3.0 / float(altura_px)))
+	_mat_historico.set_shader_parameter("cobertura_min", cobertura_min)
+	_mat_historico.set_shader_parameter("cobertura_max", cobertura_max)
+	historico.blit_rect(Rect2i(0, 0, largura_px, altura_px), recente,
+		Color.WHITE, 0, _mat_historico)
+
+
 ## Parede inteira coberta e pintada no instante 0 — usado ao retomar de um
 ## save, onde o estado visual é sempre "tudo seco" e não há o que animar.
 ## R/G da acumulada = cobertura e relevo já assentados; G da recente = carga,
@@ -112,6 +149,8 @@ func limpar_demao() -> void:
 func preencher_coberta() -> void:
 	acumulada.setup(largura_px, altura_px, DrawableTexture2D.DRAWABLE_FORMAT_RGBA8, Color(1.0, 0.5, 0, 1), false)
 	recente.setup(largura_px, altura_px, DrawableTexture2D.DRAWABLE_FORMAT_RGBA8, Color(0, 0.95, 0, 1), false)
+	# retomando de save não há falha herdada: embaixo já está tudo coberto
+	historico.setup(largura_px, altura_px, DrawableTexture2D.DRAWABLE_FORMAT_RGBA8, Color(1.0, 0, 0, 1), false)
 
 
 ## Carimba o rolo numa posição da parede.

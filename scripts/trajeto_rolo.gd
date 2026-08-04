@@ -45,10 +45,25 @@ const TRANSBORDO: float = 0.03
 ## A carga cai enquanto pinta e é reposta ao "molhar". Quando está baixa a
 ## cobertura falha sozinha — a falha vira motivação diegética pra ir à
 ## bandeja, em vez de um número mágico.
+##
+## Números da Fase G3, agora físicos. Um rolo de 23 cm segura ~1,5 m² de tinta,
+## que a 17 cm de passo são ~9 m de trajeto. Com 0,070 por metro a carga cai de
+## 1,00 pra 0,37 ao longo de uma carga, e **só o último terço estria**.
+##
+## Antes eram 14 m e 0,013: a carga caía de 1,00 pra 0,82, nunca chegava perto
+## do limiar do shader, e a falha de cobertura ficava inerte — era um dos três
+## "inertes" anotados no PROJETO.md 3.4. `CARGA_MINIMA` também era inalcançável
+## em 0,80; agora ela é um piso de verdade, que o jitter às vezes encosta.
 const CARGA_CHEIA: float = 1.0
-const CARGA_MINIMA: float = 0.80
-const CONSUMO_POR_METRO: float = 0.013
-const METROS_POR_CARGA: float = 14.0
+const CARGA_MINIMA: float = 0.30
+const CONSUMO_POR_METRO: float = 0.070
+const METROS_POR_CARGA: float = 9.0
+
+## Variação no tamanho de cada carga. Sem ela, molhar a cada 9 m exatos desenha
+## uma listra periódica na parede — o olho pega repetição regular na hora. Sai
+## quando a Fase E puser as idas à bandeja na coreografia de verdade; até lá é
+## isto que faz a falha parecer acidente em vez de padrão.
+const JITTER_CARGA: float = 0.15
 
 ## Posição atual do rolo, em UV da parede. Vira o alvo de IK na Fase D.
 var posicao_atual: Vector2 = Vector2.ZERO
@@ -56,6 +71,7 @@ var posicao_atual: Vector2 = Vector2.ZERO
 var _parede: ParedePintavel
 var _pontos: PackedVector2Array = []      # em metros, origem no canto de cima
 var _acumulado: PackedFloat32Array = []   # distância acumulada até cada ponto
+var _molhadas: PackedFloat32Array = []    # onde o rolo volta pra bandeja
 var _comprimento: float = 0.0
 var _largura_m: float = 1.0
 var _altura_m: float = 1.0
@@ -154,6 +170,7 @@ func _medir() -> void:
 		total += _pontos[i].distance_to(_pontos[i - 1])
 		_acumulado[i] = total
 	_comprimento = total
+	_sortear_molhadas()
 
 
 func _process(delta: float) -> void:
@@ -234,6 +251,23 @@ func _direcao_em(dist: float) -> Vector2:
 ## Carga do rolo em função de quanto já rodou desde a última molhada. Cai
 ## enquanto pinta e volta ao cheio ao molhar — o dente de serra é o que faz a
 ## cobertura falhar de forma irregular em vez de uniforme.
+##
+## Cada carga tem um tamanho próprio (ver `_sortear_molhadas`), então isto não
+## é um `fmod`: procura em qual carga a distância caiu.
 func _carga_em(dist: float) -> float:
-	var desde_molhada: float = fmod(dist, METROS_POR_CARGA)
-	return maxf(CARGA_CHEIA - desde_molhada * CONSUMO_POR_METRO, CARGA_MINIMA)
+	var inicio: float = 0.0
+	for m in _molhadas:
+		if m > dist:
+			break
+		inicio = m
+	return maxf(CARGA_CHEIA - (dist - inicio) * CONSUMO_POR_METRO, CARGA_MINIMA)
+
+
+## Onde o tio molha o rolo, ao longo do trajeto. Tamanhos sorteados dentro de
+## ±JITTER_CARGA pra a falha não sair periódica.
+func _sortear_molhadas() -> void:
+	_molhadas.clear()
+	var d: float = 0.0
+	while d < _comprimento:
+		_molhadas.append(d)
+		d += METROS_POR_CARGA * (1.0 + randf_range(-JITTER_CARGA, JITTER_CARGA))

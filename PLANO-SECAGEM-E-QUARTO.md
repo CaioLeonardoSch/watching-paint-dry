@@ -889,15 +889,73 @@ não era o shader. Tirar Tio e Garotinha da árvore e parar `ciclo_pintura`.
 Junto com a lição da G1 (comparar quadro com quadro depende do passo; comparar com o estado final,
 não), são quatro maneiras de medir errado neste projeto. Todas custaram uma rodada.
 
-### G3 — Cobertura com consequência
+### G3 — Cobertura com consequência ✅ **feito em 04/08/2026**
 
-- `[ ]` Shader de cópia `R → B` + chamada em `iniciar_demao` (3.6)
-- `[ ]` Shader: fundo histórico em vez de `cor_anterior` chapada
-- `[ ]` `trajeto_rolo.gd`: números da carga + jitter (3.7)
-- `[ ]` Recalibrar `cobertura_min`/`cobertura_max`
+- `[x]` Shader de cópia + chamada em `iniciar_demao` (3.6) — mas **não** `R → B`, ver 5.3
+- `[x]` Shader: fundo histórico em vez de `cor_anterior` chapada
+- `[x]` `trajeto_rolo.gd`: números da carga + jitter (3.7)
+- `[x]` Recalibrar `cobertura_min`/`cobertura_max` — **ganho visual baixo de propósito**, ver 5.3
 
 **Entrega:** o critério de aceite nº 2 do overhaul (a 2ª demão cobre falha da 1ª) passa a ser
 verificável por screenshot.
+
+### 5.3 O que a G3 entregou de fato — 04/08/2026
+
+A falha de cobertura **sobrevive à troca de demão** e só some quando o rolo passa por cima. Medido: o
+salto da parede no instante em que a demão troca é de **0,0 de 255 na média e 0,0 no pior pixel** —
+antes disso ela trocava de cara inteira num frame.
+
+#### O histórico guarda a COBERTURA, não a máscara crua
+
+3.6 propõe copiar `R → B` dentro da acumulada no começo de cada demão. Duas coisas impedem.
+
+**Não dá pra copiar dentro da mesma textura.** Um blit que lê e escreve a mesma imagem é hazard de
+leitura/escrita. Como `DrawableTexture2D` é `Texture2D`, ela serve de fonte pra outra — então virou
+uma textura separada, 1,5 MB por parede.
+
+**E o conteúdo não pode ser a máscara crua.** Duas tentativas, as duas medidas e descartadas:
+
+| Guardando | O que quebrou |
+|---|---|
+| `acumulada.r` (depósito somado), cobertura da demão = `acum.r − hist.r` | A acumulada é RGBA8 com `blend_add` e **satura em 1**. Depois que a 1ª demão cobre um ponto, a 2ª e a 3ª depositam zero ali e **não aparecem** — a parede simplesmente parava de mudar. Pego pelo teste da mancha da G1, que ficou chapado em 0,648 do começo ao fim |
+| `recente.g` (carga), com um par de limiares só pro histórico | Carga e depósito somado não se correspondem ponto a ponto: onde duas passadas se sobrepõem o depósito soma, mas a carga (escrita com `blend_mix`) é ~a da última. **Nenhum par de limiares casa as duas** — tentei resolver por quantis, com a inversa fechada do `smoothstep`, e o salto na troca ficou em 8,9 de 255 na média e **130 no pior ponto** |
+
+O que funciona é guardar **o mesmo número que o shader mostrou na tela**: `copia_cobertura.gdshader`
+aplica o mesmo box e o mesmo `smoothstep` e soma o resultado no histórico. Aí a costura fecha por
+construção, e é por isso que ela dá exatamente zero.
+
+#### ⚠️ `cobertura_min` tem que ser zero ou positivo
+
+Tentei um mínimo negativo pra suavizar a falha (a curva fica mais macia). **Carga zero passou a ler
+como 68% coberto** — a cor nova aparecia na parede inteira no instante em que a demão começava, que é
+precisamente o que a G3 existe pra impedir. O salto médio na troca pulou de 6 pra 16 de 255 e
+entregou o erro. Com o mínimo preso em zero, quem controla a amplitude é só o máximo.
+
+#### A marca do rolo virou passa-alta
+
+Ela ainda tinha um centro guardado (`relevo - relevo_base`, herdado da G1). Como `relevo_base` é
+remedido a cada demão, o termo saltava de +0,5 pra −0,5 na troca e **a parede inteira dava um pulo de
+~15 de 255**. Agora é `relevo` menos a média local dele — os dois lados vêm da mesma textura no mesmo
+instante, então é contínuo por construção, e não há centro pra errar. É o terceiro centro tentado
+neste termo; o passa-alta é o primeiro que não tem um.
+
+#### ⚠️ A amplitude da falha está baixa de propósito, e destravar é da Fase E
+
+`CONSUMO_POR_METRO` foi pros números físicos do plano (9 m por carga, carga caindo de 1,00 pra 0,37),
+e a falha **existe** — mas `cobertura_max` está em 0,21, bem acima do que 3.7 pede.
+
+O motivo não é gosto, é o trajeto. Uma carga dá 9 m e uma passada de altura inteira dá 3 m, então
+**uma carga dura 3 passadas** e a carga cai 21% de uma passada pra vizinha. Com passadas de altura
+inteira, qualquer variação por passada vira barra vertical de cima a baixo: a parede sai como código
+de barras. Testei cobertura mínima de 42% (o número de 3.7) até 85% — **o padrão de listra não muda,
+só o contraste dele.**
+
+O W, as verticais curtas e o banquinho da Fase E quebram a passada de altura inteira, e é lá que a
+falha vira mosqueado em vez de listra. É a terceira coisa desta fase G que depende de E, junto com o
+bead (5.2) e o lap mark (3.8) — vale tratar as três como um pacote quando E chegar.
+
+O jitter de ±15% no tamanho da carga entrou como o plano pede, e é o que impede a falha de sair
+periódica enquanto as idas à bandeja não são coreografia de verdade.
 
 ### G4 — Depende da Fase E
 

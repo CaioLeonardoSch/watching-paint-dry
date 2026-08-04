@@ -102,6 +102,8 @@ func configurar(
 	material.shader = load("res://shaders/tinta_secando.gdshader")
 	material.set_shader_parameter("mascara_acumulada", mascara.acumulada)
 	material.set_shader_parameter("mascara_recente", mascara.recente)
+	material.set_shader_parameter("mascara_historico", mascara.historico)
+	material.set_shader_parameter("cor_crua", CorTinta.COR_FUNDO_CRU)
 	material.set_shader_parameter("origem_parede", origem)
 	material.set_shader_parameter("eixo_u", eixo_u)
 	material.set_shader_parameter("eixo_v", eixo_v)
@@ -191,6 +193,12 @@ func iniciar_demao(
 	# base da espessura desta demão. Medido, não estimado — ver _medir_relevo_base.
 	var base: float = _medir_relevo_base()
 
+	# E a cobertura desta demão entra pro histórico (Fase G3). Tem que ser AQUI:
+	# depois de a demão anterior ter terminado e antes de a recente ser limpa.
+	# Os limiares vêm do material pra os dois shaders não divergirem.
+	mascara.guardar_historico(
+		material.get_shader_parameter("cobertura_min"),
+		material.get_shader_parameter("cobertura_max"))
 	mascara.limpar_demao()
 	material.set_shader_parameter("cor_anterior",    anterior)
 	material.set_shader_parameter("cor_molhada",     molhada)
