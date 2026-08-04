@@ -486,7 +486,7 @@ frente de material/shader que o roadmap original não previa.
 | **E** | Coreografia: W, verticais, banquinho, rodapé, bandeja, rolo na mão | D, G6 | OVERHAUL §5.5, §6 | ⬜ |
 | **F** | Refino: som do rolo casado com a mão, passo, porta, o tio olhar pra ela, gravar 60 s | D, E | OVERHAUL §6 | ⬜ |
 | **G1** | **Campo de secagem** — a parede passa a secar desigual e a fase manchada existe | — | SECAGEM §3.1, §5, §5.1 | ✅ |
-| **G2** | Cor (saturação antes de valor) e brilho rasante | G1 | SECAGEM §3.3, §3.4 | ⬜ |
+| **G2** | Cor (saturação antes de valor) e brilho rasante | G1 | SECAGEM §3.3, §3.4, §5.2 | ✅ (bead inerte até E) |
 | **G3** | Cobertura com história — a 2ª demão passa a ter função | G1 | SECAGEM §3.6, §3.7 | ⬜ |
 | **G4** | Lap mark relativo e tempo de pintura por modo | E | SECAGEM §3.8, §3.9 | ⬜ |
 | **G5** | **Nitidez** — supersampling, debanding, fim do cintilar | — | SECAGEM §7.1, §7.5 | ✅ |
@@ -529,15 +529,24 @@ evita retrabalho. Cada item traz a definição de pronto — o que precisa ser v
    **Pronto quando:** a razão entre o `duracao_local` máximo e o mínimo de uma parede é ≥ 1,5; a
    parede fica visivelmente manchada no meio da secagem e uniforme no fim.
    **Verificado:** razão **2,27–2,33** nas 4 paredes e nas 3 demãos, com só 0,1–0,3% da parede
-   tocando o clamp. O contraste espacial da parede sobe de 0,66 (molhada) pra **2,96** no meio da
-   secagem e volta pra 0,64 (seca) — a mancha é um evento com começo e fim. Espera morta 21% → 3,9%.
+   tocando o clamp. Isolando a mancha (render com e sem a textura), a contribuição dela vai de 0,00
+   (molhada) a **0,86** no meio e volta a 0,00 (seca) — é um evento com começo e fim. Espera morta
+   21% → 2,3% (o 2,3% veio depois, com o ajuste de curvas da G2).
    ⚠️ **Três números do plano estavam errados**, todos achados medindo: a espessura tem que vir da
    máscara **recente** (com a acumulada, a dispersão crescia a cada demão em vez de encolher), o
    `relevo_base` precisa ser **medido** por demão (o acumulador vale 0,5 vindo de save), e o anúncio
    de conclusão usa um **percentil**, não o teto do clamp. Detalhe em SECAGEM §5.1.
-4. `[ ]` **G2 — cor e brilho.** Depende de G1 (mesmo shader, e o véu só pode baixar depois que a
+4. `[x]` **G2 — cor e brilho.** ✅ Depende de G1 (mesmo shader, e o véu só pode baixar depois que a
    estrutura existir).
    **Pronto quando:** dá pra dizer onde a parede ainda está molhada só movendo a câmera.
+   **Verificado:** a aparência da parede molhada varia de 0,432 a 0,718 conforme a geometria de vista;
+   a seca varia de 0,288 a 0,300. **22× mais sensível ao ângulo.** O véu caiu de 0,55 pra 0,32 e a
+   secagem ficou **mais** visível, não menos: 47,4 valores de 255 de percurso contra ~34 de antes,
+   porque agora a saturação e o valor somam em vez de a saturação fazer tudo. Cotovelo de 28%.
+   De quebra, ajustar as curvas fechou a espera morta da G1 de 3,9% pra **2,3%** — dentro do aceite.
+   ⚠️ **O bead está implementado e inerte até a Fase E** — ele é gravidade e precisa de borda de baixo
+   no traço; o trajeto atual são passadas verticais de altura inteira. Anotado em SECAGEM §5.2 pra
+   não virar mais um "número inerte" esquecido.
 5. `[ ]` **G3 — cobertura com história.** Fecha o que a Fase B prometeu e não entregou.
    **Pronto quando:** uma falha da 1ª demão continua visível durante a 2ª e some **quando o rolo
    passa por cima**, não no instante em que a demão começa.

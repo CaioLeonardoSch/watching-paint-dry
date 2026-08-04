@@ -24,26 +24,27 @@ signal secagem_concluida
 ## de cada demão, que no modo Realista é hora de relógio.
 const VARIACAO_MAX: float = 0.40
 
-## Variação usada pra ANUNCIAR que a parede secou — não é o teto, é um
-## percentil.
+## Variação usada pra ANUNCIAR que a parede secou — é um percentil, não o teto.
 ##
 ## `VARIACAO_MAX` limita o pior texel possível, mas medindo a distribuição real
-## só 0,3% da parede chega perto dele. Anunciar a conclusão pelo pior caso
-## custava 12% de espera morta com a parede já parada na tela — a mesma queixa
-## que a Fase G1 existe pra resolver, só que por outro motivo.
+## só 0,2% da parede chega perto dele, e anunciar pelo pior caso custa 11,6% de
+## espera morta com a parede já parada na tela. 0,24 saiu de medir na tela
+## quando o último pixel entra em 1/255 da cor final (70,2 s), com margem pra
+## não anunciar cedo: dá 71,2 s, 1,4% de folga.
 ##
-## 0,20 saiu de medir na tela quando o último pixel entra em 1/255 da cor final:
-## 74,1 s contra 79,3 s anunciados com 0,25. Com 0,20 a folga cai pra ~3%.
-##
-## Consequência aceita de propósito: numa demão de sorte pior, um punhado de
-## texels ainda pode estar mudando 1 nível de 255 quando o sinal dispara.
-## Ninguém vê isso; esperar por eles, no modo Realista, seriam 14 minutos de
-## parede parada na tela.
-const VARIACAO_CONCLUSAO: float = 0.20
+## ⚠️ Medir isto exige **congelar a cena** — tirar Tio e Garotinha da árvore e
+## parar `ciclo_pintura`. A cutscene continua rodando durante o teste, e um
+## personagem entrando em quadro depois do quadro de referência vira uma
+## diferença permanente que não decai. Isso já produziu um resultado falso de
+## "4,22% da parede nunca converge", idêntico em quatro configurações
+## diferentes do shader — que era justamente a pista de que não era o shader.
+const VARIACAO_CONCLUSAO: float = 0.24
 
-## Onde `seco_cor` fecha no shader (`smoothstep(0.22, 0.95, fracao)`). Depois
-## disto a cor não muda mais, então esperar `fracao` chegar a 1,0 é esperar à toa.
-const FIM_DA_COR: float = 0.95
+## Onde `k_valor` fecha no shader (`smoothstep(0.34, 0.85, fracao)`) — é a
+## última das curvas da secagem. Depois disto a cor não muda mais, então esperar
+## `fracao` chegar a 1,0 é esperar à toa. **Espelha o 0,85 do shader e os dois
+## PRECISAM bater**, senão a parede é anunciada como pronta antes da hora.
+const FIM_DA_COR: float = 0.85
 
 ## Carga típica na máscara RECENTE depois de uma passada. MEDIDA lendo a
 ## máscara de volta com o trajeto real: média 0,627, desvio 0,113. É o divisor
@@ -154,7 +155,7 @@ func _process(delta: float) -> void:
 ##
 ## Isto é ancorado no shader, não estimado, e é o que o `clamp` do campo compra:
 ## o tempo local é `duracao_secagem * (1 + variacao)` com `variacao` limitada, e
-## `seco_cor` fecha em FIM_DA_COR. Continua certo se alguém mexer nos pesos.
+## `k_valor` fecha em FIM_DA_COR.
 ##
 ## Usa VARIACAO_CONCLUSAO (percentil), não VARIACAO_MAX (teto) — ver lá em cima.
 func duracao_total() -> float:
@@ -175,6 +176,7 @@ func duracao_total() -> float:
 func iniciar_demao(
 	anterior: Color,
 	molhada: Color,
+	meio: Color,
 	seca: Color,
 	janela_segundos: float,
 	numero_demao: int = 0
@@ -192,6 +194,7 @@ func iniciar_demao(
 	mascara.limpar_demao()
 	material.set_shader_parameter("cor_anterior",    anterior)
 	material.set_shader_parameter("cor_molhada",     molhada)
+	material.set_shader_parameter("cor_meio",        meio)
 	material.set_shader_parameter("cor_seca",        seca)
 	material.set_shader_parameter("janela_demao",    _janela_demao)
 	material.set_shader_parameter("duracao_secagem", _duracao_demao)

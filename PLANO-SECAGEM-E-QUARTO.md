@@ -741,17 +741,25 @@ Entre p05 e p95 fica 1,45–1,58, e o clamp é tocado por só 0,1–0,3% da pare
 saturado, está distribuído. A parede oeste seca consistentemente antes (média 56 s contra 59 s das
 outras): é o termo da janela funcionando.
 
-A mancha como **evento** (aceites 2 e 3), medindo o contraste espacial da parede norte:
+A mancha como **evento** (aceites 2 e 3), medindo o contraste espacial da parede norte. A coluna
+"só a mancha" é a diferença entre renderizar com e sem a textura de mancha — o contraste total
+inclui a estrutura de brilho que a G2 põe na parede molhada, e misturar as duas escondia o que
+importa aqui:
 
 | `fracao` | 0,02 | 0,15 | 0,30 | 0,50 | 0,70 | 1,00 |
 |---|---|---|---|---|---|---|
-| contraste | 0,66 | 0,57 | 1,61 | **2,96** | 1,31 | 0,64 |
+| total | 1,42 | 1,19 | 0,93 | **2,67** | 1,86 | 0,57 |
+| só a mancha | 0,00 | 0,03 | 0,07 | 0,13 | **0,86** | 0,00 |
 
-Nasce, atinge 4,6× a linha de base no meio, e morre. Quem só olhar antes e depois não vê mancha
-nenhuma, que era exatamente a proposta.
+Nasce, chega ao pico no meio, e morre — zero nas duas pontas. Quem só olhar antes e depois não vê
+mancha nenhuma, que era exatamente a proposta.
 
-Espera morta (aceite 7): **21% → 3,9%**. O alvo do plano é 2% e não foi alcançado; apertar mais faz
-o sinal disparar cedo em demãos de sorte pior, porque o campo é estocástico. Fica em 3,9%.
+Espera morta (aceite 7): **21% → 3,9%**, e depois → **2,3%** com o ajuste de curvas da G2 (ver 5.2).
+
+⚠️ **Estes números foram remedidos.** O harness original não congelava a cena, e os personagens
+entrando em quadro depois do quadro de referência viravam uma diferença permanente — a medição
+travava num "4,22% da parede nunca converge" que não era do shader. `VARIACAO_CONCLUSAO` foi
+recalibrado com o harness limpo e ficou em **0,24** (era 0,20).
 
 ⚠️ **Como medir isso de novo, se precisar:** comparar quadro com quadro **não funciona** — o limiar
 é por passo, então passo menor deixa o detector menos sensível e a resposta muda com a resolução do
@@ -759,14 +767,127 @@ teste (60 passos deram 77 s; 160 deram 74 s pro mesmo jogo). A formulação que 
 comparar cada quadro com o **estado final**: "a cor parou" = "a imagem chegou a menos de 1 nível de
 255 do que ela vai virar".
 
-### G2 — Cor e superfície
+### G2 — Cor e superfície ✅ **feito em 04/08/2026**
 
-- `[ ]` `cor_tinta.gd`: `meio()`, `VEU_MOLHADO` 0.55 → 0.32
-- `[ ]` Shader: `k_sat`/`k_valor` e os dois mixes (3.3)
-- `[ ]` Shader: `SPECULAR` com termo rasante, `ROUGHNESS` 0.36 (3.4)
-- `[ ]` Bead na borda molhada (3.5)
+- `[x]` `cor_tinta.gd`: `meio()`, `VEU_MOLHADO` 0.55 → 0.32
+- `[x]` Shader: `k_brilho`/`k_sat`/`k_valor` e os dois mixes (3.3)
+- `[x]` Shader: `SPECULAR` com termo rasante, `ROUGHNESS` 0.36 (3.4)
+- `[x]` Bead na borda molhada (3.5) — implementado, **inerte até a Fase E**, ver 5.2
 
 **Entrega:** a escala de segundos — o jogador descobre o molhado movendo a cabeça.
+
+### 5.2 O que a G2 entregou de fato — 04/08/2026
+
+#### O véu caiu pra 0,32 e a secagem ficou MAIS visível, não menos
+
+Era o risco óbvio: `VEU_MOLHADO` tinha subido de 0,20 pra 0,55 justamente porque a secagem sumia.
+Medido no render depois da mudança, o percurso da cor de molhada a seca é de **47,4 valores de 255**
+— contra os ~34 que o véu de 0,55 entregava. Baixar o véu aumentou o percurso.
+
+O motivo é que o percurso agora tem duas pernas em vez de uma. Antes, molhada e seca diferiam quase
+só em **saturação**, e o `mix` atravessava o cinza. Agora a saturação sobe primeiro e o valor cai
+depois, e as duas somam.
+
+| `fracao` | 0,00 | 0,20 | 0,40 | 0,60 | 0,80 | 1,00 |
+|---|---|---|---|---|---|---|
+| saturação | 0,11 | 0,26 | 0,49 | 0,54 | 0,55 | 0,55 |
+| valor | 0,51 | 0,49 | 0,49 | 0,45 | 0,42 | 0,42 |
+
+O cotovelo é mensurável: o caminho se afasta **14%** da reta que liga as duas pontas no RGB.
+
+#### ⚠️ `meio()` em HSV e com salto de 22%, não `lerp` pro branco de 10%
+
+3.3 sugere `seca(i).lerp(Color(1,1,1), 0.10)`. Duas coisas erradas nisso.
+
+**Puxar pro branco em RGB dessatura.** Na tinta laranja, um lerp de 0,10 já levava a razão B/R de
+0,19 pra 0,29 — repetiria no meio da travessia exatamente o defeito que a G2 existe pra tirar do
+começo dela. Feito com `Color.from_hsv`, mantendo matiz e saturação.
+
+**E 10% de salto de valor é pouco demais**, por um motivo que só aparece medindo junto com a G1: com
+10%, a perna do valor ficava com ~18 valores de 255 contra ~40 da perna da saturação. Como a
+saturação fecha em `fracao` 0,48 — **antes** da janela da mancha (0,10–0,92) — sobrava pouca
+inclinação de cor justamente onde a mancha precisa aparecer, e a contribuição dela caiu 5×
+(de 1,9 na G1 pra 0,35). Com 22% ela volta pra 0,86, e o cotovelo dobra de 14% pra 28% do percurso.
+22% também é mais fiel: látex escurece bastante ao consolidar.
+
+#### ⚠️ As curvas são mais estreitas que as de 3.2
+
+3.2 propõe `k_sat = smoothstep(0.05, 0.55)` e `k_valor = smoothstep(0.38, 0.95)`. Com essas faixas,
+**no meio da secagem as duas curvas estão em região plana ao mesmo tempo** — a saturação já
+terminando, o valor mal começando. Pouca inclinação no meio significa pouca mancha, porque é a
+inclinação que converte variação de `fracao` em variação de cor.
+
+Ficou `k_sat = smoothstep(0.05, 0.48)` e `k_valor = smoothstep(0.34, 0.85)`.
+
+O `0,85` tem uma segunda função: **`FIM_DA_COR` em `parede_pintavel.gd` espelha esse número**. Com
+`k_valor` fechando em 0,95, a cauda da curva é plana e não muda nada na tela, mas adiava a conclusão
+— foi o que obrigou a G1 a usar um percentil em vez do teto do clamp. Com o fim da curva no lugar
+certo, a conta de `duracao_total()` volta a bater com o que se vê.
+
+#### O brilho rasante funciona — mas só na linha de reflexão de uma luz
+
+Aqui quase concluí que o mecanismo era inerte, e o erro estava na medição. **Comparar a parede vista
+de frente com a parede vista de raspão amostrando regiões diferentes não mede specular** — de raspão
+a parede inteira fica mais escura porque a luz chega diferente, e essa mudança geométrica afoga o
+efeito. Tem que ser o **mesmo ponto da superfície**, visto de dois lugares: aí o termo difuso é
+idêntico e só o termo de vista muda.
+
+Com o ponto fixo, um passeio de ângulo no plano horizontal ainda dá quase nada (+49 de 255 de frente,
++51 a 85°). O que faltava era a geometria certa: o brilho especular só aparece onde o **reflexo da
+parede aponta pra uma luz**. Pondo a câmera em cima da linha de reflexão:
+
+| linha de reflexão | molhada | seca | diferença |
+|---|---|---|---|
+| nenhuma (85° horizontal) | 0,518 | 0,316 | +51 de 255 |
+| lâmpada do teto | 0,619 | 0,289 | **+84** |
+| luz do cômodo vizinho | 0,718 | 0,299 | **+107** |
+
+Resumindo o aceite: a aparência da parede **molhada** varia de 0,432 a 0,718 conforme a geometria de
+vista (oscilação 0,286); a **seca** varia de 0,288 a 0,300 (0,013). **A molhada é 22× mais sensível
+ao ângulo que a seca** — que é exatamente "o jogador move a cabeça e descobre coisa".
+
+Como a câmera da cadeira é fixa em posição e só gira, cada ponto da parede tem a sua própria direção
+de vista: o que o jogador vê é uma **região** da parede brilhando, e ela se move conforme ele olha
+em volta. Melhor do que um efeito uniforme.
+
+#### O bead está certo e está inerte até a Fase E
+
+Implementado, e **sem efeito nenhum hoje**: com `escala_bead` em 0, 3 e 8, a imagem é byte a byte a
+mesma (maior degrau vertical 0,2 de 255 nos três).
+
+O motivo é geometria de trajeto, não de código. O bead é **gravidade**: ele mora na borda de baixo do
+traço, e portanto precisa de um gradiente de cobertura em `v`. O trajeto atual são passadas verticais
+de altura inteira, então a frente de pintura é uma linha **vertical** — não tem borda horizontal no
+meio da parede pra ele agir. As únicas bordas em `v` são o topo e o rodapé.
+
+É a mesma dependência que 3.8 já anota pro lap mark: **só faz sentido depois da Fase E**, quando o W,
+as verticais curtas e o banquinho criarem traços com borda de baixo. O código fica, custa dois taps
+que já eram calculados pro lap, e está anotado aqui pra não virar mais um "número inerte" esquecido.
+
+⚠️ **Uma coisa mudou em relação a 3.5:** o bead sai do gradiente da **cobertura**, não do `instante`
+como o plano sugeria. O gradiente do instante traria de volta o pente do carimbo que o conserto do
+lap acabou de tirar — e a cobertura é mais fiel de todo jeito, porque o bead é uma borda de tinta,
+não uma borda de "quando foi pintado".
+
+#### ⚠️ Como medir estas coisas sem se enganar
+
+Três armadilhas de medição apareceram nesta fase, e todas produziram números convincentes e errados.
+
+**1. Comparar regiões diferentes não mede specular.** Ver acima: de raspão a parede inteira fica mais
+escura por geometria de luz, e isso afoga o efeito. Fixar o ponto da superfície.
+
+**2. O brilho especular só existe na linha de reflexão de uma luz.** Varrer ângulo a esmo dá quase
+nada e leva à conclusão errada de que o mecanismo é inerte. Espelhar a luz no plano da parede e pôr
+a câmera na direção resultante.
+
+**3. Congelar a cena.** A cutscene continua rodando durante o teste: `set_process(false)` nas paredes
+não basta, porque `ciclo_pintura` pode remostrar os personagens e um deles entrando em quadro depois
+do quadro de referência vira uma diferença **permanente**. Isso produziu um "4,22% da parede nunca
+converge" — idêntico em quatro configurações diferentes do shader, que era justamente a pista de que
+não era o shader. Tirar Tio e Garotinha da árvore e parar `ciclo_pintura`.
+
+Junto com a lição da G1 (comparar quadro com quadro depende do passo; comparar com o estado final,
+não), são quatro maneiras de medir errado neste projeto. Todas custaram uma rodada.
 
 ### G3 — Cobertura com consequência
 

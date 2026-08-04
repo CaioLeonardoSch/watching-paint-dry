@@ -25,6 +25,8 @@ uniform vec4 cor_anterior : source_color = vec4(0.93, 0.92, 0.90, 1.0);  // o qu
 // Molhada é MAIS CLARA que a seca: o ligante da látex é branco leitoso
 // enquanto tem água e fica transparente ao secar (ver cor_tinta.gd).
 uniform vec4 cor_molhada  : source_color = vec4(0.44, 0.57, 0.76, 1.0);
+// Meio da travessia: cor cheia, ainda sem o aprofundamento final (Fase G2).
+uniform vec4 cor_meio     : source_color = vec4(0.42, 0.56, 0.81, 1.0);
 uniform vec4 cor_seca     : source_color = vec4(0.38, 0.51, 0.74, 1.0);
 
 // Plano da parede em espaço de mundo: canto de origem + os dois eixos, cada
@@ -78,6 +80,10 @@ const float PESO_DEMAO     = 0.16;
 const float PESO_AMBIENTE  = 0.18;
 
 uniform float limiar_lap = 0.35;  // segundos de diferença que já marcam lap
+
+// Quanto a queda de cobertura na borda de baixo vira bead. A cobertura cai de
+// ~0,6 pra 0 ao longo da borda, e o gradiente é medido num passo de carimbo.
+uniform float escala_bead = 3.0;
 
 // Quanto a marca do rolo aparece. Cai a cada demão (ver iniciar_demao): a
 // primeira camada sobre reboco cru mostra bastante variação, a terceira já
@@ -206,12 +212,25 @@ void fragment() {
 	float duracao_local = duracao_secagem * (1.0 + variacao);
 	float fracao = clamp(dt / max(duracao_local, 0.001), 0.0, 1.0);
 
-	// ── As fases da secagem (ver plano 3.4) ────────────────────────
+	// ── As fases da secagem, cada uma com sua curva (Fase G2) ──────
 	// O detalhe que quase ninguém acerta: o BRILHO some antes de a COR mudar.
 	// Tinta látex perde o brilho de molhada no "flash off", bem antes de
-	// clarear. Por isso são duas curvas diferentes, não um crossfade só.
-	float seco_brilho = smoothstep(0.02, 0.30, fracao);
-	float seco_cor    = smoothstep(0.22, 0.95, fracao);
+	// clarear. E a cor não muda de uma vez: primeiro o ligante branco leitoso
+	// fica transparente e a cor SATURA, depois o filme consolida e o valor CAI.
+	// Quatro grandezas, quatro curvas — não dois crossfades dividindo o
+	// trabalho de quatro coisas diferentes.
+	//
+	// ⚠️ As faixas são mais estreitas que as de SECAGEM §3.2 (0,05–0,55 e
+	// 0,38–0,95). Com as largas, no meio da secagem as DUAS curvas estavam em
+	// região plana ao mesmo tempo — pouca inclinação, e a mancha da G1 perdia
+	// metade do contraste (pico medido caiu de 2,61 pra 1,44). A inclinação no
+	// meio é o que converte variação de `fracao` em variação de cor, que é como
+	// a mancha aparece. `k_valor` fechar em 0,85 e não 0,95 também encurta a
+	// cauda: o fim da curva é plano e só adiava a conclusão.
+	// FIM_DA_COR em parede_pintavel.gd espelha o 0,85 e os dois PRECISAM bater.
+	float k_brilho = smoothstep(0.02, 0.28, fracao);
+	float k_sat    = smoothstep(0.05, 0.48, fracao);
+	float k_valor  = smoothstep(0.34, 0.85, fracao);
 
 	// A mancha é um EVENTO com começo e fim, não um ruído permanente. Molhada, a
 	// parede é lisa (o filme ainda nivela); seca, é uniforme; no meio, fica de
@@ -247,19 +266,42 @@ void fragment() {
 	// que é o que sobrevive a um passo desse tamanho. O degrau de quantização
 	// entre dois carimbos da mesma passada não sobrevive, que é o ponto.
 	vec2 passo_lap = texel * passo_carimbo_texels;
-	float r_dx = rec_liso(uv + vec2(passo_lap.x, 0.0), passo).r - rec_suave.r;
-	float r_dy = rec_liso(uv + vec2(0.0, passo_lap.y), passo).r - rec_suave.r;
+	vec2 vizinho_x = rec_liso(uv + vec2(passo_lap.x, 0.0), passo);
+	vec2 vizinho_y = rec_liso(uv + vec2(0.0, passo_lap.y), passo);
+	float r_dx = vizinho_x.r - rec_suave.r;
+	float r_dy = vizinho_y.r - rec_suave.r;
 	float salto = length(vec2(r_dx, r_dy)) * janela_demao;
 	// A diferença finita acima é derivada de textura por pixel multiplicando um
 	// smoothstep estreito — gerador clássico de aliasing. `nitidez` desliga ela
 	// justamente onde ela não teria como estar certa.
 	float lap = smoothstep(limiar_lap, limiar_lap * 2.0, salto) * cobertura * nitidez;
 
+	// ── Bead da borda viva (Fase G2) ───────────────────────────────
+	// Tinta recém-passada escorre e engrossa na parte de baixo da borda
+	// molhada. É um detalhe de dois centímetros que dura três segundos, e é o
+	// que faz a pintura parecer líquida em vez de decalque.
+	//
+	// Sai do gradiente vertical da COBERTURA, não do instante como o plano
+	// sugeria: o gradiente do instante traz de volta o pente do carimbo que o
+	// lap acabou de perder. E é mais fiel — o bead é gravidade agindo na borda
+	// do filme, que é uma borda de tinta, não uma borda de "quando foi pintado".
+	//
+	// `v` cresce PRA BAIXO (ver parede_pintavel.gd::configurar), então a borda
+	// de baixo é onde a cobertura cai indo pra +v: gradiente negativo.
+	float bead = clamp(-(vizinho_y.g - rec_suave.g) * escala_bead, 0.0, 1.0)
+		* (1.0 - smoothstep(0.0, 0.06, fracao))   // só enquanto está molhada
+		* nitidez;
+
 	// ── Cor ────────────────────────────────────────────────────────
 	// Látex seca MAIS ESCURO que molhado: o véu leitoso do ligante some e
-	// sobra o pigmento. Quem monta as duas cores é cor_tinta.gd — aqui é só
-	// a travessia de uma pra outra.
-	vec3 cor_nova = mix(cor_molhada.rgb, cor_seca.rgb, seco_cor);
+	// sobra o pigmento. Quem monta as três cores é cor_tinta.gd.
+	//
+	// DOIS mixes, não um. Um `mix` só de molhada pra seca é uma reta no espaço
+	// RGB, e essa reta passa perto do cinza — lê como fade de vídeo. Saturar
+	// primeiro e aprofundar depois põe um cotovelo no caminho, que é o que
+	// parede de verdade faz.
+	vec3 cor_nova = mix(cor_molhada.rgb, cor_meio.rgb, k_sat);
+	cor_nova      = mix(cor_nova,        cor_seca.rgb, k_valor);
 
 	// A lap mark é uma faixa levemente mais densa/escura de tinta
 	cor_nova = mix(cor_nova, cor_nova * 0.94, lap);
@@ -278,28 +320,48 @@ void fragment() {
 	float relevo_rel = (relevo - relevo_base) / max(espessura_demao, 1e-4) - 0.5;
 	float marca = relevo_rel * forca_marca * suavidade_demao * nitidez;
 	vec3 base_anterior = cor_anterior.rgb * (1.0 - marca);
-	cor_nova *= (1.0 - marca * seco_cor);
+	cor_nova *= (1.0 - marca * k_valor);
 
 	// Manchado de tinta secando é mais diferença de BRILHO que de cor — por
 	// isso aqui a cor leva metade do peso que a rugosidade leva lá embaixo.
 	cor_nova *= 1.0 + mancha * 0.07 * k_mancha;
+
+	// O acúmulo do bead é mais denso, então mais escuro
+	cor_nova *= 1.0 - bead * 0.06;
 
 	// `cobertura` entra onde antes havia um smoothstep de borda. A diferença
 	// é tudo: "meio pintado" agora é falha de cobertura de verdade, que
 	// sobrevive à secagem e só some quando a próxima demão passa por cima.
 	ALBEDO = mix(base_anterior, cor_nova, cobertura);
 
-	// ── Superfície ─────────────────────────────────────────────────
-	// Molhado NÃO é espelho: roughness baixo demais reflete o céu procedural
-	// e quebra a parede em blocos visíveis (já testado e revertido antes).
-	float rug_pintada = mix(0.45, 0.9, seco_brilho);
+	// ── Superfície — o brilho é a informação (Fase G2) ─────────────
+	//
+	// Esta é a escala de segundos do jogo, e a única forma de agência que ele
+	// pode ter: o jogador move a cabeça e descobre coisa. Pintor de verdade
+	// confere a borda molhada exatamente assim, olhando a parede de raspão.
+	//
+	// ⚠️ Risco conhecido e JÁ REVERTIDO uma vez: roughness baixo demais faz a
+	// parede refletir o céu procedural e quebrar em blocos visíveis (está no
+	// PROJETO.md 3.6). Por isso o piso é 0.36 e não menos, e o ganho de molhado
+	// vai no SPECULAR modulado pelo ângulo rasante — de frente a parede
+	// continua fosca, e o brilho só aparece quando a câmera olha ao longo dela.
+	// Mesmo efeito, sem o risco.
+	//
+	// NORMAL e VIEW estão os dois em espaço de visão no fragment() do Godot 4,
+	// e VIEW aponta do fragmento pra câmera. Então dot = 1 é de frente e 0 é de
+	// raspão; a potência 4 concentra o ganho nos ângulos bem rasantes.
+	float rasante = pow(1.0 - clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0), 4.0);
+	float molhado = 1.0 - k_brilho;
+
+	float rug_pintada = mix(0.36, 0.90, k_brilho);
 	ROUGHNESS = mix(0.92, rug_pintada, cobertura);
 	// O peso da mancha vai pro brilho, o dobro do que foi pra cor: é assim que
 	// parede secando se parece de perto. Atenuado por `nitidez` pelo mesmo
 	// motivo do lap mark — de longe o pixel cobre manchas demais pra resolver.
 	ROUGHNESS += mancha * 0.14 * k_mancha * cobertura * nitidez;
-	ROUGHNESS = clamp(ROUGHNESS, 0.05, 1.0);
-	ROUGHNESS = mix(ROUGHNESS, ROUGHNESS * 0.93, lap);  // lap mark brilha um pouco mais
+	ROUGHNESS -= bead * 0.10;                            // o bead é mais liso
+	ROUGHNESS = clamp(ROUGHNESS, 0.30, 1.0);             // piso duro, ver acima
+	ROUGHNESS = mix(ROUGHNESS, ROUGHNESS * 0.93, lap);   // lap mark brilha um pouco mais
 	METALLIC  = 0.0;                                     // tinta não é metal
-	SPECULAR  = mix(0.3, mix(0.38, 0.3, seco_brilho), cobertura);
+	SPECULAR  = mix(0.30, 0.30 + 0.32 * molhado * (0.35 + 0.65 * rasante), cobertura);
 }
