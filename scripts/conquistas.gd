@@ -19,6 +19,13 @@ const ID_MODO_RAPIDO: String   = "modo_rapido"
 const ID_MODO_NORMAL: String   = "modo_normal"
 const ID_MODO_REALISTA: String = "modo_realista"
 
+## ⚠️ **Apagar isto na Etapa 3 (Steam)**, junto com o botão "Limpar conquistas"
+## no menu e `EstadoJogo.limpar_conquistas()`. Enquanto conquista é arquivo
+## local, poder zerar é útil pra testar a lista sem começar tudo de novo;
+## depois da Steam quem manda no desbloqueio é ela, e apagar o arquivo daqui
+## não desfaria nada no perfil — o botão viraria mentira.
+const PERMITE_LIMPAR: bool = true
+
 ## Ordem de exibição no menu — bate com a lista original do usuário, 1 a 10.
 const ORDEM: Array[String] = [
 	ID_PRIMEIRA_COR, ID_VERMELHO, ID_LARANJA, ID_AMARELO, ID_VERDE, ID_VIOLETA, ID_ROSA,
@@ -52,6 +59,18 @@ const COR_PARA_ID: Dictionary = {
 
 static func id_para_cor(nome_cor: String) -> String:
 	return COR_PARA_ID.get(nome_cor, "")
+
+
+## Cor da tinta da conquista, pra lista do menu marcar cada linha com a cor de
+## que ela fala. Devolve `padrao` nas 4 que não são de cor (primeira demão e as
+## 3 de modo). Os ids das 6 batem com o nome do arquivo em `resources/cores/`
+## de propósito — é o que dispensa uma segunda tabela aqui.
+static func cor_da_conquista(id: String, padrao: Color) -> Color:
+	if id not in COR_PARA_ID.values():
+		return padrao
+	var caminho: String = "res://resources/cores/%s.tres" % id
+	var cor := load(caminho) as CorTinta
+	return cor.cor_alvo if cor else padrao
 
 
 ## `lista` é uma lista de nomes de cor (não ids) — true quando as 6 cores

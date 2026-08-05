@@ -9,15 +9,25 @@ extends Node
 #  _ready() (ex.: tinta_secando.gd lê tempo_secagem_atual()), em vez de
 #  ciclo_pintura.gd empurrar valores pra dentro de nós que não são dele.
 #
-#  Conquistas chegam no Marco 5 — por enquanto só modo + progresso de cor.
+#  DOIS arquivos em disco, não um:
+#
+#    user://save.tres        partida em andamento (cor, demão, modo)
+#    user://conquistas.tres  conquista e progresso permanente
+#
+#  A separação é o ponto, não organização: nada que mexa no save pode encostar
+#  em conquista. Antes era um arquivo só e `iniciar_novo_jogo()` zerava o
+#  DadosSalvos inteiro — quem começava partida nova perdia tudo que tinha
+#  desbloqueado.
 # ─────────────────────────────────────────────
 
 const CAMINHO_SAVE: String = "user://save.tres"
+const CAMINHO_CONQUISTAS: String = "user://conquistas.tres"
 
 signal conquista_desbloqueada(id: String)
 
 var modo_atual: int = ModoJogo.Modo.RAPIDO  # padrão RAPIDO até o menu escolher
 var dados: DadosSalvos
+var conquistas: DadosConquistas
 
 
 func _ready() -> void:
@@ -40,23 +50,10 @@ func continuar_jogo() -> void:
 
 
 ## Apaga a partida em andamento (cor atual, demão, modo) — o "Continuar" some
-## do menu depois disso. Conquistas desbloqueadas e o histórico de cores já
-## vistas (cores_completas_*) são preservados de propósito: é reset de
-## partida, não perda de progresso permanente/conquistas.
+## do menu depois disso. Conquista não mora mais neste arquivo, então zerar o
+## save não tem mais como levar progresso permanente junto.
 func apagar_save() -> void:
-	var conquistas := dados.conquistas_desbloqueadas
-	var cores_geral := dados.cores_completas_geral
-	var cores_rapido := dados.cores_completas_rapido
-	var cores_normal := dados.cores_completas_normal
-	var cores_realista := dados.cores_completas_realista
-
 	dados = DadosSalvos.new()
-	dados.conquistas_desbloqueadas = conquistas
-	dados.cores_completas_geral = cores_geral
-	dados.cores_completas_rapido = cores_rapido
-	dados.cores_completas_normal = cores_normal
-	dados.cores_completas_realista = cores_realista
-
 	salvar()
 
 
@@ -73,13 +70,30 @@ func salvar_progresso_pintura(nome_cor: String, demao: int) -> void:
 	salvar()
 
 
+# ─── Conquistas ──────────────────────────────────────────────────────────
+
+func tem_conquista(id: String) -> bool:
+	return id in conquistas.desbloqueadas
+
+
+## Conta pela ORDEM, não pelo tamanho da lista salva: id que saiu do jogo
+## continua no arquivo de quem jogou a versão antiga, e não pode inflar o
+## "x de y" do menu.
+func total_desbloqueadas() -> int:
+	var quantas: int = 0
+	for id in Conquistas.ORDEM:
+		if id in conquistas.desbloqueadas:
+			quantas += 1
+	return quantas
+
+
 ## Chamado por ciclo_pintura.gd quando uma cor termina as 3 demãos — antes
 ## da pergunta "gostou?" aparecer, já vale como "viu todas as demãos".
 func registrar_ciclo_completo(nome_cor: String) -> void:
 	var mudou: bool = _desbloquear(Conquistas.ID_PRIMEIRA_COR)
 
-	if nome_cor not in dados.cores_completas_geral:
-		dados.cores_completas_geral.append(nome_cor)
+	if nome_cor not in conquistas.cores_completas_geral:
+		conquistas.cores_completas_geral.append(nome_cor)
 		mudou = true
 
 	var id_cor: String = Conquistas.id_para_cor(nome_cor)
@@ -95,35 +109,106 @@ func registrar_ciclo_completo(nome_cor: String) -> void:
 		mudou = true
 
 	if mudou:
-		salvar()
+		salvar_conquistas()
+
+
+## ⚠️ Ferramenta de desenvolvimento — sai na integração com a Steam (Etapa 3),
+## junto com `Conquistas.PERMITE_LIMPAR`, que é quem esconde o botão. Lá quem
+## manda no desbloqueio é a Steam, e apagar arquivo local não desfaz o unlock
+## no perfil do jogador — o botão passaria a mentir.
+func limpar_conquistas() -> void:
+	conquistas = DadosConquistas.new()
+	salvar_conquistas()
 
 
 func _lista_por_modo(modo: int) -> Array[String]:
 	match modo:
 		ModoJogo.Modo.RAPIDO:
-			return dados.cores_completas_rapido
+			return conquistas.cores_completas_rapido
 		ModoJogo.Modo.NORMAL:
-			return dados.cores_completas_normal
+			return conquistas.cores_completas_normal
 		_:
-			return dados.cores_completas_realista
+			return conquistas.cores_completas_realista
 
 
 ## Marca a conquista como desbloqueada se ainda não estava. Devolve true só
 ## quando muda de estado (pra saber se vale emitir o sinal/salvar).
 func _desbloquear(id: String) -> bool:
-	if id in dados.conquistas_desbloqueadas:
+	if id in conquistas.desbloqueadas:
 		return false
-	dados.conquistas_desbloqueadas.append(id)
+	conquistas.desbloqueadas.append(id)
 	conquista_desbloqueada.emit(id)
 	return true
 
+
+# ─── Disco ───────────────────────────────────────────────────────────────
 
 func salvar() -> void:
 	ResourceSaver.save(dados, CAMINHO_SAVE)
 
 
+func salvar_conquistas() -> void:
+	ResourceSaver.save(conquistas, CAMINHO_CONQUISTAS)
+
+
+## CACHE_MODE_IGNORE nos dois: save é dado do jogador, não recurso compartilhado
+## — sem isso, reler o arquivo depois de gravar devolve o objeto que já estava
+## no cache em vez do que está no disco.
 func _carregar() -> void:
 	if ResourceLoader.exists(CAMINHO_SAVE):
-		dados = ResourceLoader.load(CAMINHO_SAVE) as DadosSalvos
+		dados = ResourceLoader.load(CAMINHO_SAVE, "", ResourceLoader.CACHE_MODE_IGNORE) as DadosSalvos
 	if dados == null:
 		dados = DadosSalvos.new()
+
+	if ResourceLoader.exists(CAMINHO_CONQUISTAS):
+		conquistas = ResourceLoader.load(
+			CAMINHO_CONQUISTAS, "", ResourceLoader.CACHE_MODE_IGNORE) as DadosConquistas
+	if conquistas == null:
+		conquistas = DadosConquistas.new()
+
+	_migrar_conquistas_do_save()
+
+
+## Save de schema 1 guardava conquista dentro de si mesmo. Traz pra cá uma vez
+## só e zera o campo lá — JUNTANDO com o que já houver no arquivo novo em vez
+## de sobrescrever, que é o certo caso os dois coexistam por algum motivo.
+##
+## ⚠️ A checagem é por CONTEÚDO (tem campo legado preenchido?), não por
+## `versao_schema`. Um `.tres` não grava propriedade que esteja igual ao
+## default do script: o save antigo tinha `versao_schema` 1 = default da época,
+## então a linha nem foi escrita no arquivo. Com o default agora em 2, esse
+## mesmo arquivo carrega dizendo "2" — e uma migração que confiasse na versão
+## pularia calada, jogando fora as conquistas de quem já jogou.
+func _migrar_conquistas_do_save() -> void:
+	if not _save_tem_campo_legado():
+		return
+
+	_juntar(conquistas.desbloqueadas, dados.conquistas_desbloqueadas)
+	_juntar(conquistas.cores_completas_geral, dados.cores_completas_geral)
+	_juntar(conquistas.cores_completas_rapido, dados.cores_completas_rapido)
+	_juntar(conquistas.cores_completas_normal, dados.cores_completas_normal)
+	_juntar(conquistas.cores_completas_realista, dados.cores_completas_realista)
+
+	dados.conquistas_desbloqueadas = []
+	dados.cores_completas_geral = []
+	dados.cores_completas_rapido = []
+	dados.cores_completas_normal = []
+	dados.cores_completas_realista = []
+	dados.versao_schema = DadosSalvos.VERSAO_ATUAL
+
+	salvar_conquistas()
+	salvar()
+
+
+func _save_tem_campo_legado() -> bool:
+	return not (dados.conquistas_desbloqueadas.is_empty()
+		and dados.cores_completas_geral.is_empty()
+		and dados.cores_completas_rapido.is_empty()
+		and dados.cores_completas_normal.is_empty()
+		and dados.cores_completas_realista.is_empty())
+
+
+func _juntar(destino: Array[String], origem: Array[String]) -> void:
+	for item in origem:
+		if item not in destino:
+			destino.append(item)

@@ -108,23 +108,53 @@ layout_mode = 2
 
 [node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer/PainelConquistas"]
 layout_mode = 2
+theme_override_constants/separation = 10
 
 [node name="Label" type="Label" parent="CenterContainer/PainelConquistas/VBoxContainer"]
 layout_mode = 2
 text = "Conquistas"
 horizontal_alignment = 1
 
-[node name="ScrollContainer" type="ScrollContainer" parent="CenterContainer/PainelConquistas/VBoxContainer"]
-custom_minimum_size = Vector2(360, 260)
+[node name="LinhaProgresso" type="HBoxContainer" parent="CenterContainer/PainelConquistas/VBoxContainer"]
 layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="BarraProgresso" type="ProgressBar" parent="CenterContainer/PainelConquistas/VBoxContainer/LinhaProgresso"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+show_percentage = false
+
+[node name="LabelProgresso" type="Label" parent="CenterContainer/PainelConquistas/VBoxContainer/LinhaProgresso"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "0 de 10"
+
+[node name="ScrollContainer" type="ScrollContainer" parent="CenterContainer/PainelConquistas/VBoxContainer"]
+custom_minimum_size = Vector2(420, 440)
+layout_mode = 2
+horizontal_scroll_mode = 0
 
 [node name="ListaConquistas" type="VBoxContainer" parent="CenterContainer/PainelConquistas/VBoxContainer/ScrollContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
+theme_override_constants/separation = 4
 
-[node name="BotaoVoltarConquistas" type="Button" parent="CenterContainer/PainelConquistas/VBoxContainer"]
+[node name="LinhaBotoesConquistas" type="HBoxContainer" parent="CenterContainer/PainelConquistas/VBoxContainer"]
 layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="BotaoVoltarConquistas" type="Button" parent="CenterContainer/PainelConquistas/VBoxContainer/LinhaBotoesConquistas"]
+layout_mode = 2
+size_flags_horizontal = 3
 text = "Voltar"
+
+[node name="BotaoLimparConquistas" type="Button" parent="CenterContainer/PainelConquistas/VBoxContainer/LinhaBotoesConquistas"]
+modulate = Color(1, 1, 1, 0.7)
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Limpar conquistas"
 
 [node name="PainelOpcoes" parent="CenterContainer" instance=ExtResource("2_opcoes")]
 visible = false
@@ -136,6 +166,7 @@ layout_mode = 2
 
 [node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer/PainelConfirmarExclusao"]
 layout_mode = 2
+theme_override_constants/separation = 14
 
 [node name="Label" type="Label" parent="CenterContainer/PainelConfirmarExclusao/VBoxContainer"]
 layout_mode = 2
@@ -153,6 +184,33 @@ layout_mode = 2
 text = "Apagar"
 
 [node name="BotaoCancelarExclusao" type="Button" parent="CenterContainer/PainelConfirmarExclusao/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+text = "Cancelar"
+
+[node name="PainelConfirmarConquistas" type="PanelContainer" parent="CenterContainer"]
+visible = false
+layout_mode = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer/PainelConfirmarConquistas"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Label" type="Label" parent="CenterContainer/PainelConfirmarConquistas/VBoxContainer"]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+text = "Apagar todas as conquistas? Isso não dá pra desfazer."
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="CenterContainer/PainelConfirmarConquistas/VBoxContainer"]
+layout_mode = 2
+alignment = 1
+
+[node name="BotaoConfirmarConquistas" type="Button" parent="CenterContainer/PainelConfirmarConquistas/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+text = "Apagar"
+
+[node name="BotaoCancelarConquistas" type="Button" parent="CenterContainer/PainelConfirmarConquistas/VBoxContainer/HBoxContainer"]
 layout_mode = 2
 text = "Cancelar"
 
