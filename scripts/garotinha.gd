@@ -1,39 +1,78 @@
-extends Node3D
+extends Personagem
 class_name Garotinha
 
 # ─────────────────────────────────────────────
 #  GAROTINHA — personagem que assiste a tinta secar
 #
-#  Modelo rigado no Blender (res://models/garotinha_modelo.tscn — ver
-#  PROJETO.md Fase 1.2). Depois de sentar, o corpo é escondido — a câmera da
-#  cadeira vira a visão em primeira pessoa dela, então o corpo visível só
-#  causaria clipping. "Sentar" continua sendo só um Tween de posição Y (não
-#  virou clipe de osso — janela de visibilidade é curta demais pra valer a
-#  pena, câmera corta pra 1ª pessoa logo em seguida).
+#  Modelo rigado no Blender (res://models/garotinha_modelo.tscn, 13 ossos — ela
+#  não tem cotovelo nem ombro separados, porque nunca precisa pintar). A
+#  locomoção mora em `personagem.gd`.
+#
+#  Sentar virou pose de osso de verdade (OVERHAUL §5.7). Antes era um Tween de
+#  `position.y` de 15 cm seguido de `hide()` — ela afundava no chão e sumia.
+#  Agora ela dobra quadril e joelho na cadeira, e o corpo só some quando a
+#  câmera da cadeira assume (aí ele viraria clipping na frente da lente).
 # ─────────────────────────────────────────────
 
 signal sentou
 
+## Altura do assento da cadeira, de `inicializar_quarto.gd::_criar_cadeira`
+## (`alt_assento` 0,45 + metade da espessura 0,05). Se a cadeira mudar, muda aqui.
+const ALTURA_ASSENTO: float = 0.475
+
+## Quanto o quadril desce pra pousar no assento, como fração de `queda_maxima`
+## do `PosturaModifier` (0,20 m no modelo dela).
+##
+## Conta: o quadril dela em pé está em 0,55 e a articulação tem que ficar logo
+## acima do assento (0,475), ou seja ~0,50 — são 5 cm, que é 0,25 de 0,20 m. A
+## raiz do personagem **não sobe**: quem levanta o corpo é a perna dobrando, e
+## era justamente o Tween de `position:y` que fazia ela afundar no chão antes.
+const AGACHAMENTO_SENTADA: float = 0.25
+
+## Onde os pés vão parar quando ela senta, a partir do repouso: pra frente
+## (−Z é a frente do modelo) e **pra cima**, porque a canela dela tem 24 cm e o
+## assento está a 47,5 — ela não alcança o chão. O pé balançando no ar é o
+## detalhe que entrega a idade dela sem dizer nada.
+const PES_SENTADA: Vector3 = Vector3(0.0, 0.21, -0.24)
+
+const DURACAO_SENTAR: float = 1.1
+
 @onready var _anim: AnimationPlayer = $Modelo/AnimationPlayer
 
 
-func ir_ate(destino: Vector3, duracao: float = 3.0) -> void:
+func _ready() -> void:
+	super()
+	parar_locomocao()
+
+
+func tocar_locomocao() -> void:
 	_anim.play("andar")
-	var tw := create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	tw.tween_property(self, "position", destino, duracao)
+
+
+func parar_locomocao() -> void:
+	_anim.play("parado_respirando")
+
+
+## Entra pela porta, anda até a cadeira, vira pra encarar a parede norte e senta.
+##
+## Ela encara a parede NORTE (ângulo 0 = olhando pra −Z), não a direção em que
+## veio andando: é a parede que ela vai ficar vendo secar.
+func entrar_e_sentar(destino_cadeira: Vector3) -> void:
+	await entrar_pela_porta(destino_cadeira, 3.4)
+	await girar_para(0.0)
+	await sentar()
+
+
+## Dobra quadril e joelhos até assentar. O corpo continua visível — quem esconde
+## é quem troca a câmera.
+##
+## `parado_respirando` continua tocando: nas pistas dela não há Quadril nem
+## perna (só coluna, braços e cabeça), então ela respira sentada sem disputar
+## osso nenhum com a camada procedural. Conferido nas pistas do modelo.
+func sentar() -> void:
+	var tw := create_tween().set_parallel(true)
+	tw.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_method(definir_agachamento, 0.0, AGACHAMENTO_SENTADA, DURACAO_SENTAR)
+	tw.tween_method(definir_pose_pes, Vector3.ZERO, PES_SENTADA, DURACAO_SENTAR)
 	await tw.finished
-	_anim.stop(true)
-
-
-## Anda até a cadeira e senta — depois esconde o corpo (vira a câmera em 1ª pessoa).
-func entrar_e_sentar(ponto_entrada: Vector3, destino_cadeira: Vector3) -> void:
-	position = ponto_entrada
-	show()
-	await ir_ate(destino_cadeira, 3.0)
-
-	var tw := create_tween().set_trans(Tween.TRANS_SINE)
-	tw.tween_property(self, "position:y", position.y - 0.15, 0.4)
-	await tw.finished
-
-	hide()
 	sentou.emit()

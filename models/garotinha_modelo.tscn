@@ -1,5 +1,7 @@
 [gd_scene format=4 uid="uid://cvayxe2mv78ki"]
 
+[ext_resource type="Script" path="res://scripts/postura_modifier.gd" id="4_postura"]
+
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_lo1px"]
 resource_name = "Garotinha2_vestido"
 cull_mode = 2
@@ -294,6 +296,48 @@ bones/12/scale = Vector3(1, 0.99999994, 1)
 mesh = SubResource("ArrayMesh_bhx0x")
 skin = SubResource("Skin_4mgtp")
 skeleton = NodePath("..")
+
+[node name="Postura" type="SkeletonModifier3D" parent="Garotinha2_Armature/Skeleton3D"]
+script = ExtResource("4_postura")
+queda_maxima = 0.2
+
+[node name="IKPernaDireita" type="TwoBoneIK3D" parent="Garotinha2_Armature/Skeleton3D"]
+active = false
+setting_count = 1
+settings/0/target_node = NodePath("../../AlvoPeDireito")
+settings/0/pole_node = NodePath("../../PoloJoelhoDireito")
+settings/0/root_bone_name = "Coxa_D"
+settings/0/root_bone = -1
+settings/0/middle_bone_name = "Canela_D"
+settings/0/middle_bone = -1
+settings/0/pole_direction = 0
+settings/0/end_bone_name = "Pe_D"
+settings/0/end_bone = -1
+
+[node name="IKPernaEsquerda" type="TwoBoneIK3D" parent="Garotinha2_Armature/Skeleton3D"]
+active = false
+setting_count = 1
+settings/0/target_node = NodePath("../../AlvoPeEsquerdo")
+settings/0/pole_node = NodePath("../../PoloJoelhoEsquerdo")
+settings/0/root_bone_name = "Coxa_E"
+settings/0/root_bone = -1
+settings/0/middle_bone_name = "Canela_E"
+settings/0/middle_bone = -1
+settings/0/pole_direction = 0
+settings/0/end_bone_name = "Pe_E"
+settings/0/end_bone = -1
+
+[node name="AlvoPeDireito" type="Node3D" parent="Garotinha2_Armature"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.095, 0.05, 0)
+
+[node name="AlvoPeEsquerdo" type="Node3D" parent="Garotinha2_Armature"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.095, 0.05, 0)
+
+[node name="PoloJoelhoDireito" type="Node3D" parent="Garotinha2_Armature"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.095, 0.29, -0.6)
+
+[node name="PoloJoelhoEsquerdo" type="Node3D" parent="Garotinha2_Armature"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.095, 0.29, -0.6)
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=430153764]
 libraries/ = SubResource("AnimationLibrary_y64ic")

@@ -1073,6 +1073,80 @@ Sobrou da versão pré-passa-alta: `uniform float relevo_base` era declarado e *
 `fragment()`, e `_medir_relevo_base()` fazia um readback da máscara inteira mais ~6 mil `get_pixel`
 no começo de cada demão pra alimentar ele. Removidos os três.
 
+### 5.5 As listras verticais da parede — 04/08/2026
+
+O Caio mandou print: lado esquerdo de cada parede com listras verticais, lado direito liso. **Duas
+causas independentes, e nenhuma era o que eu teria chutado.**
+
+#### Causa 1 — a luz do cômodo vizinho atravessava a parede
+
+`comodo_vizinho.gd::_criar_luz` era `OmniLight3D` com `shadow_enabled = false` e `omni_range = 9`,
+partindo de x = 6,6. Sem sombra, ela alcançava x = −2,4 — **quase o quarto inteiro**, e mais forte no
+lado leste. Perfil de brilho da parede norte, em 8 faixas de oeste pra leste:
+
+| | f1 | f2 | f3 | f4 | f5 | f6 | f7 | f8 |
+|---|---|---|---|---|---|---|---|---|
+| com o vazamento | 18,6 | 22,3 | 26,1 | 29,0 | 30,7 | 31,0 | 30,6 | 30,5 |
+| sem | 18,6 | 22,2 | 25,5 | 27,4 | 27,5 | 25,6 | 22,6 | 19,0 |
+
+Sem ela o perfil é **simétrico** — que é o que uma lâmpada no meio do teto deve fazer. Era o
+vazamento que criava o lado claro, e por isso a listra só se via no lado escuro.
+
+A saída é a que `cenario_externo.gd` já usava pro problema espelhado (luz de fora acendendo o
+quarto): camada de render própria + `light_cull_mask`. Sombra resolveria também, mas custa, e não há
+nada ali que precise de sombra.
+
+De quebra, ficou medido que **`Sol`, `LuzJanela` e SSAO contribuem exatamente zero** na parede norte —
+a única luz que chega nela é a lâmpada de teto.
+
+#### Causa 2 — o lap mark estava aceso em 20,7% da parede
+
+`PROJETO.md` §3.4 listava o lap como inerte, com "salto medido de 0,023 s contra limiar de 0,35".
+Medindo a distribuição de verdade na máscara, com a mesma conta do shader:
+
+| p50 | p90 | p99 | p99,9 | máximo |
+|---|---|---|---|---|
+| 0,143 | 0,546 | 0,959 | 1,148 | **1,250** |
+
+O número do plano estava errado por **~25×**, e com limiar 0,35 um quinto da parede ficava marcado.
+Como o lap segue a emenda entre passadas, o desenho dele é exatamente **listra vertical no
+espaçamento do rolo**.
+
+O limiar tem que ficar acima do intervalo entre passadas VIZINHAS, que num zigue-zague contínuo é
+`janela_demao / n_passadas` = 8 / 36 = **0,222 s**. Duas passadas separadas por um quinto de segundo
+não formam lap nenhum — lap de verdade é tinta que já começou a formar película, o que leva minutos.
+Foi pra **1,5**, acima do máximo medido.
+
+#### Resultado
+
+Listra na banda de 10–60 px (a que o olho vê), relativa ao brilho:
+
+| | antes | depois |
+|---|---|---|
+| shader da tinta | **0,64%** | **0,05%** |
+| material chapado (piso de comparação) | 0,04% | 0,04% |
+
+Ou seja: a parede pintada agora tem tanta listra quanto um `StandardMaterial3D` liso — ou seja,
+nenhuma. E o degrau por faixa caiu de `0,517 · 0,435 · 0,317 · 0,256` no interior pra
+`0,010 · 0,023 · 0,035 · 0,035`. G1 re-verificada: razão 2,33, clamp 0,6–1,2%.
+
+#### ⚠️ A armadilha que fez isso levar seis rodadas
+
+**RMS contra média móvel não isola listra — captura a curvatura do fundo junto.** Queda de lâmpada é
+inverso do quadrado, e uma média móvel de 121 colunas não acompanha curva: o resíduo entra na conta
+como se fosse defeito. O número subia junto com o brilho, então *nenhuma* mudança de luz parecia
+resolver, e a comparação contra material chapado dizia "metade sobrevive sem a tinta" — tudo
+artefato da métrica.
+
+Listra pede **passa-banda**: média de 7 colunas menos média de 31, que deixa passar só período de ~10
+a ~60 px. Trocada a métrica, o material chapado passou a mostrar **16× menos** listra que o shader, e
+desligar um termo de cada vez achou o lap na primeira tentativa.
+
+Segunda armadilha, já anotada mas repetida aqui de novo: **desligar termo que já vale zero dá
+"idêntico" e não prova nada.** `forca_marca = 0` não mudou nada porque na 3ª demão
+`suavidade_marca(2, 3)` já zera a marca. O mesmo com cobertura, que já fechava em 1,000. Três testes
+seguidos deram "idêntico" e eu quase concluí que não era o shader.
+
 ### G4 — Depende da Fase E
 
 - `[ ]` Lap mark relativo à secagem local em vez de absoluto em segundos (3.8) — só aparece com
@@ -1207,8 +1281,15 @@ Geometria simétrica ajuda, mas o que iguala parede com parede é luz indireta.
   congelado na cor errada. O arranjo certo é assar **piso, teto, props, móveis e cômodo vizinho como
   estáticos** e deixar **as 4 paredes como dinâmicas** (recebendo indireta pelas probes). Testar
   antes de investir tempo de bake
-- `[ ]` **Baixar a lâmpada** de y = 2,75 pra ~2,35 e subir `omni_range` de 6,0 pra 7,0. Suaviza o
-  gradiente vertical de 6.2(d), e pendente baixa é mais crível que plafon colado no teto
+- `[x]` ~~**Baixar a lâmpada** de y = 2,75 pra ~2,35 e subir `omni_range` de 6,0 pra 7,0~~ — **já
+  estava feito**: `quarto.tscn` tem `LuzLampada` em y = 2,35 com `omni_range = 7.0`. Item obsoleto
+- `[x]` **Fechar o vazamento da luz do cômodo vizinho** (04/08/2026) — ela atravessava a parede leste
+  e clareava o lado direito do quarto em até +11,5 níveis, e era isso que deixava o perfil das
+  paredes assimétrico. Camada própria + `light_cull_mask`, igual ao `cenario_externo.gd`. Ver §5.5
+- ⚠️ **Achatar a rampa NÃO resolve listra** — varrido e medido em 04/08/2026. `omni_range` até 20,
+  `omni_attenuation` até 0,35 e `ENERGIA_AMBIENTE` até 0,32: o contraste borda-centro cai de 37,9%
+  pra 24,3%, mas a listra relativa fica em 1,6–1,9% em todas as configurações. A listra era o lap
+  mark, não a rampa (§5.5). Achatar continua valendo por gosto, não como conserto
 - `[ ]` **Aliviar o SSAO**: `intensity` 1.4 → ~1.0 e `radius` 0.7 → ~0.5. Hoje o escurecimento de
   canto é forte o bastante pra ler como "sombra da parede", não como oclusão de quina
 - `[ ]` **Se o `LightmapGI` não valer o tempo**, a alternativa barata é subir

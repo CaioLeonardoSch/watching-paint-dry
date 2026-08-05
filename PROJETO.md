@@ -379,6 +379,22 @@ Start-Process -FilePath "…\Godot….exe" -ArgumentList '--path','…','--scrip
 cena em runtime funciona; nomear a classe em tempo de compilação, não. Nos harnesses, copiar a
 constante e anotar de onde veio.
 
+**⚠️ Não dá pra ler de volta o resultado de um `SkeletonModifier3D`.** O `Skeleton3D` **salva** a pose
+antes de rodar os modifiers e **restaura** depois, pra a animação não ser corrompida de forma
+permanente — então `get_bone_pose_position()` e `get_bone_global_pose()` devolvem sempre o valor da
+*animação*, não o modificado. E `get_aabb()` de um `MeshInstance3D` com skin devolve a AABB
+**estática** da malha, não a deformada. As duas medidas disseram "não mudou nada" enquanto a tela
+mostrava o tio agachando. O que funciona é medir a **silhueta na imagem**: diferença contra um quadro
+do cenário vazio, com `cast_shadow` desligado no personagem pra a sombra não virar parte dele.
+
+**⚠️ RMS contra média móvel NÃO isola listra — ela captura a curvatura do fundo junto.** A queda de
+uma lâmpada é inverso do quadrado, ou seja curva; uma média móvel de 121 colunas não acompanha curva,
+e o resíduo entra na conta como se fosse listra. O número subia junto com o brilho, e por isso
+*nenhuma* mudança de luz parecia resolver — eu estava medindo a rampa, não o defeito. **Listra pede
+passa-banda:** média curta (7 colunas) menos média longa (31), que deixa passar só período de ~10 a
+~60 px. Com a métrica certa, a mesma cena foi de "0,52, nada resolve" pra "0,151, e o lap mark
+explica tudo". Ver SECAGEM §5.5.
+
 **⚠️ Duas maneiras de medir textura errado**, as duas pagas em 04/08/2026 (detalhe em SECAGEM §5.4):
 contraste local pixel a pixel mede o **dither do debanding**, não a tinta — a métrica ficou em 0,7 em
 toda configuração testada, inclusive quando as barras brancas sumiram da tela. E
@@ -394,7 +410,7 @@ as contas, em `PLANO-SECAGEM-E-QUARTO.md` §2.
 | O que o plano diz que existe | O que o código faz | Fase que conserta |
 |---|---|---|
 | Falha de cobertura por rolo descarregado | A máquina existe e está calibrada (a carga cai de 1,00 pra 0,37 por carga), mas a falha está **desligada** (`COBERTURA_MAX` 0,10): com passada de altura inteira ela sai como barra de ponta quadrada, não como rolo secando. Ver SECAGEM §5.4 | E |
-| Lap mark | Inerte — o salto medido é 0,023 s contra um limiar de 0,35 s | G4 |
+| ~~Lap mark inerte~~ | ⚠️ **Não estava inerte — estava aceso em 20,7% da parede.** "Salto de 0,023 s" era um número errado por ~25×: medido de verdade, p50 0,143 · p99 0,959 · máximo 1,250. Com limiar 0,35 o lap marcava toda emenda entre passadas e desenhava **listras verticais**. Limiar foi pra 1,5 (acima do máximo), então agora ele é inerte de fato — ver SECAGEM §5.5 | G4 |
 | ~~Mancha de secagem vinda da espessura~~ | ✅ **G1**: campo de 4 termos, razão medida 2,27–2,33 (era 1,00) | ~~G1~~ |
 | ~~A 2ª demão cobrir falha da 1ª~~ | ✅ **G3**: o fundo tem história; salto de 0,1 de 255 na troca contra 57 quando o rolo passa | ~~G3~~ |
 | ~~`duracao_total()` corresponder ao que está na tela~~ | ✅ **G1**: espera morta 21% → 3,9%. `ESPESSURA_TIPICA` não estava 7× alta, estava **10× alta** — o depósito medido é 0,033, não 0,35 | ~~G1~~ |
@@ -463,26 +479,32 @@ for ler o código depois.
   contra 0,173 de não fazer nada. O downsample do Godot é bilinear e **só em 2,0× os quatro taps
   caem simétricos e viram média de caixa 2 × 2**. A escala é escolha binária: 1,0 ou 2,0
 
-### 3.7 Estado do rig — ambíguo, conferir ANTES de continuar a Fase D
+### 3.7 Estado do rig — RESOLVIDO em 04/08/2026
 
-⚠️ **Dois trechos do `PLANO-OVERHAUL-TINTA.md` §5.9 se contradizem e ninguém resolveu:**
+A ambiguidade que morava aqui (dois trechos do `PLANO-OVERHAUL-TINTA.md` §5.9 se contradiziam sobre
+7 ou 19 ossos) foi resolvida **contando**, antes de tocar em qualquer coisa. Resultado:
 
-- O passo 8 está ✅ — "regerar `*_modelo.tscn` no Godot", o que sugere que o rig de **19 ossos já
-  está no jogo**
-- A nota do `.blend` logo abaixo diz que `Tio`/`Tio_Armature` (**7 ossos**) "é o que está no jogo
-  hoje"
-- E o passo 12 ("religar `tio.gd`/`garotinha.gd` e re-testar câmeras/colisão") continua ⬜
+| Checagem | Resultado |
+|---|---|
+| Ossos do `Skeleton3D` do tio | **19** — `Quadril, Coluna_01/02, Ombro/Braco/Antebraco/Mao × 2, Pescoco, Cabeca, Coxa/Canela/Pe × 2`. É o rig novo |
+| Ossos da garotinha | **13** — sem ombro e sem cotovelo (ela nunca pinta), mas **com joelho**, que é o que o sentar precisava |
+| `TwoBoneIK3D` / `LookAtModifier3D` | `IKBracoDireito` e `OlharCabeca`, os dois com `active = false` |
+| Clipes | tio: `andar`, `parado_respirando`, `pintar_braco`. garotinha: `andar`, `parado_respirando` |
 
-**Antes de mexer em qualquer coisa de personagem, rodar esta checagem e anotar o resultado aqui:**
+**Duas coisas que o plano afirmava e não eram verdade:**
 
-1. Abrir `res://models/tio_modelo.tscn` e contar os ossos do `Skeleton3D`. **19 = rig novo em uso;
-   7 = rig antigo.**
-2. Conferir se existe `TwoBoneIK3D`/`LookAtModifier3D` na árvore (o passo 9 diz que sim, com
-   `active = false`).
-3. `grep` em `tio.gd` pelos nomes de osso e de clipe, pra ver se batem com o rig encontrado.
+- **A IK das pernas NÃO existia.** §5.9 passo 9 dizia "IK do braço e das pernas ✅"; na árvore só
+  havia a do braço. Sem ela o quadril desce e o pé atravessa o assoalho — que é literalmente o
+  motivo de §5.2 pedir as duas. Criadas na Fase D desta rodada.
+- **A nota do `.blend`** ("`Tio`/`Tio_Armature`, 7 ossos, é o que está no jogo hoje") estava
+  obsoleta: o jogo usa `Tio2`, de 19 ossos, desde o passo 8.
 
-Sem isso, o risco concreto é **refazer o rig inteiro no Blender achando que a Fase D não começou** —
-ela está em ~10 de 12 passos.
+⚠️ **E uma terceira, que virou bug de verdade:** `PROJETO.md` afirmava que `andar` e `pintar_braco`
+"não tocam osso em comum, então não precisou de `AnimationTree`". Era verdade **no rig de 7 ossos**,
+onde o braço era um osso só e a caminhada não o tocava. No rig de 19 a caminhada balança os braços, e
+os dois clipes disputam `Ombro_D`, `Braco_D` e `Ombro_E` — com dois `AnimationPlayer` escrevendo no
+mesmo osso, quem processa por último ganha. Resolvido com `andar_pintando`, uma variante de `andar`
+sem pista de braço, montada em runtime (`tio.gd::_montar_andar_pintando`).
 
 **O rolo na mão do tio** (ideia levantada antes) **não é item solto**: já é a Fase E ("Props: rolo na
 mão, bandeja no chão, banquinho"). Com a máscara, o rolo e o desenho já são a mesma coisa
@@ -520,7 +542,7 @@ frente de material/shader que o roadmap original não previa.
 | **A** | Spike do `DrawableTexture2D` (a doc oficial do 4.7 está errada sobre `texture_blit`) | — | OVERHAUL §3.7, §6 | ✅ |
 | **B** | Máscara de tinta — `tinta_secando.gd` virou `parede_pintavel.gd` | A | OVERHAUL §3, §6 | ✅ (os "números inertes" eram um centro chumbado — resolvido na G1) |
 | **C** | Low-poly: assoalho em geometria, props, normal maps fora, SSAO/MSAA, `AreaLight3D` | — | OVERHAUL §4, §6 | ✅ |
-| **D** | Rig de 19 ossos + IK (cotovelo, joelho, coluna) | — | OVERHAUL §5 | 🟡 **~10 de 12 passos** — ver 3.7, conferir antes |
+| **D** | Rig de 19 ossos + IK (cotovelo, joelho, coluna) | — | OVERHAUL §5, §5.9 | ✅ (a IK do braço fica dormente até E ter um alvo pra ela) |
 | **E** | Coreografia: W, verticais, banquinho, rodapé, bandeja, rolo na mão | D, G6 | OVERHAUL §5.5, §6 | ⬜ |
 | **F** | Refino: som do rolo casado com a mão, passo, porta, o tio olhar pra ela, gravar 60 s | D, E | OVERHAUL §6 | ⬜ |
 | **G1** | **Campo de secagem** — a parede passa a secar desigual e a fase manchada existe | — | SECAGEM §3.1, §5, §5.1 | ✅ |
@@ -597,11 +619,23 @@ evita retrabalho. Cada item traz a definição de pronto — o que precisa ser v
    ⚠️ **A amplitude da falha está baixa de propósito.** Com passadas de altura inteira, uma carga
    dura 3 passadas e qualquer variação vira barra vertical — testei de 42% a 85% de cobertura mínima
    e o padrão de listra não muda, só o contraste. Abre na Fase E. Ver SECAGEM §5.3.
-6. `[ ]` **D — rig + IK.** ⚠️ **Conferir 3.7 antes de tocar em qualquer coisa** — ela está em ~10 de
-   12 passos e o risco real é refazer o Blender inteiro à toa. Faltam a camada procedural (altura do
-   quadril, inclinação do torso), virar o corpo na direção do movimento, e religar `tio.gd`.
+6. `[x]` **D — rig + IK.** ✅ A conferência de 3.7 evitou o risco que ela existia pra evitar: o rig de
+   19 ossos já estava no jogo, e refazer o Blender teria sido trabalho jogado fora. **Nada foi
+   modelado nesta rodada** — o que faltava era código.
    **Pronto quando:** o tio agacha e estica com os pés no chão, vira o corpo antes de andar, e
    ninguém teleporta na porta.
+   **Verificado:** agachando de 0 a 1, a silhueta na tela desce **144 px no topo e 8 px na base** —
+   o corpo abaixa, os pés ficam. Virar antes de andar: **45 quadros** girando com o pé parado (tio) e
+   **78** (garotinha), contra 0 antes. Teleporte: o maior salto de posição num quadro é **0,007 m**
+   (tio) e **0,036 m** (garotinha) — passo de caminhada, não salto. Antes a entrada era um
+   `position = ponto` seguido de `show()` **dentro do quarto**.
+   **De quebra:** a garotinha passou a sentar de verdade (dobra quadril e joelho na cadeira, com o pé
+   balançando porque a canela dela tem 24 cm e o assento 47,5) em vez de afundar 15 cm no chão e
+   sumir; `parado_respirando`, que existia desde a Fase D e **nunca era tocado**, virou o idle dos
+   dois; e a locomoção comum saiu de dois arquivos duplicados pra `personagem.gd`.
+   ⚠️ **A IK do braço continua dormente**, e isso é de propósito: o alvo dela é o rolo, que só entra
+   na mão na Fase E. A camada procedural de quadril/torso está pronta e testada, mas com passada de
+   altura inteira não há o que ela siga — quem dá a ela um alvo que sobe e desce devagar é E.
 7. `[ ]` **E — coreografia.** Depende de D e de G6. É onde o rolo entra na mão e o trajeto vira W +
    verticais + banquinho + rodapé + bandeja.
    **Pronto quando:** pausando durante a pintura, a tinta na parede corresponde exatamente ao que o

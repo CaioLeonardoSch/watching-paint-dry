@@ -33,12 +33,19 @@ const LADO_PISO: float = 0.6
 const REJUNTE: float = 0.008
 
 
+## Camada de render só deste cômodo, pra a luz de teto dele não acender o
+## quarto. Mesmo padrão de `cenario_externo.gd::CAMADA_EXTERNA`, que existe pela
+## mesma razão — e o bit é outro pra as duas não se misturarem.
+const CAMADA_VIZINHO: int = 1 << 2
+
+
 func _ready() -> void:
 	_criar_piso()
 	_criar_paredes()
-	_criar_luz()
 	_criar_bancada()
 	_criar_geladeira()
+	# depois dos meshes: ela precisa marcar a camada em todos eles
+	_criar_luz()
 
 
 func _criar_piso() -> void:
@@ -122,17 +129,34 @@ func _criar_paredes() -> void:
 ## Luz de teto do cômodo vizinho: mais fria e mais fraca que a lâmpada do
 ## quarto, pra o vão da porta ler como "outro ambiente" e não como extensão
 ## deste. Sem sombra — nada aqui é observado de perto, e sombra custa.
+##
+## ⚠️ **Sem sombra ela atravessava a parede leste e acendia o QUARTO.** Com
+## `omni_range = 9` a partir de x = 6,6 ela alcançava x = −2,4, ou seja quase o
+## quarto inteiro — e chegava mais forte no lado leste. Medido na parede norte:
+## o perfil de brilho ia de 18,6 (oeste) a 30,5 (leste) com ela ligada, e virava
+## simétrico (18,6 · 27,5 · 19,0) com ela desligada. Essa rampa assimétrica era a
+## origem das listras verticais que aparecem na metade escura da parede — degrau
+## de quantização de 8 bits, que só é visível onde há rampa.
+##
+## A saída é a mesma que `cenario_externo.gd` já usava pro problema espelhado
+## (luz de fora acendendo o quarto): camada própria + `light_cull_mask`. Sombra
+## resolveria também, mas custa, e aqui não há nada que precise de sombra.
 func _criar_luz() -> void:
+	for no in _todos_meshes(self):
+		no.layers |= CAMADA_VIZINHO
+
 	var luz := OmniLight3D.new()
 	add_child(luz)
-	luz.position       = Vector3(6.6, 2.7, -0.8)
-	luz.light_color    = Color(1.0, 0.95, 0.86)
-	luz.light_energy   = 1.6
-	luz.omni_range     = 9.0
-	luz.shadow_enabled = false
+	luz.position        = Vector3(6.6, 2.7, -0.8)
+	luz.light_color     = Color(1.0, 0.95, 0.86)
+	luz.light_energy    = 1.6
+	luz.omni_range      = 9.0
+	luz.shadow_enabled  = false
+	luz.light_cull_mask = CAMADA_VIZINHO
 
 	var plafon := _caixa(Vector3(0.5, 0.08, 0.5), Vector3(6.6, 2.9, -0.8),
 		_material(Color(0.95, 0.93, 0.88), 0.5))
+	plafon.layers |= CAMADA_VIZINHO
 	plafon.name = "Plafon"
 	var mat_plafon := plafon.get_surface_override_material(0) as StandardMaterial3D
 	mat_plafon.emission_enabled           = true
@@ -161,6 +185,18 @@ func _criar_geladeira() -> void:
 	# Fresta entre freezer e refrigerador — quebra o bloco liso
 	_caixa(Vector3(0.72, 0.02, 0.74), Vector3(FUNDO_X - 0.5, 1.25, 1.2),
 		_material(Color(0.55, 0.56, 0.58), 0.5)).name = "FrestaGeladeira"
+
+
+## Todos os `MeshInstance3D` da subárvore. Mesma função existe em
+## `cenario_externo.gd`, pelo mesmo motivo (marcar camada de render) — os dois
+## scripts não têm base comum, então é cópia consciente de 7 linhas.
+func _todos_meshes(raiz: Node) -> Array[MeshInstance3D]:
+	var achados: Array[MeshInstance3D] = []
+	for filho in raiz.get_children():
+		if filho is MeshInstance3D:
+			achados.append(filho)
+		achados.append_array(_todos_meshes(filho))
+	return achados
 
 
 func _caixa(tamanho: Vector3, pos: Vector3, mat: Material) -> MeshInstance3D:
