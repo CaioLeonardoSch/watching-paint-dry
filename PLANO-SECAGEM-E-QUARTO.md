@@ -580,13 +580,15 @@ sendo um retângulo uniforme por horas, por mais bonita que a coreografia fique.
 
 **O que fica pendente aqui, então:**
 
-- `[ ]` Quando a Fase E fechar, **medir** a duração real de uma parede e escrever esse número em
-  `duracao_pintura_segundos` (hoje `@export` em `ciclo_pintura.gd`)
-- `[ ]` **Recalibrar o modo Rápido**: com a pintura levando 40-70 s e a secagem 60 s, a parede
-  começaria a secar antes de terminar de ser pintada. A Fase E já tem isto anotado como pendência.
-  Sugestão: Rápido sobe pra ~120 s
-- `[ ]` `FRACAO_JA_PINTADA_ABERTURA` de 0.65 pra **~0.9** (decidido em 01/08/2026): com a volta
-  completa passando a levar minutos, a abertura precisa pegar o tio quase terminando
+- `[x]` ✅ **Medido em 05/08/2026:** 224 m de caminho ÷ 3,6 m/s + 9 idas à bandeja = **84 s por
+  parede**, volta completa 5,6 min. `duracao_pintura_segundos = 84.0`. E o número deixou de ser o
+  que manda: quem decide agora é `TrajetoRolo.duracao_estimada()`, chamado antes de abrir a demão —
+  este `@export` só serve onde não há trajeto rodando (abertura e retomada de save)
+- `[x]` ✅ **Rápido subiu pra 150 s**, não 120: com 84 s de pintura por parede e 336 s de volta, os
+  60 s antigos faziam a 1ª parede secar em 144 s, **antes de o tio chegar na terceira**. Normal e
+  Realista não precisaram mexer (84 + 300 = 384 > 336)
+- `[x]` ✅ `FRACAO_JA_PINTADA_ABERTURA` foi pra **0,92**, não 0,9: 8% de 84 s são 7 s de cutscene,
+  que é o tempo de entender a cena sem ela cansar antes de a garotinha entrar
 
 ---
 
@@ -864,6 +866,11 @@ meio da parede pra ele agir. As únicas bordas em `v` são o topo e o rodapé.
 as verticais curtas e o banquinho criarem traços com borda de baixo. O código fica, custa dois taps
 que já eram calculados pro lap, e está anotado aqui pra não virar mais um "número inerte" esquecido.
 
+✅ **Deixou de ser inerte na Fase E (05/08/2026).** Medindo na máscara quanta parede tem queda de
+cobertura indo pra baixo — que é literalmente o que o bead morde — o valor foi de ~0 pra **3,18% da
+parede**. As bordas novas são as do W (cada perna termina numa ponta) e as emendas entre as três
+faixas de altura. `escala_bead` continua em 3,0; não precisou mexer, precisou de trajeto.
+
 ⚠️ **Uma coisa mudou em relação a 3.5:** o bead sai do gradiente da **cobertura**, não do `instante`
 como o plano sugeria. O gradiente do instante traria de volta o pente do carimbo que o conserto do
 lap acabou de tirar — e a cobertura é mais fiel de todo jeito, porque o bead é uma borda de tinta,
@@ -971,6 +978,41 @@ bead (5.2) e o lap mark (3.8) — vale tratar as três como um pacote quando E c
 Em 5.4 a falha foi **desligada** (`cobertura_max` 0,16 → 0,10): mesmo na amplitude discreta ela ainda
 saía como barra, e o Caio pegou na tela. O jitter de ±15% no tamanho da carga continua no lugar,
 esperando E.
+
+#### ✅ Reaberta na Fase E — até 0,20, e o teto tem explicação — 05/08/2026
+
+A coreografia quebrou a passada de altura inteira, e a barra sumiu. A falha saiu de 0,10 (inerte)
+pra **0,20**. Mas os 0,72 de 3.7 continuam inalcançáveis, e agora se sabe por quê — não é gosto nem
+calibração:
+
+**`rec.g` grava `carga × peso do carimbo`, e o peso cai nas bordas de cada passada.** Abrir a faixa
+expõe a borda macia do carimbo ANTES de expor a carga. Por isso o que aparece ao subir o valor são
+riscos brancos nas emendas entre passadas, e não "rolo secando":
+
+| `cobertura_max` | na tela |
+|---|---|
+| 0,20 | variação suave, sem branco — **em vigor** |
+| 0,25 | risco branco fino na ponta de cada W |
+| 0,35 | manchas brancas grandes |
+| 0,45 | manchão em ¼ da parede |
+
+**O que consertaria:** um canal separado só pra carga, sem o peso do carimbo dentro — a máscara
+acumulada tem B e A livres. Não foi feito nesta rodada; fica registrado como limite conhecido.
+
+⚠️ **Duas métricas de máscara mentiram no caminho até aqui.** "O pior 1% cobre 0,44" aprovou 0,45,
+que é o pior valor testado; "10,5% abaixo de 0,90 e nada abaixo de 0,50" aprovou 0,35, que na tela
+tem mancha grande. O que a máscara não sabe é como aquela cobertura vira cor depois do shader
+inteiro. Número que o jogador vê se decide **no quadro renderizado**.
+
+**Também mudou o modelo da carga**, e isso valeu tanto quanto o teto. A queda era linear, então a
+carga passava metade do percurso abaixo de 0,65 e **um terço da parede** saía falhado. Rolo de
+verdade entrega filme parelho quase até o fim e aí despenca — a espuma segura por capilaridade.
+Expoente 3 (`EXPOENTE_CARGA`) põe a carga em 0,92 na metade e só derruba nos últimos ~20%.
+
+E `METROS_POR_CARGA` foi de 9,0 pra **18,5**: os 9,0 valiam pro trajeto antigo, que passava na parede
+uma vez (106 m ÷ 12 cargas = 8,8). A coreografia passa 2,12× no mesmo lugar, então a MESMA tinta se
+espalha por 224 m. O que é físico são as **12 cargas por parede** (1,5 m² por carga em 18 m²), não os
+metros.
 
 ### 5.4 Três queixas do Caio na tela, e o que cada uma era — 04/08/2026
 

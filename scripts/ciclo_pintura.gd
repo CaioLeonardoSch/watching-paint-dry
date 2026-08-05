@@ -23,7 +23,15 @@ extends Node
 enum Estado { INTRO, PINTANDO, SECANDO, PERGUNTANDO, CONTEMPLANDO }
 
 @export var demaos_por_ciclo: int = 3
-@export var duracao_pintura_segundos: float = 8.0
+
+## ⚠️ NÃO é mais o que manda no ritmo — quem decide quanto uma parede leva é a
+## coreografia (`TrajetoRolo.duracao_estimada()`, ver SECAGEM §3.9). Este número
+## é só a estimativa usada onde não há trajeto rodando: o escalonamento de
+## secagem das paredes já pintadas da abertura e a retomada de save.
+##
+## **Medido** em 05/08/2026: 224 m de caminho por parede, 62 s rolando + 9 idas
+## à bandeja = 84 s. Mudou o caminho do rolo? Remedir e reescrever aqui.
+@export var duracao_pintura_segundos: float = 84.0
 
 const PONTO_PERTO_CADEIRA_TIO: Vector3  = Vector3(0.9, 0, -1.6)
 const PONTO_CADEIRA_GAROTINHA: Vector3  = Vector3(0, 0, -1)
@@ -34,7 +42,12 @@ const PONTO_OLHAR_CUTSCENE: Vector3     = Vector3(0.8, 1.3, -2.0)  # entre pared
 const COR_PAREDE_CRUA: Color = Color(0.93, 0.92, 0.90)
 
 ## Quanto da parede o tio já pintou quando a cutscene começa.
-const FRACAO_JA_PINTADA_ABERTURA: float = 0.65
+##
+## Subiu de 0,65 pra 0,92 na Fase E: com a coreografia honesta uma parede leva
+## 84 s, e 35% dela seriam 29 s de cutscene antes de a garotinha sequer entrar.
+## Ele agora está fechando o último trecho — 7 s, que é o tempo de o jogador
+## entender a cena sem ela cansar antes de começar.
+const FRACAO_JA_PINTADA_ABERTURA: float = 0.92
 
 ## Na abertura ele termina na parede NORTE — é a que a garotinha vai encarar
 ## sentada, então é a única que enquadra bem. Como o circuito é cíclico, isso
@@ -93,6 +106,7 @@ var cor_atual: CorTinta
 # Uma entrada por parede, na mesma ordem de VARREDURAS (Leste/Norte/Oeste/Sul).
 var _paredes: Array[ParedePintavel] = []
 var _trajeto: TrajetoRolo
+var _props: PropsPintura
 var _cor_anterior_seca: Color = COR_PAREDE_CRUA
 
 @onready var _tio: Tio                      = $"../Tio"
@@ -132,6 +146,18 @@ func _ready() -> void:
 	_trajeto.name = "TrajetoRolo"
 	add_child(_trajeto)
 
+	# Bandeja, banquinho e lata andam com o serviço (ver props_pintura.gd), por
+	# isso não moram no cenário estático de props_quarto.gd.
+	#
+	# ⚠️ Filho DESTE nó, não do pai: `add_child` no pai durante o `_ready` dele
+	# falha com "Parent node is busy setting up children". Como o `Quarto` é um
+	# Node3D na identidade e este nó é um Node comum, pendurar aqui dá as mesmas
+	# coordenadas de mundo.
+	_props = PropsPintura.new()
+	_props.name = "PropsPintura"
+	add_child(_props)
+	_tio.definir_props(_props)
+
 	if EstadoJogo.existe_save():
 		await _retomar_de_save()
 	else:
@@ -161,6 +187,9 @@ func _retomar_de_save() -> void:
 	for i in range(_paredes.size()):
 		_iniciar_demao_parede(i, indice_cor)
 		_paredes[i].forcar_seco()
+	# o material do tio ficou pela última parede que ele pintou — sem isto a
+	# bandeja e o banquinho aparecem no meio do quarto, em cima da cadeira
+	_props.posicionar_para_parede(_paredes[_paredes.size() - 1])
 
 	if demao_atual >= demaos_por_ciclo:
 		await _perguntar_cor()
@@ -185,31 +214,32 @@ func _sequencia_abertura() -> void:
 	var quantas_antes: int = ORDEM_ABERTURA.size()
 	for ordem in range(quantas_antes):
 		var indice: int = ORDEM_ABERTURA[ordem]
-		_iniciar_demao_parede(indice, 0)
+		_trajeto.preparar(_paredes[indice])
+		_iniciar_demao_parede(indice, 0, _trajeto.duracao_estimada())
 		_trajeto.pintar_instantaneo(_paredes[indice])
 		var voltas_atras: float = float(quantas_antes - ordem)
 		_paredes[indice].adiantar(duracao_pintura_segundos * voltas_atras * 0.35)
 
-	# O tio está no meio da parede norte, terminando o serviço em cena.
+	# O tio está no fim da parede norte, terminando o serviço em cena.
 	var v: Dictionary  = VARREDURAS[PAREDE_ABERTURA]
-	var de: Vector3    = v["de"]
-	var para: Vector3  = v["para"]
 	var angulo: float  = v["angulo"]
-	_iniciar_demao_parede(PAREDE_ABERTURA, 0)
-	_trajeto.pintar_instantaneo(_paredes[PAREDE_ABERTURA], false, FRACAO_JA_PINTADA_ABERTURA)
-	_paredes[PAREDE_ABERTURA].adiantar(duracao_pintura_segundos * FRACAO_JA_PINTADA_ABERTURA)
+	var parede_abertura: ParedePintavel = _paredes[PAREDE_ABERTURA]
+	_trajeto.preparar(parede_abertura)
+	var janela: float = _trajeto.duracao_estimada()
+	_iniciar_demao_parede(PAREDE_ABERTURA, 0, janela)
+	_trajeto.pintar_instantaneo(parede_abertura, false, FRACAO_JA_PINTADA_ABERTURA)
+	parede_abertura.adiantar(janela * FRACAO_JA_PINTADA_ABERTURA)
 
-	var ponto_atual: Vector3 = de.lerp(para, FRACAO_JA_PINTADA_ABERTURA)
-	var restante: float = duracao_pintura_segundos * (1.0 - FRACAO_JA_PINTADA_ABERTURA)
 	# Posiciona ANTES de mostrar: ele já entra em cena no lugar certo e virado
 	# pra parede, então não há giro nem salto na frente do jogador. É a única
 	# aparição que não passa pela porta — aqui ele já está no meio do serviço.
-	_tio.position = ponto_atual
+	_tio.position = _tio.posto_de_trabalho(_trajeto, parede_abertura, FRACAO_JA_PINTADA_ABERTURA)
 	_tio.rotation_degrees.y = angulo
 	_tio.show()
-	# o rolo continua de onde parou, em paralelo com a caminhada do tio
-	_trajeto.pintar(_paredes[PAREDE_ABERTURA], duracao_pintura_segundos, false, FRACAO_JA_PINTADA_ABERTURA)
-	await _tio.pintar_varrendo(para, restante, angulo)
+	_props.posicionar_para_parede(parede_abertura)
+	# o rolo continua de onde parou, em paralelo com o corpo do tio
+	_trajeto.pintar(parede_abertura, false, FRACAO_JA_PINTADA_ABERTURA)
+	await _tio.acompanhar_trajeto(_trajeto, parede_abertura, angulo)
 
 	await _tio.ir_ate(PONTO_PERTO_CADEIRA_TIO, 2.5)
 	await _garotinha_entra_e_senta()
@@ -280,17 +310,20 @@ func _rodada_de_pintura(indice_demao: int) -> void:
 	for i in range(_paredes.size()):
 		var v: Dictionary  = VARREDURAS[i]
 		var de: Vector3    = v["de"]
-		var para: Vector3  = v["para"]
 		var angulo: float  = v["angulo"]
 		if i > 0:
 			await _tio.ir_ate(de, 1.2)   # canto a canto, o trajeto é curto
 		# Virar pra parede ANTES de soltar o rolo: `pintar()` não é aguardado, e
 		# um giro depois dele deixaria o rolo meio segundo andando sozinho.
 		await _tio.encarar_parede(angulo)
-		_iniciar_demao_parede(i, indice_demao)
-		# rolo e tio andam juntos: o trajeto carimba enquanto ele caminha
-		_trajeto.pintar(_paredes[i], duracao_pintura_segundos)
-		await _tio.pintar_varrendo(para, duracao_pintura_segundos, angulo)
+		# preparar antes de abrir a demão: a janela da demão É a duração da
+		# coreografia desta parede, e ela só se sabe com o caminho gerado
+		_trajeto.preparar(_paredes[i])
+		_iniciar_demao_parede(i, indice_demao, _trajeto.duracao_estimada())
+		_props.posicionar_para_parede(_paredes[i])
+		# rolo e tio são a mesma curva: o trajeto carimba e o corpo o persegue
+		_trajeto.pintar(_paredes[i])
+		await _tio.acompanhar_trajeto(_trajeto, _paredes[i], angulo)
 
 	await _tio_sai()
 
@@ -300,13 +333,21 @@ func _rodada_de_pintura(indice_demao: int) -> void:
 
 ## Prepara uma parede pra receber uma demão nova: limpa a máscara e troca as
 ## cores. Quem desenha de fato é o trajeto do rolo.
-func _iniciar_demao_parede(indice_parede: int, indice_demao: int) -> void:
+##
+## `janela` é quanto a pintura desta parede vai levar — vem do trajeto já
+## preparado, não de constante. É ela que o shader usa pra converter o instante
+## gravado (0 a 1) em segundos de relógio de secagem.
+func _iniciar_demao_parede(indice_parede: int, indice_demao: int, janela: float = -1.0) -> void:
+	var segundos: float = janela if janela > 0.0 else duracao_pintura_segundos
+	var cor_molhada: Color = cor_atual.molhada(indice_demao)
+	_tio.definir_cor_tinta(cor_molhada)
+	_props.definir_cor(cor_molhada)
 	_paredes[indice_parede].iniciar_demao(
 		_cor_antes_da_demao(indice_demao),
 		cor_atual.molhada(indice_demao),
 		cor_atual.meio(indice_demao),
 		cor_atual.seca(indice_demao),
-		duracao_pintura_segundos,
+		segundos,
 		indice_demao,
 		demaos_por_ciclo)
 

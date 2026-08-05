@@ -337,6 +337,8 @@ Pra não caçar. "Quero mexer em X" → o arquivo é este.
 | O que se vê pela janela | `scripts/cenario_externo.gd` |
 | O que se vê pela porta | `scripts/comodo_vizinho.gd` |
 | Personagens (movimento, animação) | `scripts/tio.gd` · `garotinha.gd` + `models/*_modelo.tscn` |
+| O rolo (mesh, cabo que estica, orientação) | `scripts/rolo_pintura.gd` |
+| Bandeja, banquinho, lata | `scripts/props_pintura.gd` (andam com o serviço, ≠ `props_quarto.gd`) |
 | Câmera da cadeira | `scripts/camera_cadeira.gd` |
 | Menu, pausa, opções, diálogo, toast | `menu_principal.gd` · `menu_pausa.gd` · `painel_opcoes.gd` · `dialogo_pintura.gd` · `conquista_toast.gd` |
 | Save de progresso · modo de jogo | `estado_jogo.gd` (autoload) + `dados_salvos.gd` · `modo_jogo.gd` |
@@ -414,6 +416,19 @@ os overrides de tamanho de janela: o conteúdo é desenhado em 1152 × 648 e **e
 Layout de UI se mede contra `root.get_visible_rect().size`, nunca contra o tamanho da janela — medir
 contra 900 dava painel "cabendo" que no jogo aparecia com os botões cortados fora da tela.
 
+**⚠️ Fotografar o personagem do lado errado custa rodadas.** O braço que segura o rolo é o
+**direito**; uma câmera colocada à esquerda dele deixa o braço escondido atrás do torso, e a leitura
+óbvia é "a IK não está funcionando". Somando isso à armadilha de ler osso (acima), gastei duas
+rodadas consertando o que não estava quebrado — inclusive removendo pistas de braço de
+`parado_respirando`, que depois se mediu ter **zero** pistas de braço. Antes de concluir que um
+modifier está morto: (1) medir por silhueta, (2) conferir de que lado a câmera está.
+
+**⚠️ Métrica de máscara não substitui olhar o render.** Escolhendo a amplitude da falha de
+cobertura, duas medidas feitas em cima da máscara aprovaram valores que na tela eram manchões
+brancos — uma delas ("o pior 1% cobre 0,44") parecia excelente justamente no pior valor testado. O
+que a máscara não sabe é como aquela cobertura vira cor depois de passar pelo shader inteiro. Pra
+decidir número que o jogador VÊ, medir no quadro renderizado.
+
 **⚠️ Contar quadro não serve pra esperar animação num harness.** Sem vsync o harness passa de
 280 fps, e os 40 quadros que pareciam meio segundo davam 0,14 s — menos que um fade de painel
 (0,15 s + 0,15 s). O teste de navegação do menu acusou uma falha que não existia. Esperar por
@@ -433,7 +448,7 @@ as contas, em `PLANO-SECAGEM-E-QUARTO.md` §2.
 
 | O que o plano diz que existe | O que o código faz | Fase que conserta |
 |---|---|---|
-| Falha de cobertura por rolo descarregado | A máquina existe e está calibrada (a carga cai de 1,00 pra 0,37 por carga), mas a falha está **desligada** (`COBERTURA_MAX` 0,10): com passada de altura inteira ela sai como barra de ponta quadrada, não como rolo secando. Ver SECAGEM §5.4 | E |
+| Falha de cobertura por rolo descarregado | 🟡 **Meio-termo, e o limite agora é conhecido.** A Fase E quebrou a passada de altura inteira e a falha saiu de desligada (0,10) pra 0,20 — variação suave onde a carga acabou. Mas os 0,72 de SECAGEM §3.7 continuam inalcançáveis: `rec.g` grava `carga × peso do carimbo`, e abrir a faixa expõe a **borda macia do carimbo** antes de expor a carga (0,25 já dá risco branco na ponta do W; 0,45 dá manchão em ¼ da parede). Consertaria: canal separado só pra carga — a acumulada tem B e A livres | — |
 | ~~Lap mark inerte~~ | ⚠️ **Não estava inerte — estava aceso em 20,7% da parede.** "Salto de 0,023 s" era um número errado por ~25×: medido de verdade, p50 0,143 · p99 0,959 · máximo 1,250. Com limiar 0,35 o lap marcava toda emenda entre passadas e desenhava **listras verticais**. Limiar foi pra 1,5 (acima do máximo), então agora ele é inerte de fato — ver SECAGEM §5.5 | G4 |
 | ~~Mancha de secagem vinda da espessura~~ | ✅ **G1**: campo de 4 termos, razão medida 2,27–2,33 (era 1,00) | ~~G1~~ |
 | ~~A 2ª demão cobrir falha da 1ª~~ | ✅ **G3**: o fundo tem história; salto de 0,1 de 255 na troca contra 57 quando o rolo passa | ~~G3~~ |
@@ -567,7 +582,7 @@ frente de material/shader que o roadmap original não previa.
 | **B** | Máscara de tinta — `tinta_secando.gd` virou `parede_pintavel.gd` | A | OVERHAUL §3, §6 | ✅ (os "números inertes" eram um centro chumbado — resolvido na G1) |
 | **C** | Low-poly: assoalho em geometria, props, normal maps fora, SSAO/MSAA, `AreaLight3D` | — | OVERHAUL §4, §6 | ✅ |
 | **D** | Rig de 19 ossos + IK (cotovelo, joelho, coluna) | — | OVERHAUL §5, §5.9 | ✅ (a IK do braço fica dormente até E ter um alvo pra ela) |
-| **E** | Coreografia: W, verticais, banquinho, rodapé, bandeja, rolo na mão | D, G6 | OVERHAUL §5.5, §6 | ⬜ |
+| **E** | Coreografia: W, verticais, banquinho, rodapé, bandeja, rolo na mão | D, G6 | OVERHAUL §5.5, §6 | ✅ (a falha de cobertura abriu só até 0,20 — limite estrutural, ver 3.4) |
 | **F** | Refino: som do rolo casado com a mão, passo, porta, o tio olhar pra ela, gravar 60 s | D, E | OVERHAUL §6 | ⬜ |
 | **G1** | **Campo de secagem** — a parede passa a secar desigual e a fase manchada existe | — | SECAGEM §3.1, §5, §5.1 | ✅ |
 | **G2** | Cor (saturação antes de valor) e brilho rasante | G1 | SECAGEM §3.3, §3.4, §5.2 | ✅ (bead inerte até E) |
@@ -660,10 +675,20 @@ evita retrabalho. Cada item traz a definição de pronto — o que precisa ser v
    ⚠️ **A IK do braço continua dormente**, e isso é de propósito: o alvo dela é o rolo, que só entra
    na mão na Fase E. A camada procedural de quadril/torso está pronta e testada, mas com passada de
    altura inteira não há o que ela siga — quem dá a ela um alvo que sobe e desce devagar é E.
-7. `[ ]` **E — coreografia.** Depende de D e de G6. É onde o rolo entra na mão e o trajeto vira W +
+7. `[x]` **E — coreografia.** ✅ **05/08/2026.** O rolo entrou na mão e o trajeto virou W +
    verticais + banquinho + rodapé + bandeja.
    **Pronto quando:** pausando durante a pintura, a tinta na parede corresponde exatamente ao que o
    rolo tocou, incluindo o formato do W.
+   **Verificado:** o W aparece na máscara (35 segmentos diagonais, 120 verticais); a parede fica com
+   **0,000% de texel cru**; as 3 faixas de altura recebem depósito parecido (razão 1,21–1,29). O
+   corpo é lido do rolo a cada quadro: ele sobe no banquinho (0,000 → 0,300 m), agacha no rodapé
+   (agachamento 1,00), o rolo fica a **0,038 m da parede em p50 e p99** (exatamente o raio da
+   espuma) e a mão segura o cabo. A duração deixou de ser parâmetro: 224 m de caminho ÷ 3,6 m/s +
+   9 idas à bandeja = **84 s por parede**, volta completa 5,6 min.
+   ⚠️ **A estimativa de 40-70 s por parede de OVERHAUL §5.6 era chute** — ninguém tinha feito a
+   conta do caminho. 18 m² com rolo de 23 cm e 25% de sobreposição já custam 106 m só pra cobrir
+   uma vez, e o W dobra isso. O que se comprimiu foi a velocidade do rolo (3,6 m/s, ~2× uma passada
+   real), no mesmo espírito do véu de 0,32 da G2.
 8. `[ ]` **G4 — lap mark relativo e tempo de pintura por modo.** Só faz sentido depois de E: com o
    zigue-zague atual, esticar a pintura pra 180 s é esticar a monotonia.
    **Pronto quando:** o lap mark aparece onde ele volta num trecho pintado minutos antes, e não

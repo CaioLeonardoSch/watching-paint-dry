@@ -904,16 +904,42 @@ interessa no começo é uma só: primeira mão de tinta sobre reboco, igual nas 
 
 ### Fase E — Coreografia
 
-- `[ ]` `trajeto_rolo.gd` — gera a sequência (W, verticais, topo, rodapé, bandeja)
-- `[ ]` Liga trajeto → `AlvoRolo` (IK) **e** → `mascara_tinta.carimbar()`
-- `[ ]` Props: rolo na mão, bandeja no chão, banquinho, lata de tinta
-- `[ ]` Refatorar `ciclo_pintura.gd` — `VARREDURAS` (eixo/início/fim) vira definição de superfície,
-  não de trajeto
+- `[x]` `trajeto_rolo.gd` — gera a sequência (W, verticais, topo, rodapé, bandeja)
+- `[x]` Liga trajeto → IK do braço **e** → `mascara_tinta.carimbar()` (`tio.gd::acompanhar_trajeto`)
+- `[x]` Props: rolo na mão, bandeja no chão, banquinho, lata de tinta
+- `[x]` Refatorar `ciclo_pintura.gd` — `VARREDURAS` já só descreve a **superfície**; quem decide o
+  caminho é o trajeto, e quem decide a duração também (`duracao_estimada()`)
 - `[x]` Pacing decidido (ver 5.6): **ritmo honesto nas demãos, abertura acelerada**
-- `[ ]` Aplicar: `FRACAO_JA_PINTADA_ABERTURA` pra ~0.9 e `duracao_pintura_segundos` pro tempo real
-  da coreografia
-- `[ ]` Recalibrar o tempo de secagem dos 3 modos — com a pintura durando minutos, o modo Rápido
-  (60 s) secaria antes de a parede terminar de ser pintada
+- `[x]` Aplicar: `FRACAO_JA_PINTADA_ABERTURA` = 0.92 e `duracao_pintura_segundos` = 84, **medido**
+- `[x]` Recalibrar o tempo de secagem dos 3 modos — Rápido 60 → 150 s. Normal e Realista não
+  precisaram: 84 + 300 = 384 s já cai depois dos 336 s da volta
+
+#### O que a Fase E entregou de fato — 05/08/2026
+
+| Medida | Valor |
+|---|---|
+| Caminho de uma parede (18 m²) | **224 m**, passando 2,12× na mesma área |
+| Duração | **84 s** — 62 s rolando + 9 idas à bandeja |
+| Volta completa | **5,6 min** (a estimativa de 3-5 min desta seção era chute, ver abaixo) |
+| Parede crua sobrando | **0,000%** |
+| Depósito por faixa (topo/meio/rodapé) | razão 1,21–1,29 |
+| Rolo à parede, durante a pintura | p50 e p99 = **0,038 m** (o raio da espuma) |
+| Banquinho / agachamento | 0,000 → **0,300 m** / agachamento **1,00** |
+
+⚠️ **A estimativa "40-70 s por parede" de §5.6 não tinha conta por trás.** 18 m² com rolo de 23 cm e
+25% de sobreposição custam 106 m só pra cobrir uma vez; o W dobra isso, porque depositar e espalhar
+são passagens diferentes — é a técnica, não desperdício. O que se comprimiu foi a velocidade do rolo
+(**3,6 m/s, ~2× uma passada real**), mesmo espírito do véu de 0,32 da G2: exagero controlado pra o
+efeito caber no ritmo decidido.
+
+⚠️ **O rolo sai da parede entre blocos.** Sem isso ele ia riscando a parede no caminho do fim das
+verticais até o começo do topo — diagonais compridas atravessando a faixa de cima. Só apareceu
+**olhando o PNG da máscara**: cobertura e depósito médio até melhoram com uma risca a mais, então
+nenhum número acusou.
+
+⚠️ **As emendas entre faixas serrilham (±8 cm por trecho).** Com altura de faixa fixa, a
+sobreposição vira duas linhas horizontais retas de 6 m com o dobro de tinta — linha reta perfeita lê
+como bug, não como pintura.
 
 ### Fase G — Secagem natural + proporção do quarto
 

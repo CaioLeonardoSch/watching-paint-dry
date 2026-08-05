@@ -134,24 +134,26 @@ uniform float forca_marca = 0.09;
 // `rec_suave.g` no miolo das 4 paredes: pior 0,140 · p01 0,249 · p05 0,294 ·
 // mediana 0,506 · p90 0,719.
 //
-// ⚠️ **A FALHA POR CARGA ESTÁ DESLIGADA (0,10 < 0,140) — reabrir na Fase E.**
+// ✅ **A falha por carga foi REABERTA na Fase E** (0,10 → 0,20).
 //
-// A tabela de SECAGEM §3.7 pede 42% de cobertura no fim de uma carga. Testado:
-// fica horrível, e o problema não é a amplitude, é o TRAJETO. Uma carga dá 9 m
-// e uma passada de altura inteira dá 3 m, então **uma carga dura 3 passadas**, e
-// a recarga é instantânea no meio de uma delas. O resultado na tela é uma barra
-// vertical de uma passada de largura com a **ponta quadrada** no ponto da
-// recarga: lê como risco de estilete, não como rolo secando. Testei de 42% a
-// 85% de cobertura mínima — o padrão não muda, só o contraste dele.
+// Ela ficou desligada da G3 até lá, e o motivo nunca foi a amplitude, era o
+// TRAJETO: com passada de altura inteira, uma carga durava 3 passadas e a
+// recarga caía instantânea no meio de uma delas. Saía uma barra vertical de
+// uma passada de largura com a **ponta quadrada** no ponto da recarga — risco
+// de estilete, não rolo secando. De 42% a 85% o padrão não mudava, só o
+// contraste.
 //
-// O W, as verticais curtas e o banquinho da Fase E quebram a passada de altura
-// inteira, e é lá que a falha vira mosqueado em vez de barra. Aí este par abre.
-// (A mesma dependência que o plano já anota pro lap mark em §3.8.)
+// A coreografia da Fase E quebrou a passada de altura inteira (W + verticais
+// curtas + topo + rodapé) e passou a recarregar em quebra de bloco. Mas o valor
+// parou em 0,20, não nos 0,72 de SECAGEM §3.7, e o motivo é estrutural: este
+// canal grava `carga × peso do carimbo`, e abrir a faixa expõe a **borda macia
+// do carimbo** antes de expor a carga. Detalhe e o que consertaria em
+// `parede_pintavel.gd::COBERTURA_MAX`.
 //
 // Quem mexer aqui tem que mexer no mesmo par em `copia_cobertura.gdshader` —
 // ou melhor, deixar `parede_pintavel.gd` passar os dois, que é o que ele faz.
 uniform float cobertura_min = 0.0;
-uniform float cobertura_max = 0.10;
+uniform float cobertura_max = 0.20;
 
 varying vec3 pos_mundo;
 
