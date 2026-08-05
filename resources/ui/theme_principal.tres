@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=6 format=3]
+[gd_resource type="Theme" load_steps=8 format=3]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_painel"]
 bg_color = Color(0.14, 0.115, 0.095, 0.92)
@@ -65,6 +65,20 @@ content_margin_top = 8.0
 content_margin_right = 16.0
 content_margin_bottom = 8.0
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_barra_fundo"]
+bg_color = Color(0, 0, 0, 0.35)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_barra_cheia"]
+bg_color = Color(0.85, 0.65, 0.35, 1)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+
 [resource]
 default_font_size = 20
 Button/colors/font_color = Color(0.92, 0.88, 0.82, 1)
@@ -80,3 +94,5 @@ CheckButton/colors/font_hover_color = Color(1, 0.95, 0.85, 1)
 Label/colors/font_color = Color(0.92, 0.88, 0.82, 1)
 Panel/styles/panel = SubResource("StyleBoxFlat_painel")
 PanelContainer/styles/panel = SubResource("StyleBoxFlat_painel")
+ProgressBar/styles/background = SubResource("StyleBoxFlat_barra_fundo")
+ProgressBar/styles/fill = SubResource("StyleBoxFlat_barra_cheia")

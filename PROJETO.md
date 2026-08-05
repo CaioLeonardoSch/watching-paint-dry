@@ -236,12 +236,18 @@ estão **completas**, mais uma rodada de refinamento pós-roadmap:
   A causa estrutural continua sem conserto e tem dono: ver `PLANO-SECAGEM-E-QUARTO.md` §6.2 —
   a janela está 1 m fora do centro da parede dela, e não existe luz indireta no quarto
 - **Fase 3 — menu, modos, save, conquistas:** `estado_jogo.gd` é o autoload `EstadoJogo`, guarda
-  modo ativo e `DadosSalvos` salvo em `user://save.tres`. Menu inicial oferece Jogar (seletor de
-  modo Rápido/Normal/Realista) ou Continuar, mais visualizador de conquistas. `parede_pintavel.gd`
-  se autoconfigura a partir do modo ativo — desde a remoção do ciclo de dia, **o modo só controla o
-  tempo de secagem** (Realista é 2h/demão). Menu de pausa (ESC) pausa a árvore de
-  verdade (`get_tree().paused`). Conquistas (`conquistas.gd`, 10 no total, texto fixo) disparam ao
-  completar ciclo de 3 demãos de uma cor, com toast e persistência entre sessões
+  modo ativo e **dois arquivos separados**: `DadosSalvos` em `user://save.tres` (partida em
+  andamento) e `DadosConquistas` em `user://conquistas.tres` (conquista + progresso permanente).
+  Menu inicial oferece Jogar (seletor de modo Rápido/Normal/Realista) ou Continuar, mais
+  visualizador de conquistas. `parede_pintavel.gd` se autoconfigura a partir do modo ativo — desde a
+  remoção do ciclo de dia, **o modo só controla o tempo de secagem** (Realista é 2h/demão). Menu de
+  pausa (ESC) pausa a árvore de verdade (`get_tree().paused`). Conquistas (`conquistas.gd`, 10 no
+  total, texto fixo) disparam ao completar ciclo de 3 demãos de uma cor, com toast e persistência
+  entre sessões.
+  **Correção 04/08/2026 — conquista não pode morar no save.** Enquanto era um arquivo só,
+  `iniciar_novo_jogo()` fazia `DadosSalvos.new()` e levava as conquistas junto: quem começasse
+  partida nova perdia tudo que tinha desbloqueado. Agora são dois arquivos, e nada que mexa no save
+  (Novo Jogo, lixeira do menu) encosta no outro. Save de schema 1 é migrado uma vez, no boot
 - **Refinamento pós-roadmap:** porta de verdade (`porta.gd`/`porta.tscn`) com maçaneta de latão,
   abre/fecha por `Tween`, orquestrada por `ciclo_pintura.gd`; cadeira de madeira em `(0, 0, -1)`;
   teto liso de propósito (sem normal map — luz rasante da lâmpada vira rabisco)
@@ -335,7 +341,8 @@ Pra não caçar. "Quero mexer em X" → o arquivo é este.
 | Menu, pausa, opções, diálogo, toast | `menu_principal.gd` · `menu_pausa.gd` · `painel_opcoes.gd` · `dialogo_pintura.gd` · `conquista_toast.gd` |
 | Save de progresso · modo de jogo | `estado_jogo.gd` (autoload) + `dados_salvos.gd` · `modo_jogo.gd` |
 | Volume, tela cheia, idioma | `scripts/opcoes.gd` (autoload) |
-| Conquistas | `scripts/conquistas.gd` |
+| Conquistas — texto, ordem, cor | `scripts/conquistas.gd` |
+| Conquistas — o que fica salvo | `scripts/dados_conquistas.gd` (`user://conquistas.tres`, **arquivo à parte do save**) |
 | Som | `som_ambiente.gd` · `som_pincelada.gd` (sintetizados, sem arquivo de áudio) |
 
 #### Pares que PRECISAM andar juntos
@@ -394,6 +401,23 @@ e o resíduo entra na conta como se fosse listra. O número subia junto com o br
 passa-banda:** média curta (7 colunas) menos média longa (31), que deixa passar só período de ~10 a
 ~60 px. Com a métrica certa, a mesma cena foi de "0,52, nada resolve" pra "0,151, e o lap mark
 explica tudo". Ver SECAGEM §5.5.
+
+**⚠️ Um `.tres` NÃO grava propriedade que esteja igual ao default do script.** Mudar um default,
+então, muda o que um arquivo já salvo lê de volta. O `save.tres` do usuário nunca teve linha
+`versao_schema` porque na época o valor era 1 = o default; subir o default pra 2 fez esse mesmo
+arquivo carregar dizendo "2". Uma migração que confiasse na versão teria pulado calada e jogado fora
+as conquistas de quem já jogou. **Detecção de save antigo é por conteúdo** (tem campo legado
+preenchido?), não por número de versão — ver `estado_jogo.gd::_save_tem_campo_legado`.
+
+**⚠️ A janela é 1600 × 900 mas a viewport é 1152 × 648.** `window/stretch/mode = "canvas_items"` com
+os overrides de tamanho de janela: o conteúdo é desenhado em 1152 × 648 e **escalado por 1,39**.
+Layout de UI se mede contra `root.get_visible_rect().size`, nunca contra o tamanho da janela — medir
+contra 900 dava painel "cabendo" que no jogo aparecia com os botões cortados fora da tela.
+
+**⚠️ Contar quadro não serve pra esperar animação num harness.** Sem vsync o harness passa de
+280 fps, e os 40 quadros que pareciam meio segundo davam 0,14 s — menos que um fade de painel
+(0,15 s + 0,15 s). O teste de navegação do menu acusou uma falha que não existia. Esperar por
+**tempo** (`await create_timer(s).timeout`), não por quadro.
 
 **⚠️ Duas maneiras de medir textura errado**, as duas pagas em 04/08/2026 (detalhe em SECAGEM §5.4):
 contraste local pixel a pixel mede o **dither do debanding**, não a tinta — a métrica ficou em 0,7 em
@@ -688,8 +712,12 @@ ainda pode mudar.
 - `[ ]` Criar `export_presets.cfg` (não existe ainda) — presets Windows/Linux/Mac
 - `[ ]` Criar conta Steamworks (Steam Direct, US$100)
 - `[ ]` Integrar GodotSteam: inicialização básica da API
-- `[ ]` Ligar as conquistas existentes (`conquistas.gd`, hoje só locais em `user://save.tres`) à API
-  de conquistas da Steam
+- `[ ]` Ligar as conquistas existentes (`conquistas.gd`, hoje locais em `user://conquistas.tres`) à
+  API de conquistas da Steam. **Nesta mesma tarefa, apagar o botão "Limpar conquistas"**: some
+  `Conquistas.PERMITE_LIMPAR`, `EstadoJogo.limpar_conquistas()`, os nós `BotaoLimparConquistas` e
+  `PainelConfirmarConquistas` do `menu_principal.tscn` e o que os liga em `menu_principal.gd`. Com a
+  Steam quem manda no desbloqueio é ela — apagar o arquivo local não desfaz nada no perfil, então o
+  botão passaria a mentir pro jogador
 - `[ ]` Página de loja com o branding da Etapa 2
 - `[ ]` Build de depósito e primeiro upload (branch de teste antes de público)
 
@@ -728,6 +756,16 @@ Mantido pelo registro das decisões (por que cada coisa é como é), não como l
   `painel_opcoes.gd`/`.tscn`, reusado no menu principal e no menu de pausa. Conteúdo hoje é volume
   **mestre** (não separado por música/SFX — não existe trilha/música ainda, então não fazia
   sentido separar) e tela cheia
+- `[x]` **Botão de cor da paleta (04/08/2026)** — sobrescrever só a stylebox `normal` deixava o tema
+  entrar no `hover`: o botão perdia a cor (virava marrom) e o texto era cortado, porque a margem do
+  tema é 16 px e a da stylebox custom era 0. **O tamanho mínimo do botão sai da `normal`**, então a
+  palavra cabia parada e estourava embaixo do mouse ("Amarelo" → "Amar"). Agora as 4 stylebox são
+  geradas juntas, com a mesma margem, e a cor do texto vem da luminância do estado mais claro.
+  Medido: folga de texto ia a **−24 px** no hover, hoje ≥ 0 nos 4 estados
+- `[x]` **Lista de conquistas (04/08/2026)** — eram 10 `Label` iguais com prefixo `✓`/`???`. Agora
+  cada linha é um painel com tira colorida na esquerda (a cor da tinta de que ela fala, dourado nas
+  4 que não são de cor, cinza quando bloqueada), mais barra de progresso e contador "x de y". As 10
+  cabem sem rolagem na viewport de 648 de altura
 
 **Animação de personagens** — ⚠️ **superada pela Fase D do overhaul.** O rig de 7 ossos descrito
 aqui não sustenta agachar nem esticar (braço de 1 osso só), então vai ser refeito com 19 ossos + IK.
