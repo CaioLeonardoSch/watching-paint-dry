@@ -106,19 +106,41 @@ uniform float limiar_lap = 1.5;
 // ~0,6 pra 0 ao longo da borda, e o gradiente é medido num passo de carimbo.
 uniform float escala_bead = 3.0;
 
-// Quanto a marca do rolo aparece. Cai a cada demão (ver iniciar_demao): a
-// primeira camada sobre reboco cru mostra bastante variação, a última fecha
-// lisa — que é como parede pintada de verdade se comporta.
+// Quanto a marca do rolo aparece com a tinta AINDA FRESCA.
 //
-// ⚠️ São DOIS valores, e isso não é redundância. `suavidade_anterior` é o
-// quanto a marca aparece no que JÁ ESTÁ na parede; `suavidade_demao` é o quanto
-// ela vai aparecer depois que ESTA demão cobrir. Com um valor só, o degrau
-// entre as duas era aplicado na parede inteira no frame em que a demão trocava
-// — e a parede alisava de uma vez, antes de o rolo encostar nela. Agora o
-// degrau entra junto com `cobertura`, ou seja, atrás do rolo.
-uniform float suavidade_anterior = 1.0;
-uniform float suavidade_demao = 1.0;
-uniform float forca_marca = 0.09;
+// ⚠️ **Invertido em 06/08/2026, a pedido do Caio.** Antes a marca era modulada
+// por `k_valor`, que CRESCE conforme seca: a parede ficava lisa molhada e as
+// listras apareciam no auge justamente quando ela secava. O acabamento é o que
+// mais se olha neste jogo, e ele terminava listrado.
+//
+// O certo é o que se vê pintando de verdade: enquanto o filme está fresco as
+// passadas são bem visíveis (espessura e brilho diferentes faixa a faixa), e
+// conforme ele nivela e seca a parede fecha homogênea. Aí a demão seguinte
+// entra por cima com marca visível de novo, e fecha homogênea de novo.
+uniform float forca_marca = 0.12;
+
+// Quanto da marca SOBRA depois de seca, como fração de `forca_marca`.
+//
+// ⚠️ São DOIS valores, e isso não é redundância. `residuo_anterior` é o que a
+// camada de baixo (já seca) ainda mostra; `residuo_demao` é o que ESTA demão
+// vai mostrar quando secar. Com um valor só, o degrau entre as duas era
+// aplicado na parede inteira no frame em que a demão trocava — e a parede
+// alisava de uma vez, antes de o rolo encostar nela. Separados, o degrau entra
+// junto com `cobertura`, ou seja, atrás do rolo.
+//
+// Cai a cada demão (ver `parede_pintavel.gd::residuo_marca`): a primeira camada
+// sobre reboco cru não fecha perfeita, a última fecha lisa.
+uniform float residuo_anterior = 0.0;
+uniform float residuo_demao = 0.0;
+
+// Quanto a marca FRESCA desta demão vale, de 0 a 1.
+//
+// ⚠️ Existe porque `relevo` é a máscara ACUMULADA: ele guarda o relevo de todas
+// as demãos, e o passa-alta tira o nível mas não a amplitude. Medido no render,
+// a variação de uma demão fresca ia 0,022 → 0,035 → 0,047 da 1ª pra 3ª. Sem
+// compensar, a 3ª demão fresca **crushava em preto** nas emendas de faixa.
+// Quem preenche é `parede_pintavel.gd::forca_fresca`.
+uniform float marca_fresca = 1.0;
 
 // Faixa da carga gravada que conta como "coberto".
 //
@@ -406,8 +428,20 @@ void fragment() {
 	// `mix` deixa ver. Demão nova não alisa o que ela ainda não cobriu.
 	float relevo_rel = (relevo - relevo_largo) / max(espessura_demao, 1e-4);
 	float marca_base = relevo_rel * forca_marca * nitidez;
-	float marca_anterior = marca_base * suavidade_anterior;
-	float marca_nova     = marca_base * suavidade_demao;
+
+	// ⚠️ A marca segue a UMIDADE, não o número da demão (ver `forca_marca`).
+	// Cheia com o filme fresco, caindo pro resíduo desta demão conforme seca.
+	// A faixa começa em 0,25 porque antes disso a tinta ainda está escorrendo e
+	// nivelando — e termina em 0,88, junto com `k_valor`, pra a parede não
+	// continuar mudando depois de a cor já ter parado.
+	float k_fresca = 1.0 - smoothstep(0.25, 0.88, fracao);
+	float marca_nova = marca_base * mix(residuo_demao, marca_fresca, k_fresca);
+	// a camada de baixo já secou faz tempo: dela só sobra o resíduo
+	float marca_anterior = marca_base * residuo_anterior;
+	// teto duro: sem ele o pico do relevo estourava `1.0 - marca` pra negativo e
+	// a emenda entre faixas virava mancha PRETA na parede
+	marca_nova     = clamp(marca_nova,     -0.45, 0.45);
+	marca_anterior = clamp(marca_anterior, -0.45, 0.45);
 
 	// Onde a demão anterior falhou, o reboco continua aparecendo — e continua
 	// aparecendo DURANTE esta demão, até o rolo passar por cima daquele ponto.
@@ -415,7 +449,9 @@ void fragment() {
 	// trocas de valor de saturação.
 	vec3 base_anterior = mix(cor_crua.rgb, cor_anterior.rgb, cob_anterior)
 		* (1.0 - marca_anterior);
-	cor_nova *= (1.0 - marca_nova * k_valor);
+	// ⚠️ Sem `k_valor` aqui. Era ele que fazia a marca só aparecer DEPOIS de
+	// secar — o defeito que esta rodada veio consertar.
+	cor_nova *= (1.0 - marca_nova);
 
 	// Manchado de tinta secando é mais diferença de BRILHO que de cor — por
 	// isso aqui a cor leva metade do peso que a rugosidade leva lá embaixo.

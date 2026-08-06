@@ -103,6 +103,16 @@ const ESPESSURA_DEMAO: float = 0.033
 const COBERTURA_MIN: float = 0.0
 const COBERTURA_MAX: float = 0.20
 
+## Quanto da marca do rolo a PRIMEIRA demão deixa pra sempre, como fração de
+## `forca_marca` do shader. As demais caem proporcionalmente até zero na última
+## (ver `residuo_marca`).
+##
+## É o botão de "quão homogênea a parede fica quando seca". 0,0 deixa as três
+## demãos secando perfeitamente lisas; subir demais traz de volta a queixa que
+## esta rodada veio consertar. 0,16 é o suficiente pra a 1ª demão sobre reboco
+## cru não parecer tinta de fábrica, e some na 3ª.
+const RESIDUO_PRIMEIRA: float = 0.16
+
 ## Quanto cada demão nova atrasa a secagem, uniformemente. É real: o substrato
 ## vai selando e absorve menos água a cada camada. Entra como fator explícito
 ## de propósito — antes isso saía como efeito colateral do acumulador crescendo,
@@ -286,11 +296,12 @@ func iniciar_demao(
 	material.set_shader_parameter("tempo_decorrido", 0.0)
 	# Cada demão deixa a superfície mais uniforme — mas só ATRÁS DO ROLO. Os dois
 	# valores são o que a parede mostra antes e depois desta camada cobrir; o
-	# shader escolhe entre eles pela `cobertura`. Ver `suavidade_anterior` lá.
-	material.set_shader_parameter("suavidade_anterior",
-		suavidade_marca(numero_demao - 1, total_demaos))
-	material.set_shader_parameter("suavidade_demao",
-		suavidade_marca(numero_demao, total_demaos))
+	# shader escolhe entre eles pela `cobertura`. Ver `residuo_anterior` lá.
+	material.set_shader_parameter("residuo_anterior",
+		residuo_marca(numero_demao - 1, total_demaos))
+	material.set_shader_parameter("residuo_demao",
+		residuo_marca(numero_demao, total_demaos))
+	material.set_shader_parameter("marca_fresca", forca_fresca(numero_demao))
 
 	# Desloca a amostra da mancha desta demão. Sem isto a 2ª demão secaria com
 	# exatamente o mesmo desenho de nuvens da 1ª, e o truque se denunciaria na
@@ -300,17 +311,39 @@ func iniciar_demao(
 		Vector2(randf() * folga, randf() * folga))
 
 
-## Quanto da marca do rolo ainda aparece depois da demão `numero` (0 = primeira).
+## Quanto da marca do rolo SOBRA depois de a demão `numero` secar (0 = primeira),
+## como fração de `forca_marca`.
 ##
-## Fecha em ZERO na última: a recompensa de três demãos é a parede ficar lisa.
-## A curva antiga era `1 / (1 + n * 0.9)`, que parava em 0,36 na terceira — a
-## marca da PRIMEIRA demão continuava aparecendo na parede acabada.
+## ⚠️ Isto substituiu `suavidade_marca` em 06/08/2026. A função antiga devolvia
+## 1,0 / 0,5 / 0,0 e era a marca INTEIRA da demão, não um resíduo — combinada com
+## o `k_valor` do shader, a parede secava **listrada** e só alisava quando a
+## demão seguinte cobria. A queixa do Caio era exatamente essa: o resultado final
+## não fica homogêneo.
 ##
-## `numero` negativo devolve 1,0 de propósito: é o "antes da 1ª demão", quando o
-## que está na parede é reboco cru e nada foi alisado ainda.
-static func suavidade_marca(numero: int, total: int) -> float:
+## Agora quem manda na marca é a umidade do filme (ver `tinta_secando`), e isto
+## aqui é só o quanto fica pra sempre. Fecha em ZERO na última demão: a
+## recompensa de três demãos é a parede ficar lisa de verdade.
+##
+## `numero` negativo devolve o resíduo cheio de propósito — é o "antes da 1ª
+## demão", quando o que está na parede é reboco cru. Na prática dá zero mesmo
+## assim, porque a máscara acumulada ainda está vazia e o relevo é 0.
+static func residuo_marca(numero: int, total: int) -> float:
 	var ultima: float = float(maxi(total - 1, 1))
-	return clampf(1.0 - float(numero) / ultima, 0.0, 1.0)
+	var restante: float = clampf(1.0 - float(numero) / ultima, 0.0, 1.0)
+	return RESIDUO_PRIMEIRA * restante
+
+
+## Quanto a marca da demão `numero` vale enquanto o filme está FRESCO, de 0 a 1.
+##
+## ⚠️ Não é gosto, é compensação. A máscara acumulada guarda o relevo de todas as
+## demãos, e o passa-alta do shader tira o nível mas não a amplitude: medido no
+## render, a variação de uma demão fresca subia 0,022 → 0,035 → 0,047 da 1ª pra
+## 3ª. Sem dividir, a 3ª demão fresca crushava em preto nas emendas de faixa.
+##
+## `1/(n+1)` também é o comportamento certo: cada demão nova cai sobre uma
+## superfície mais lisa, então marca menos que a anterior.
+static func forca_fresca(numero: int) -> float:
+	return 1.0 / float(maxi(numero, 0) + 1)
 
 
 ## Carimba o rastro do rolo. `de`/`para` são UV 0-1 na parede; `instante` é

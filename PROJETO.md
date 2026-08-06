@@ -373,6 +373,7 @@ outro na mesma sessão.**
 | Vão da porta ou da janela | **`VARREDURAS[i]["aberturas"]`** | Os buracos são repetidos ali em METROS no plano (u, v), convertidos das medidas de `inicializar_quarto.gd` (`v_m = 3 − Y`). Se divergirem, o rolo volta a pintar através do vão — e nenhum número acusa, porque não há geometria ali pra ficar crua |
 | `trajeto_rolo.gd::DURACAO_BANQUINHO` / `DURACAO_BANDEJA` / `FATOR_REPOR_TINTA` | `ciclo_pintura.gd::duracao_pintura_segundos` e `modo_jogo.gd::TEMPO_SECAGEM` | As paradas são ~40% da duração de uma parede. Mexer nelas muda a volta inteira, e é a volta que decide se a parede que a garotinha encara ainda está secando quando o tio termina |
 | `props_pintura.gd::ALTURA_BANQUINHO` | `tio.gd::ALTURA_BANQUINHO` | Dois nomes pro mesmo degrau; divergir faz ele flutuar ou enterrar o pé na madeira |
+| `parede_pintavel.gd::residuo_marca` / `forca_fresca` | `tinta_secando.gdshader::residuo_*` e `marca_fresca` | A marca do rolo segue a UMIDADE, não o número da demão. `forca_fresca` = `1/(n+1)` compensa o relevo acumulado — sem ela a 3ª demão fresca crusha em preto. Ver SECAGEM §5.3 |
 
 **⚠️ `get_shader_parameter()` devolve `null` pra uniform que nunca foi setada.** O valor default
 escrito no `.gdshader` **não conta** — ele só existe no shader, não no material. Ler um uniform de
@@ -582,6 +583,13 @@ Pedida pelo Caio depois de olhar a Fase E rodando. Sete itens de animação mais
 | O rolo ficava pendurado no quadril "na bandeja" | Ele agacha e **escorre o rolo na rampa**, vai e volta. Na primeira ida de cada parede ainda ergue a lata e despeja |
 | Bandeja, lata e banquinho pulavam de canto do quarto | Ele carrega os três numa viagem, com o rolo dentro da bandeja |
 | A garotinha começava dentro do quarto e se teleportava pra fora | O jogo abre **em 1ª pessoa dentro do cômodo vizinho**. Ela entra, encontra o tio terminando a última parede, senta, e a câmera desce junto com o corpo. `CameraCutscene` foi removida |
+
+**E o acabamento (06/08/2026, mesma rodada).** Queixa do Caio, repetida: *"a parede não ficou
+homogênea, ela fica com as linhas de tinta muito marcadas"*. A marca do rolo era modulada por
+`k_valor`, que **cresce conforme seca** — a parede ficava lisa molhada e listrada seca, o oposto do
+certo. Invertido: agora quem manda é a umidade do filme. Medido no render, o desvio da luminância cai
+de 0,023 (fresca) pra 0,006 (seca) na 1ª demão, e a seca fecha em 0,0045 na 3ª. Detalhe e a
+armadilha do relevo acumulado em `PLANO-SECAGEM-E-QUARTO.md` §5.3.
 
 **O preço, medido:** a parede passou de **84 s pra ~101 s** (leste 104,5 · norte 102,4 · oeste 98,8 ·
 sul 99,7) e a volta de 5,6 pra **~7,1 min**. As paradas são ~40% disso. Foi conferido que os três

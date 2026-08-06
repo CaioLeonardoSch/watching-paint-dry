@@ -1075,6 +1075,41 @@ escolhe entre as duas, então o degrau entra **atrás do rolo** em vez de na par
 E a curva virou `1 − numero/(total−1)`: 1,00 · 0,50 · **0,00**. A última demão apaga a marca do rolo
 enquanto passa, que é a recompensa de ter pintado três vezes.
 
+##### ⚠️ Isto NÃO resolveu a queixa, e só se soube em 06/08/2026
+
+O Caio repetiu a mesma reclamação depois da Fase E2: *"a parede não ficou homogênea, ela fica com as
+linhas de tinta muito marcadas"*. A curva acima zera a marca **da 3ª demão**, mas a 1ª e a 2ª secavam
+listradas e ficavam assim até a demão seguinte cobrir — e o pior é que a marca era modulada por
+`k_valor`, que **cresce conforme seca**. Ou seja: a parede ficava lisa molhada e as listras apareciam
+no auge exatamente quando ela terminava de secar. O acabamento é o que mais se olha neste jogo.
+
+**A inversão:** quem manda na marca passou a ser a UMIDADE do filme, não o número da demão.
+
+```
+k_fresca = 1 − smoothstep(0.25, 0.88, fracao)
+marca_nova = marca_base * mix(residuo_demao, marca_fresca, k_fresca)
+```
+
+`suavidade_*` virou `residuo_*` (o que sobra **depois de seca**, `RESIDUO_PRIMEIRA = 0,16` caindo a
+zero na última) e ganhou `marca_fresca` (o que vale **enquanto fresca**).
+
+⚠️ **`marca_fresca` não é gosto, é compensação — e sem ela a 3ª demão fresca crushava em PRETO.** A
+máscara acumulada guarda o relevo de todas as demãos e o passa-alta tira o nível, não a amplitude:
+medido no render, o desvio de uma demão fresca subia 0,022 → 0,035 → 0,047 da 1ª pra 3ª. Com
+`1/(n+1)` ele fica em 0,023 · 0,020 · 0,019. Tem `clamp(±0,45)` de cinto e suspensório.
+
+**Medido no render** (desvio padrão da luminância, recorte central, Azul):
+
+| demão | fresca (fração 0,03) | seca (fração 1,00) | faixa quando seca |
+|---|---|---|---|
+| 1 | 0,0227 | **0,0063** | 0,041 |
+| 2 | 0,0204 | **0,0049** | 0,030 |
+| 3 | 0,0194 | **0,0045** | 0,019 |
+
+Fresca marca ~4× mais que seca, e cada demão fecha mais lisa que a anterior — que é literalmente o
+que o Caio descreveu: *"secar para uma parede homogênea, então passar a nova demão por cima com
+marcas visíveis e ficar homogênea, assim por diante"*.
+
 #### ⚠️ O passa-alta da marca estava comendo o próprio sinal
 
 `relevo_largo` era um borrão de 3 taps espaçados de `passo * 7` — largura total **17 texels**. O sinal
