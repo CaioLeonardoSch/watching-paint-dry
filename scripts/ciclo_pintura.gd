@@ -29,13 +29,14 @@ enum Estado { INTRO, PINTANDO, SECANDO, PERGUNTANDO, CONTEMPLANDO }
 ## é só a estimativa usada onde não há trajeto rodando: o escalonamento de
 ## secagem das paredes já pintadas da abertura e a retomada de save.
 ##
-## **Medido** em 05/08/2026: 224 m de caminho por parede, 62 s rolando + 9 idas
-## à bandeja = 84 s. Mudou o caminho do rolo? Remedir e reescrever aqui.
-@export var duracao_pintura_segundos: float = 84.0
+## **Remedido** em 06/08/2026, depois de o banquinho virar objeto carregado:
+## ~222 m de caminho, 62 s rolando + 9 idas à bandeja + ~7 idas ao banquinho =
+## 99 a 105 s por parede (leste 104,5 / norte 102,4 / oeste 98,8 / sul 99,7).
+## Era 84 s. Mudou o caminho do rolo ou o número de paradas? Remedir aqui.
+@export var duracao_pintura_segundos: float = 101.0
 
 const PONTO_PERTO_CADEIRA_TIO: Vector3  = Vector3(0.9, 0, -1.6)
 const PONTO_CADEIRA_GAROTINHA: Vector3  = Vector3(0, 0, -1)
-const PONTO_OLHAR_CUTSCENE: Vector3     = Vector3(0.8, 1.3, -2.0)  # entre parede, porta e cadeira
 
 ## Cor do reboco cru, antes de qualquer tinta (bate com mat_parede em
 ## inicializar_quarto.gd) — é o que fica "à frente do rolo" na 1ª demão.
@@ -66,6 +67,10 @@ const PAREDE_ABERTURA: int = 1                # Norte
 #   largura/altura       — em metros, pra dimensionar a máscara
 #   de/para              — trajeto do tio, rente à parede
 #   angulo               — rotação em Y pra ele encarar a parede
+#   aberturas            — os buracos (janela, porta) em METROS no plano (u, v),
+#                          convertidos das medidas de inicializar_quarto.gd.
+#                          v cresce pra baixo, então v_m = 3 − Y. O rolo pinta
+#                          ao redor deles; sem isto ele atravessava o vão.
 #
 # Antes isto descrevia por onde a "frente de varredura" andava; agora descreve
 # só a superfície. Quem decide o caminho do rolo é trajeto_rolo.gd.
@@ -81,21 +86,27 @@ const VARREDURAS: Array[Dictionary] = [
 		"origem": Vector3(3.0, 3, 2), "eixo_u": Vector3(0, 0, -6), "eixo_v": Vector3(0, -3, 0),
 		"largura": 6.0, "altura": 3.0,
 		"de": Vector3(2.3, 0, 1.6), "para": Vector3(2.3, 0, -3.4), "angulo": -90.0,
+		# porta: Z∈[-0.5,+0.5] → u_m = 2 − Z ∈ [1.5, 2.5]; Y∈[0,2.1] → v_m ∈ [0.9, 3.0]
+		"aberturas": [Rect2(1.5, 0.9, 1.0, 2.1)],
 	},
 	{  # Norte (frente dela). Pinta de leste pra oeste.
 		"origem": Vector3(3.0, 3, -4), "eixo_u": Vector3(-6, 0, 0), "eixo_v": Vector3(0, -3, 0),
 		"largura": 6.0, "altura": 3.0,
 		"de": Vector3(2.3, 0, -3.4), "para": Vector3(-2.3, 0, -3.4), "angulo": 0.0,
+		"aberturas": [],
 	},
 	{  # Oeste (janela) — esquerda dela. Pinta do norte pro sul.
 		"origem": Vector3(-3.0, 3, -4), "eixo_u": Vector3(0, 0, 6), "eixo_v": Vector3(0, -3, 0),
 		"largura": 6.0, "altura": 3.0,
 		"de": Vector3(-2.3, 0, -3.4), "para": Vector3(-2.3, 0, 1.4), "angulo": 90.0,
+		# janela: Z∈[-1.85,-0.15] → u_m = Z + 4 ∈ [2.15, 3.85]; Y∈[0.8,2.0] → v_m ∈ [1.0, 2.2]
+		"aberturas": [Rect2(2.15, 1.0, 1.7, 1.2)],
 	},
 	{  # Sul (atrás dela) — fecha a volta. Pinta de oeste pra leste.
 		"origem": Vector3(-3.0, 3, 2), "eixo_u": Vector3(6, 0, 0), "eixo_v": Vector3(0, -3, 0),
 		"largura": 6.0, "altura": 3.0,
 		"de": Vector3(-2.3, 0, 1.4), "para": Vector3(2.3, 0, 1.4), "angulo": 180.0,
+		"aberturas": [],
 	},
 ]
 
@@ -112,7 +123,6 @@ var _cor_anterior_seca: Color = COR_PAREDE_CRUA
 @onready var _tio: Tio                      = $"../Tio"
 @onready var _garotinha: Garotinha          = $"../Garotinha"
 @onready var _camera_cadeira: CameraCadeira = $"../Camera3D"
-@onready var _camera_cutscene: Camera3D     = $"../CameraCutscene"
 @onready var _dialogo: DialogoPintura       = $"../DialogoPintura"
 @onready var _porta: Porta                  = $"../Porta"
 
@@ -138,7 +148,13 @@ func _ready() -> void:
 		var origem: Vector3 = v["origem"]
 		var eixo_u: Vector3 = v["eixo_u"]
 		var eixo_v: Vector3 = v["eixo_v"]
-		parede.configurar(largura, altura, origem, eixo_u, eixo_v, carimbo, i, PONTO_JANELA)
+		# ⚠️ o Array dentro de um Dictionary const vem SEM tipo — copiar pra um
+		# Array[Rect2] antes de passar, senão é o mesmo tropeço de passar
+		# `dicionario["chave"]` direto pra parâmetro tipado (CLAUDE.md)
+		var buracos: Array[Rect2] = []
+		for r in v["aberturas"]:
+			buracos.append(r as Rect2)
+		parede.configurar(largura, altura, origem, eixo_u, eixo_v, carimbo, i, PONTO_JANELA, buracos)
 		parede.aplicar_em(grupos[i])
 		_paredes.append(parede)
 
@@ -199,7 +215,6 @@ func _retomar_de_save() -> void:
 
 func _sequencia_abertura() -> void:
 	estado = Estado.INTRO
-	_camera_cutscene.look_at(PONTO_OLHAR_CUTSCENE, Vector3.UP)
 
 	# As outras 3 paredes já foram pintadas antes do jogador chegar. Carimba de
 	# uma vez (sem animar) pra elas terem a marca de rolo de verdade, não cor
@@ -239,16 +254,14 @@ func _sequencia_abertura() -> void:
 	_props.posicionar_para_parede(parede_abertura)
 	# o rolo continua de onde parou, em paralelo com o corpo do tio
 	_trajeto.pintar(parede_abertura, false, FRACAO_JA_PINTADA_ABERTURA)
-	await _tio.acompanhar_trajeto(_trajeto, parede_abertura, angulo)
+	# ⚠️ SEM await: a garotinha entra ENQUANTO ele pinta. O pedido é ela chegar e
+	# encontrar o tio no fim da última parede, não achar o serviço pronto.
+	_tio.acompanhar_trajeto(_trajeto, parede_abertura, angulo)
 
-	await _tio.ir_ate(PONTO_PERTO_CADEIRA_TIO, 2.5)
 	await _garotinha_entra_e_senta()
-	# Ela só some AGORA: a câmera da cadeira é a visão em primeira pessoa dela,
-	# então daqui pra frente o corpo dela seria clipping na frente da lente. A
-	# descida inteira até sentar acontece com ela visível, que é o ponto do
-	# sentar ter virado pose de osso (OVERHAUL §5.7).
-	_camera_cadeira.ativar()
-	_garotinha.hide()
+
+	# Ele termina a parede com ela já sentada, e só então guarda e sai.
+	await _tio.pintura_concluida
 	await _tio_sai()
 
 	estado = Estado.SECANDO
@@ -281,10 +294,26 @@ func _tio_sai() -> void:
 	await _porta.fechar()
 
 
+## A entrada dela, em 1ª pessoa do começo ao fim.
+##
+## ⚠️ Ela fica INVISÍVEL a viagem toda, e não só depois de sentar como antes: a
+## câmera é a cabeça dela, então o corpo seria clipping na frente da lente. O
+## `sentar()` continua sendo pose de osso de verdade (OVERHAUL §5.7) porque é
+## dele que sai a altura da câmera descendo — não é animação desperdiçada.
 func _garotinha_entra_e_senta() -> void:
+	_garotinha.esconder_sempre = true
 	_garotinha.posicionar_fora()
+	_garotinha.hide()
+	_camera_cadeira.seguir(_garotinha, _garotinha.altura_dos_olhos())
+	_camera_cadeira.ativar()
+
 	await _porta.abrir()
-	await _garotinha.entrar_e_sentar(PONTO_CADEIRA_GAROTINHA)
+	await _garotinha.entrar_pela_porta(PONTO_CADEIRA_GAROTINHA, 3.4)
+	await _garotinha.girar_para(0.0)
+	# a câmera desce JUNTO com o corpo, não depois: sem `await` aqui as duas
+	# descidas acontecem na mesma janela de tempo
+	_camera_cadeira.assentar(Garotinha.DURACAO_SENTAR)
+	await _garotinha.sentar()
 	await _porta.fechar()
 
 
@@ -303,16 +332,24 @@ func _continuar_ciclo() -> void:
 ## volta é sempre a que termina por último, então esperar por ela basta.
 func _rodada_de_pintura(indice_demao: int) -> void:
 	estado = Estado.PINTANDO
-	var primeira: Dictionary  = VARREDURAS[0]
-	var ponto_inicial: Vector3 = primeira["de"]
-	await _tio_entra(ponto_inicial)
+	# Entra andando DIRETO pros props, não pro canto da primeira parede: é de lá
+	# que ele vai pegar bandeja, lata e banquinho. Ir pro canto primeiro fazia
+	# ele atravessar o quarto duas vezes sem motivo visível.
+	var pega_props: Vector3 = _props.ponto_de_molhar()
+	pega_props.y = 0.0
+	await _tio_entra(pega_props)
 
 	for i in range(_paredes.size()):
 		var v: Dictionary  = VARREDURAS[i]
 		var de: Vector3    = v["de"]
 		var angulo: float  = v["angulo"]
-		if i > 0:
-			await _tio.ir_ate(de, 1.2)   # canto a canto, o trajeto é curto
+		# Ele busca bandeja, lata e banquinho onde deixou e carrega até a parede
+		# nova — inclusive na PRIMEIRA parede da volta, porque os props ficaram
+		# na última parede da volta anterior. Era `posicionar_para_parede`
+		# sozinho, e os três objetos pulavam de canto do quarto na frente da
+		# garotinha sentada.
+		await _tio.levar_props(_props, _paredes[i])
+		await _tio.ir_ate(de, 1.2)   # canto a canto, o trajeto é curto
 		# Virar pra parede ANTES de soltar o rolo: `pintar()` não é aguardado, e
 		# um giro depois dele deixaria o rolo meio segundo andando sozinho.
 		await _tio.encarar_parede(angulo)
@@ -320,7 +357,6 @@ func _rodada_de_pintura(indice_demao: int) -> void:
 		# coreografia desta parede, e ela só se sabe com o caminho gerado
 		_trajeto.preparar(_paredes[i])
 		_iniciar_demao_parede(i, indice_demao, _trajeto.duracao_estimada())
-		_props.posicionar_para_parede(_paredes[i])
 		# rolo e tio são a mesma curva: o trajeto carimba e o corpo o persegue
 		_trajeto.pintar(_paredes[i])
 		await _tio.acompanhar_trajeto(_trajeto, _paredes[i], angulo)

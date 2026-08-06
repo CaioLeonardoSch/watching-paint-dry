@@ -37,20 +37,62 @@ const PES_SENTADA: Vector3 = Vector3(0.0, 0.21, -0.24)
 
 const DURACAO_SENTAR: float = 1.1
 
+## Medido no clipe dela (06/08/2026): o pé excursiona 0,333 m, e o ciclo dura
+## 0,833 s. Passo mais curto E mais rápido que o do tio — é o que entrega a
+## idade dela sem dizer nada. Ver `Personagem.metros_por_ciclo`.
+const METROS_POR_CICLO: float = 0.665
+
+## Do osso `Cabeca` (base do crânio) até a linha dos olhos.
+const ACIMA_DA_CABECA: float = 0.11
+
+## Só usada se o rig mudar de nome de osso — o valor de verdade é medido.
+const ALTURA_OLHOS_PADRAO: float = 1.05
+
 @onready var _anim: AnimationPlayer = $Modelo/AnimationPlayer
 
 
 func _ready() -> void:
 	super()
+	metros_por_ciclo = METROS_POR_CICLO
 	parar_locomocao()
 
 
+func player_locomocao() -> AnimationPlayer:
+	return _anim
+
+
+## Altura dos olhos dela em pé, medida do REST do esqueleto — é onde a câmera em
+## 1ª pessoa fica enquanto ela anda até a cadeira.
+##
+## Ler rest é legítimo (é dado do rig, não saída de modifier, ver PROJETO.md
+## §3.3). O acréscimo é do topo do osso `Cabeca` até a linha dos olhos: o osso
+## marca a base do crânio, e olho de gente não fica na nuca.
+func altura_dos_olhos() -> float:
+	var modelo: Node = get_node_or_null("Modelo")
+	if modelo == null:
+		return ALTURA_OLHOS_PADRAO
+	var esqueleto := modelo.find_child("Skeleton3D", true, false) as Skeleton3D
+	if esqueleto == null:
+		return ALTURA_OLHOS_PADRAO
+	var i_cabeca: int = esqueleto.find_bone("Cabeca")
+	if i_cabeca < 0:
+		return ALTURA_OLHOS_PADRAO
+	return esqueleto.get_bone_global_rest(i_cabeca).origin.y + ACIMA_DA_CABECA
+
+
 func tocar_locomocao() -> void:
-	_anim.play("andar")
+	_tocar("andar")
 
 
 func parar_locomocao() -> void:
-	_anim.play("parado_respirando")
+	_tocar("parado_respirando")
+
+
+## `play` só quando o clipe muda de verdade. Chamar `play` do que já está
+## tocando reinicia o blend todo quadro, e aí o blend nunca termina.
+func _tocar(clipe: String) -> void:
+	if _anim.current_animation != clipe:
+		_anim.play(clipe, BLEND_LOCOMOCAO)
 
 
 ## Entra pela porta, anda até a cadeira, vira pra encarar a parede norte e senta.

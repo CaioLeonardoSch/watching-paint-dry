@@ -40,6 +40,10 @@ signal terminou
 signal foi_molhar    ## rolo saiu da parede rumo à bandeja
 signal voltou_da_bandeja
 
+## O tio vai buscar o banquinho e plantar no trecho novo. Vem antes de todo
+## bloco do topo — é a faixa que ele não alcança do chão.
+signal mudou_banquinho
+
 ## Uma passada terminou e outra começou (o rolo dobrou a esquina do traço).
 ## É o gancho de som: `som_pincelada.gd` toca por passada de verdade, em vez de
 ## por timer fixo de 1,16 s desligado do movimento.
@@ -49,8 +53,9 @@ signal passada
 ## rolo (23 cm), senão sobra parede crua entre uma passada e a seguinte. 17 cm
 ## deixa ~25% de sobreposição, que é como se pinta de verdade.
 ##
-## O passo de fato usado é `largura / ceil(largura / isto)`, um pouco menor —
-## ver `_passadas_em`. É o que faz a última passada fechar no canto.
+## O passo de fato usado é `largura / ceil(largura / isto)`, um pouco menor, e é
+## calculado por COLUNA — ver `_gerar_pontos`. É o que faz a última passada
+## fechar no canto em vez de deixar o resto da divisão como parede crua.
 const PASSO_METROS: float = 0.17
 
 ## Espaçamento entre carimbos ao longo do traço. Metade da faixa de contato
@@ -65,7 +70,26 @@ const TRANSBORDO: float = 0.03
 
 ## Largura de um trecho — o quanto ele pinta sem sair do lugar. ~1 m é o vão
 ## de braço de quem está de pé com um rolo na mão.
+##
+## É um ALVO, não uma medida fixa: as bordas de janela e porta viram corte de
+## coluna (ver `_cortes_em_u`), e cada pedaço entre dois cortes é dividido no
+## número inteiro de trechos que chega mais perto disto.
 const LARGURA_TRECHO: float = 1.0
+
+## Faixa de parede curta demais pra valer uma passada de rolo.
+##
+## Serve pros dois lados do buraco: a tira de 3 cm que sobra embaixo do vão da
+## porta (que vai até o chão) não vira bloco, e a coluna que ficaria com meia
+## passada de altura some em vez de virar um toque de rolo solto na parede.
+const FAIXA_MINIMA: float = 0.12
+
+## Quanto a abertura encolhe no teste de "o rolo está por cima do buraco".
+##
+## Sem isso o último carimbo de cada passada some: uma passada que termina
+## exatamente na borda de cima da janela tem o centro do rolo EM CIMA da borda,
+## e `Rect2.has_point` conta a borda de `position` como dentro. O resultado
+## seria uma linha crua de 2 cm contornando os dois vãos.
+const FOLGA_ABERTURA: float = 0.02
 
 ## As três faixas de altura, medidas a partir do TOPO da parede (v cresce pra
 ## baixo, ver `parede_pintavel.gd::configurar`).
@@ -105,6 +129,26 @@ const VELOCIDADE_ROLO: float = 3.6
 ## carimba nada e o trajeto fica parado onde estava. A bandeja fica a ~1 m, e
 ## são dois passos, mergulhar, dois passos.
 const DURACAO_BANDEJA: float = 2.4
+
+## Quanto ele leva pra buscar o banquinho, plantar no trecho novo e subir.
+##
+## ⚠️ Isto é tempo de parede parada, e não é pouco: uma parede tem ~7 trechos,
+## então são ~20 s por parede. É o preço de o banquinho deixar de teletransportar
+## pro pé dele — antes ele ficava plantado onde estava e o tio atravessava a
+## madeira com a canela quando descia pra pintar o meio.
+const DURACAO_BANQUINHO: float = 2.8
+
+## Quanto a PRIMEIRA molhada de cada parede dura a mais: é nela que ele despeja
+## a lata na bandeja antes de escorrer o rolo. Uma vez por parede — bandeja de
+## pintor dá pra várias cargas, e repor a cada ida viraria tique.
+const FATOR_REPOR_TINTA: float = 1.7
+
+## Motivo de uma parada. O rolo para do mesmo jeito nos três; o que muda é o que
+## o corpo do tio faz durante, e o sinal que sai.
+##
+## REPOR é uma BANDEJA mais longa: recarrega o rolo igual, e ainda passa pela
+## lata. Quem separa os dois é o gesto, não a física.
+enum Parada { BANDEJA, BANQUINHO, REPOR }
 
 ## A carga cai enquanto pinta e é reposta ao "molhar". Quando está baixa a
 ## cobertura falha sozinha.
@@ -153,6 +197,13 @@ var direcao_atual: Vector2 = Vector2.DOWN
 ## true enquanto ele está fora da parede, molhando o rolo.
 var na_bandeja: bool = false
 
+## true enquanto ele está buscando e plantando o banquinho.
+var mexendo_no_banquinho: bool = false
+
+## Carga do rolo neste instante, 0-1. Sai daqui pro visual do rolo (espuma
+## escorrida) além de já mandar na cobertura da máscara.
+var carga_atual: float = CARGA_CHEIA
+
 ## true enquanto o rolo viaja de um bloco pro outro sem encostar na parede.
 ## O corpo do tio usa isto pra afastar o rolo da superfície.
 var no_ar: bool = false
@@ -164,18 +215,36 @@ var _quebras_indice: PackedInt32Array = []   # onde um bloco termina (índice)
 var _quebras: PackedFloat32Array = []        # …a mesma coisa, em distância
 ## Por segmento: 1 = o rolo está NO AR indo de um bloco pro outro, e não pinta.
 var _transicao: PackedByteArray = []
-var _molhadas: PackedFloat32Array = []    # onde o rolo volta pra bandeja
+## Onde o rolo para, em distância percorrida, em ordem. Molhar na bandeja e
+## buscar o banquinho entram na MESMA lista: as duas são segundos em que a
+## parede não recebe tinta, e `_instante_em` precisa contar as duas ou o relógio
+## de secagem discorda do que se viu na tela.
+var _paradas: PackedFloat32Array = []
+var _tipos_parada: PackedByteArray = []
+var _duracoes_parada: PackedFloat32Array = []
+
+## Índice do primeiro ponto de cada bloco do topo — vira parada de banquinho em
+## `_medir`, quando as distâncias existem.
+var _inicios_topo: PackedInt32Array = []
 var _comprimento: float = 0.0
 var _largura_m: float = 1.0
 var _altura_m: float = 1.0
 
-var _largura_trecho: float = LARGURA_TRECHO
-var _n_trechos: int = 1
+## Bordas de todos os trechos, em metros e em ordem, no espaço NÃO espelhado.
+## Sempre começa em 0 e termina na largura da parede. É o que `centro_trecho`
+## consulta — os trechos deixaram de ter largura uniforme quando as aberturas
+## passaram a cortar colunas.
+var _bordas_trecho: PackedFloat32Array = []
+var _invertido: bool = false
+
+## Aberturas da parede já encolhidas por FOLGA_ABERTURA, prontas pro teste.
+var _buracos: Array[Rect2] = []
 
 var _percorrido: float = 0.0
 var _proximo_carimbo: float = 0.0  # distância absoluta do próximo carimbo
 var _pausa_restante: float = 0.0
-var _proxima_molhada: int = 0
+var _pausa_total: float = 0.0
+var _proxima_parada: int = 0
 var _segmento_anterior: int = -1
 var _ativo: bool = false
 var _preparado: bool = false
@@ -196,14 +265,21 @@ func preparar(parede: ParedePintavel, invertido: bool = false) -> void:
 	_parede    = parede
 	_largura_m = maxf(parede.mascara.largura_m, 0.1)
 	_altura_m  = maxf(parede.mascara.altura_m, 0.1)
+	_invertido = invertido
+	_buracos = []
+	for abertura in parede.aberturas:
+		_buracos.append(abertura.grow(-FOLGA_ABERTURA))
 	_gerar_pontos(invertido)
 	_preparado = true
 
 
-## Quanto esta parede vai levar: caminho ÷ velocidade, mais as paradas na
-## bandeja. Chamar depois de `preparar()`.
+## Quanto esta parede vai levar: caminho ÷ velocidade, mais TODAS as paradas.
+## Chamar depois de `preparar()`.
 func duracao_estimada() -> float:
-	return _comprimento / VELOCIDADE_ROLO + float(_molhadas.size()) * DURACAO_BANDEJA
+	var parado: float = 0.0
+	for d in _duracoes_parada:
+		parado += d
+	return _comprimento / VELOCIDADE_ROLO + parado
 
 
 func comprimento() -> float:
@@ -211,7 +287,37 @@ func comprimento() -> float:
 
 
 func quantas_molhadas() -> int:
-	return _molhadas.size()
+	return _quantas_do_tipo(Parada.BANDEJA) + _quantas_do_tipo(Parada.REPOR)
+
+
+## true se a parada de agora é a que também repõe tinta da lata. O corpo do tio
+## usa pra acrescentar o gesto de despejar sem mudar o resto.
+func repondo_tinta() -> bool:
+	var i: int = _proxima_parada - 1
+	if i < 0 or i >= _tipos_parada.size():
+		return false
+	return _tipos_parada[i] == Parada.REPOR
+
+
+func quantas_mudancas_de_banquinho() -> int:
+	return _quantas_do_tipo(Parada.BANQUINHO)
+
+
+func _quantas_do_tipo(tipo: int) -> int:
+	var n: int = 0
+	for t in _tipos_parada:
+		if t == tipo:
+			n += 1
+	return n
+
+
+## Quanto da parada atual já passou, de 0 a 1. É por onde o corpo do tio sabe em
+## que ponto do gesto ele está (mergulhar o rolo, largar o banquinho…) sem
+## precisar de um Tween próprio disputando as mesmas propriedades.
+func fracao_da_parada() -> float:
+	if _pausa_total <= 0.0:
+		return 1.0
+	return clampf(1.0 - _pausa_restante / _pausa_total, 0.0, 1.0)
 
 
 ## Onde o rolo está agora, em metros a partir do canto de cima da parede.
@@ -220,12 +326,24 @@ func posicao_metros() -> Vector2:
 
 
 ## Centro do trecho que contém `u_m`. É AQUI que o tio fica de pé — não em cima
-## do rolo: um trecho tem 1 m e o braço alcança isso, então ele planta o pé uma
+## do rolo: um trecho tem ~1 m e o braço alcança isso, então ele planta o pé uma
 ## vez por trecho e trabalha o vão. Seguir o rolo passo a passo faria ele
 ## bambolear de lado o tempo todo.
+##
+## ⚠️ Deixou de ser `floor(u / largura_trecho)` na rodada das aberturas: com as
+## bordas de janela e porta cortando colunas, os trechos não têm mais a mesma
+## largura. A busca é na lista de bordas, e o espelhamento entra e sai aqui —
+## `_bordas_trecho` mora no espaço não espelhado.
 func centro_trecho(u_m: float) -> float:
-	var i: int = clampi(int(floor(u_m / _largura_trecho)), 0, _n_trechos - 1)
-	return (float(i) + 0.5) * _largura_trecho
+	if _bordas_trecho.size() < 2:
+		return u_m
+	var u: float = (_largura_m - u_m) if _invertido else u_m
+	var centro: float = (_bordas_trecho[0] + _bordas_trecho[1]) * 0.5
+	for i in range(_bordas_trecho.size() - 1):
+		centro = (_bordas_trecho[i] + _bordas_trecho[i + 1]) * 0.5
+		if u <= _bordas_trecho[i + 1]:
+			break
+	return (_largura_m - centro) if _invertido else centro
 
 
 ## Pinta a parede inteira, no ritmo da coreografia. Devolve quando termina —
@@ -244,9 +362,10 @@ func pintar(parede: ParedePintavel, invertido: bool = false, de_fracao: float = 
 	_proximo_carimbo = _percorrido
 	_pausa_restante = 0.0
 	na_bandeja = false
-	_proxima_molhada = 0
-	while _proxima_molhada < _molhadas.size() and _molhadas[_proxima_molhada] <= _percorrido:
-		_proxima_molhada += 1
+	mexendo_no_banquinho = false
+	_proxima_parada = 0
+	while _proxima_parada < _paradas.size() and _paradas[_proxima_parada] <= _percorrido:
+		_proxima_parada += 1
 	posicao_atual = _uv(_ponto_em(_percorrido))
 
 	_ativo = true
@@ -277,32 +396,127 @@ func pintar_instantaneo(
 
 # ─── Geração da coreografia ──────────────────────────────────────────────
 
-## Trecho a trecho, quatro blocos cada. `invertido` espelha o sentido
-## horizontal, que é o lado de onde o tio entra na parede.
+## Coluna a coluna, trecho a trecho, faixa a faixa. `invertido` espelha o
+## sentido horizontal, que é o lado de onde o tio entra na parede.
+##
+## As COLUNAS são o que a rodada das aberturas acrescentou: a parede é cortada
+## em u nas bordas de cada buraco, de modo que dentro de uma coluna a altura de
+## parede sólida é sempre a mesma. Sem esse corte, um trecho de 1 m poderia ter
+## a metade esquerda inteira e a direita só acima da porta — e aí cada passada
+## precisaria de um limite próprio.
 func _gerar_pontos(invertido: bool) -> void:
 	_pontos = PackedVector2Array()
 	_quebras_indice = PackedInt32Array()
+	_inicios_topo = PackedInt32Array()
+	_bordas_trecho = PackedFloat32Array([0.0])
 
-	var topo: float = -TRANSBORDO
-	var base: float = _altura_m + TRANSBORDO
+	var cortes: PackedFloat32Array = _cortes_em_u()
+	for c in range(cortes.size() - 1):
+		var col0: float = cortes[c]
+		var col1: float = cortes[c + 1]
+		var faixas: Array[Vector2] = _faixas_solidas(col0, col1)
+		var largura_col: float = col1 - col0
 
-	_n_trechos = maxi(int(round(_largura_m / LARGURA_TRECHO)), 1)
-	_largura_trecho = _largura_m / float(_n_trechos)
+		# ⚠️ O número de passadas é decidido pela COLUNA, não pelo trecho, e os
+		# trechos só repartem essas passadas. Fazendo por trecho, o
+		# arredondamento pra cima acontece uma vez por trecho: a parede leste
+		# saiu com 232 m de caminho contra 223 m da norte, sendo que ela tem 2 m²
+		# a MENOS de parede. Repartir a conta da coluna zera essa sobra.
+		var n_passadas: int = maxi(int(ceil(largura_col / PASSO_METROS)), 1)
+		var passo: float = largura_col / float(n_passadas)
+		var n_trechos: int = clampi(int(round(largura_col / LARGURA_TRECHO)), 1, n_passadas)
 
-	for t in range(_n_trechos):
-		var u0: float = _largura_trecho * float(t)
-		# a esticada de braço muda a cada trecho: a emenda serrilha
-		var fim_topo: float = ALCANCE_TOPO + randf_range(-JITTER_FAIXA, JITTER_FAIXA)
-		var inicio_rodape: float = ALCANCE_RODAPE + randf_range(-JITTER_FAIXA, JITTER_FAIXA)
-		var meio_topo: float = fim_topo - SOBREPOSICAO_FAIXA
-		var meio_base: float = inicio_rodape + SOBREPOSICAO_FAIXA
-
-		_bloco_w(u0, _largura_trecho, meio_topo, meio_base, invertido)
-		_bloco_passadas(u0, _largura_trecho, meio_topo, meio_base, invertido)
-		_bloco_passadas(u0, _largura_trecho, topo, fim_topo, invertido)
-		_bloco_passadas(u0, _largura_trecho, inicio_rodape, base, invertido)
+		var feitas: int = 0
+		for t in range(n_trechos):
+			var ate: int = n_passadas * (t + 1) / n_trechos
+			var quantas: int = ate - feitas
+			var u0: float = col0 + float(feitas) * passo
+			var largura_trecho: float = float(quantas) * passo
+			feitas = ate
+			_bordas_trecho.append(u0 + largura_trecho)
+			for faixa in faixas:
+				_pintar_faixa(u0, largura_trecho, quantas, faixa.x, faixa.y, invertido)
 
 	_medir()
+
+
+## Onde a parede é cortada em colunas: as duas pontas e a borda de cada buraco.
+##
+## Devolve sempre em ordem e sem repetição. Uma abertura encostada no canto não
+## gera coluna de largura zero — o filtro de `FAIXA_MINIMA` come o corte.
+func _cortes_em_u() -> PackedFloat32Array:
+	var brutos: Array[float] = [0.0, _largura_m]
+	for abertura in _buracos:
+		brutos.append(clampf(abertura.position.x, 0.0, _largura_m))
+		brutos.append(clampf(abertura.end.x, 0.0, _largura_m))
+	brutos.sort()
+
+	var cortes := PackedFloat32Array([brutos[0]])
+	for u in brutos:
+		if u - cortes[cortes.size() - 1] > FAIXA_MINIMA:
+			cortes.append(u)
+	# a última coluna sempre fecha na borda da parede, mesmo que a sobra seja
+	# menor que FAIXA_MINIMA — parede crua no canto aparece
+	cortes[cortes.size() - 1] = _largura_m
+	return cortes
+
+
+## As faixas de parede SÓLIDA na coluna [u0, u1], de cima pra baixo, em metros.
+##
+## Sem buraco nenhum devolve uma faixa só, do transbordo de cima ao de baixo —
+## que é exatamente o que existia antes desta rodada. Com buraco, a faixa é
+## partida em duas (acima e abaixo dele) e o transbordo NÃO acompanha: a passada
+## termina rente ao vão, e é a borda macia do carimbo que fecha o encontro.
+func _faixas_solidas(u0: float, u1: float) -> Array[Vector2]:
+	var faixas: Array[Vector2] = [Vector2(-TRANSBORDO, _altura_m + TRANSBORDO)]
+	var meio_u: float = (u0 + u1) * 0.5
+
+	for abertura in _buracos:
+		if meio_u <= abertura.position.x or meio_u >= abertura.end.x:
+			continue
+		var novas: Array[Vector2] = []
+		for f in faixas:
+			var acima: float = minf(f.y, abertura.position.y)
+			if acima - f.x > FAIXA_MINIMA:
+				novas.append(Vector2(f.x, acima))
+			var abaixo: float = maxf(f.x, abertura.end.y)
+			if f.y - abaixo > FAIXA_MINIMA:
+				novas.append(Vector2(abaixo, f.y))
+		faixas = novas
+
+	return faixas
+
+
+## A coreografia de um trecho dentro de uma faixa de parede sólida [a, b]:
+## W, verticais do meio, faixa do topo, rodapé.
+##
+## Os limites das três alturas são os mesmos de sempre, só que APARADOS pela
+## faixa. É isso que faz a coluna acima da porta não ter rodapé e a coluna
+## abaixo da janela não ter faixa de topo — sem `if` sobre "que pedaço é este",
+## e o tio herda de graça: ele não agacha onde não há rodapé pra pintar, porque
+## o rolo nunca desce até lá.
+func _pintar_faixa(
+	u0: float, largura: float, passadas: int, a: float, b: float, invertido: bool
+) -> void:
+	# a esticada de braço muda a cada trecho: a emenda serrilha
+	var fim_topo: float = ALCANCE_TOPO + randf_range(-JITTER_FAIXA, JITTER_FAIXA)
+	var inicio_rodape: float = ALCANCE_RODAPE + randf_range(-JITTER_FAIXA, JITTER_FAIXA)
+
+	var meio_topo: float = clampf(fim_topo - SOBREPOSICAO_FAIXA, a, b)
+	var meio_base: float = clampf(inicio_rodape + SOBREPOSICAO_FAIXA, a, b)
+	if meio_base - meio_topo > FAIXA_MINIMA:
+		_bloco_w(u0, largura, meio_topo, meio_base, invertido)
+		_bloco_passadas(u0, largura, passadas, meio_topo, meio_base, invertido)
+
+	var topo_fim: float = clampf(fim_topo, a, b)
+	if topo_fim - a > FAIXA_MINIMA:
+		# guarda o índice ANTES de gerar: vira parada de banquinho em `_medir`
+		_inicios_topo.append(_pontos.size())
+		_bloco_passadas(u0, largura, passadas, a, topo_fim, invertido)
+
+	var rodape_inicio: float = clampf(inicio_rodape, a, b)
+	if b - rodape_inicio > FAIXA_MINIMA:
+		_bloco_passadas(u0, largura, passadas, rodape_inicio, b, invertido)
 
 
 ## O W: sobe na diagonal, desce reto, sobe na diagonal, desce reto. É o bloco
@@ -321,9 +535,13 @@ func _bloco_w(u0: float, largura: float, v_topo: float, v_base: float, invertido
 ## Passadas verticais adjacentes cobrindo [v_topo, v_base] dentro do trecho.
 ## Serve pros três blocos retos: verticais do meio, topo e rodapé — o que muda
 ## entre eles é só a faixa de altura (e, do lado do tio, a postura).
-func _bloco_passadas(u0: float, largura: float, v_topo: float, v_base: float, invertido: bool) -> void:
-	var n: int = _passadas_em(largura)
-	var passo: float = largura / float(n)
+##
+## `n` vem de fora (da coluna) e não é recalculado aqui: ver o aviso em
+## `_gerar_pontos` sobre arredondar passada uma vez por trecho.
+func _bloco_passadas(
+	u0: float, largura: float, n: int, v_topo: float, v_base: float, invertido: bool
+) -> void:
+	var passo: float = largura / float(maxi(n, 1))
 	var descendo := true
 	for i in range(n):
 		var u: float = _espelhar(u0 + passo * (float(i) + 0.5), invertido)
@@ -335,14 +553,6 @@ func _bloco_passadas(u0: float, largura: float, v_topo: float, v_base: float, in
 			_pontos.append(Vector2(u, v_topo))
 		descendo = not descendo
 	_fechar_bloco()
-
-
-## Passadas distribuídas por igual, a primeira e a última a meio passo da borda.
-## Antes o laço só somava PASSO_METROS até estourar a largura, e o resto da
-## divisão virava parede crua no canto — 2 cm numa parede de 6 m, que aparecia
-## como faixa clara vertical no encontro das paredes.
-func _passadas_em(largura: float) -> int:
-	return maxi(int(ceil(largura / PASSO_METROS)), 1)
 
 
 func _espelhar(u: float, invertido: bool) -> float:
@@ -388,7 +598,7 @@ func _medir() -> void:
 		if seguinte < _transicao.size():
 			_transicao[seguinte] = 1
 
-	_sortear_molhadas()
+	_sortear_paradas()
 
 
 # ─── Andar e carimbar ────────────────────────────────────────────────────
@@ -400,29 +610,39 @@ func _process(delta: float) -> void:
 	if _pausa_restante > 0.0:
 		_pausa_restante -= delta
 		if _pausa_restante <= 0.0:
+			if na_bandeja:
+				voltou_da_bandeja.emit()
 			na_bandeja = false
-			voltou_da_bandeja.emit()
+			mexendo_no_banquinho = false
+			_pausa_total = 0.0
 		return
 
 	var limite: float = _comprimento
-	if _proxima_molhada < _molhadas.size():
-		limite = _molhadas[_proxima_molhada]
+	if _proxima_parada < _paradas.size():
+		limite = _paradas[_proxima_parada]
 
 	_percorrido += VELOCIDADE_ROLO * delta
 	if _percorrido < limite:
 		_carimbar_ate(_percorrido)
 		return
 
-	# chegou no fim do trecho ou na hora de molhar
+	# chegou no fim da parede, ou na hora de parar por algum motivo
 	_percorrido = limite
 	_carimbar_ate(_percorrido)
-	if _proxima_molhada >= _molhadas.size():
+	if _proxima_parada >= _paradas.size():
 		_ativo = false
 		_preparado = false  # a demão seguinte sorteia molhadas novas
 		terminou.emit()
+		return
+
+	var tipo: int = _tipos_parada[_proxima_parada]
+	_pausa_total = _duracoes_parada[_proxima_parada]
+	_pausa_restante = _pausa_total
+	_proxima_parada += 1
+	if tipo == Parada.BANQUINHO:
+		mexendo_no_banquinho = true
+		mudou_banquinho.emit()
 	else:
-		_proxima_molhada += 1
-		_pausa_restante = DURACAO_BANDEJA
 		na_bandeja = true
 		foi_molhar.emit()
 
@@ -444,10 +664,16 @@ func _carimbar_ate(alvo: float) -> void:
 		# o rolo fica perpendicular ao movimento: descida deixa ele deitado
 		var angulo: float = atan2(dir.y, dir.x) + PI * 0.5
 		var uv := _uv(p)
-		no_ar = seg < _transicao.size() and _transicao[seg] == 1
+		# A viagem entre blocos já não pinta; a abertura entra na MESMA porta.
+		# O caminho gerado não passa por dentro de um buraco, mas a diagonal que
+		# liga dois blocos passa — e é justamente ela que atravessa o vão da
+		# porta. Cinto e suspensório de propósito: `no_ar` também é o que faz o
+		# tio afastar o rolo da parede, então ele levanta o rolo pra cruzar.
+		no_ar = (seg < _transicao.size() and _transicao[seg] == 1) or _sobre_abertura(p)
+		carga_atual = _carga_em(_proximo_carimbo)
 		if not no_ar:
 			_parede.mascara.carimbar(
-				uv, angulo, _carga_em(_proximo_carimbo), _instante_em(_proximo_carimbo))
+				uv, angulo, carga_atual, _instante_em(_proximo_carimbo))
 		posicao_atual = uv
 		direcao_atual = dir
 		_proximo_carimbo += PASSO_CARIMBO
@@ -460,16 +686,30 @@ func _carimbar_ate(alvo: float) -> void:
 ## viu na tela — justamente o que a emenda instantâneo/animado já ensinou a não
 ## fazer. Por isso as duas rotas de carimbo chamam esta mesma função.
 func _instante_em(dist: float) -> float:
-	var paradas: int = 0
-	for m in _molhadas:
-		if m <= dist:
-			paradas += 1
-	var segundos: float = dist / VELOCIDADE_ROLO + float(paradas) * DURACAO_BANDEJA
+	var parado: float = 0.0
+	for i in range(_paradas.size()):
+		if _paradas[i] > dist:
+			break
+		parado += _duracoes_parada[i]
+	var segundos: float = dist / VELOCIDADE_ROLO + parado
 	return clampf(segundos / maxf(duracao_estimada(), 0.001), 0.0, 1.0)
 
 
 func _uv(ponto_m: Vector2) -> Vector2:
 	return Vector2(ponto_m.x / _largura_m, ponto_m.y / _altura_m)
+
+
+## O rolo está por cima de um vão? `ponto_m` já vem espelhado, então o teste
+## desespelha antes — as aberturas são medidas da parede, não do caminho.
+func _sobre_abertura(ponto_m: Vector2) -> bool:
+	if _buracos.is_empty():
+		return false
+	var u: float = (_largura_m - ponto_m.x) if _invertido else ponto_m.x
+	var ponto := Vector2(u, ponto_m.y)
+	for abertura in _buracos:
+		if abertura.has_point(ponto):
+			return true
+	return false
 
 
 ## Índice do segmento que contém uma distância percorrida.
@@ -508,10 +748,12 @@ func _direcao_em(dist: float) -> Vector2:
 ## cobertura falhar de forma irregular em vez de uniforme.
 func _carga_em(dist: float) -> float:
 	var inicio: float = 0.0
-	for m in _molhadas:
-		if m > dist:
+	for i in range(_paradas.size()):
+		if _paradas[i] > dist:
 			break
-		inicio = m
+		# só molhar recarrega o rolo; buscar o banquinho não repõe tinta
+		if _tipos_parada[i] != Parada.BANQUINHO:
+			inicio = _paradas[i]
 	var gasto: float = clampf((dist - inicio) / METROS_POR_CARGA, 0.0, 1.0)
 	var queda: float = pow(gasto, EXPOENTE_CARGA) * (CARGA_CHEIA - CARGA_MINIMA)
 	return maxf(CARGA_CHEIA - queda, CARGA_MINIMA)
@@ -521,14 +763,46 @@ func _carga_em(dist: float) -> float:
 ## aí vai à bandeja — não larga meia letra na parede. Escolhe a primeira quebra
 ## depois da carga ter acabado, com jitter pra não cair sempre no mesmo ponto
 ## de cada trecho.
-func _sortear_molhadas() -> void:
-	_molhadas = PackedFloat32Array()
+func _sortear_paradas() -> void:
+	# 1) onde ele vai molhar o rolo
+	var molhadas := PackedFloat32Array()
 	var ultima: float = 0.0
 	var alvo: float = METROS_POR_CARGA * (1.0 + randf_range(-JITTER_CARGA, JITTER_CARGA))
 	for q in _quebras:
 		if q <= 0.0 or q >= _comprimento:
 			continue
 		if q - ultima >= alvo:
-			_molhadas.append(q)
+			molhadas.append(q)
 			ultima = q
 			alvo = METROS_POR_CARGA * (1.0 + randf_range(-JITTER_CARGA, JITTER_CARGA))
+
+	# 2) onde ele vai buscar o banquinho: no fim do bloco ANTERIOR ao do topo,
+	#    porque ele precisa do banquinho plantado antes de começar a faixa alta
+	var banquinhos := PackedFloat32Array()
+	for i in _inicios_topo:
+		var antes: int = i - 1
+		if antes <= 0 or antes >= _acumulado.size():
+			continue
+		banquinhos.append(_acumulado[antes])
+
+	# 3) mistura as duas em ordem de distância
+	_paradas = PackedFloat32Array()
+	_tipos_parada = PackedByteArray()
+	_duracoes_parada = PackedFloat32Array()
+	var a: int = 0
+	var b: int = 0
+	while a < molhadas.size() or b < banquinhos.size():
+		var pega_molhada: bool = b >= banquinhos.size()
+		if a < molhadas.size() and b < banquinhos.size():
+			pega_molhada = molhadas[a] <= banquinhos[b]
+		if pega_molhada:
+			var primeira: bool = a == 0
+			_paradas.append(molhadas[a])
+			_tipos_parada.append(Parada.REPOR if primeira else Parada.BANDEJA)
+			_duracoes_parada.append(DURACAO_BANDEJA * (FATOR_REPOR_TINTA if primeira else 1.0))
+			a += 1
+		else:
+			_paradas.append(banquinhos[b])
+			_tipos_parada.append(Parada.BANQUINHO)
+			_duracoes_parada.append(DURACAO_BANQUINHO)
+			b += 1

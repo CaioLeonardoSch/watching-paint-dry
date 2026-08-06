@@ -27,6 +27,32 @@ const VELOCIDADE_GIRO: float = 6.0
 ## girar por causa dela faz o corpo tremer no lugar.
 const DESLOCAMENTO_MINIMO: float = 0.05
 
+## Quanto tempo uma troca de clipe leva pra acontecer.
+##
+## Sem isto todo `play()` era um corte seco: parado→andando trocava a pose do
+## corpo inteiro num quadro. 0,2 s é o suficiente pra ler como o corpo mudando
+## de ideia, e curto o bastante pra não atrasar a saída do pé.
+const BLEND_LOCOMOCAO: float = 0.2
+
+## Metros de chão que UM ciclo do clipe `andar` representa. Cada personagem
+## sobrescreve no `_ready` com o valor MEDIDO do próprio clipe.
+##
+## Como se mede: no referencial do corpo o pé excursiona pra frente e pra trás;
+## num apoio ideal o pé fica parado no mundo, então o corpo anda essa excursão
+## por apoio, e um ciclo tem dois apoios. Logo `2 × excursão`.
+## Medido em 06/08/2026 — tio 0,857 m em 1,000 s; garotinha 0,665 m em 0,833 s.
+var metros_por_ciclo: float = 0.86
+
+## Limites da cadência da perna. O mínimo existe pra o corpo quase parado (o
+## `ir_ate` tem ease, então ele desacelera até quase zero no fim) não congelar a
+## perna no ar; o máximo, pra caminhada rápida não virar borrão.
+const RITMO_MINIMO: float = 0.45
+const RITMO_MAXIMO: float = 2.20
+
+## Quão rápido a cadência persegue a velocidade medida. A medição quadro a
+## quadro treme, e tremor sem filtro vira perna tremendo.
+const SUAVIZACAO_RITMO: float = 8.0
+
 ## Onde o personagem espera, fora do quarto.
 ##
 ## A parede leste tem a face interna em X = 2,9 e o cômodo vizinho começa em
@@ -46,9 +72,74 @@ var _ik_pernas: Array[TwoBoneIK3D] = []
 var _alvos_pe: Array[Node3D] = []
 var _pes_repouso: Array[Vector3] = []
 
+## Quando true, o corpo NUNCA volta a aparecer, nem quando a locomoção acha que
+## deveria. É o caso da garotinha desde que a abertura virou 1ª pessoa: a câmera
+## é a cabeça dela, então o corpo dela seria clipping na frente da lente.
+##
+## ⚠️ Sem isto, `entrar_pela_porta` chamava `posicionar_fora()` ao ver o corpo
+## escondido, e `posicionar_fora()` termina com `show()` — ela reaparecia
+## exatamente dentro da própria lente, como um borrão cinza cobrindo meia tela.
+var esconder_sempre: bool = false
+
+var _pos_anterior: Vector3 = Vector3.INF
+var _velocidade_chao: float = 0.0
+
 
 func _ready() -> void:
 	ligar_rig()
+
+
+## Quem herda e precisa do próprio `_process` tem que chamar `super(delta)` —
+## senão o pé volta a deslizar (ver `atualizar_ritmo_passo`).
+func _process(delta: float) -> void:
+	atualizar_ritmo_passo(delta)
+
+
+## Casa a cadência da perna com a velocidade REAL do corpo no chão.
+##
+## O clipe `andar` toca sempre no mesmo ritmo, mas o corpo anda a velocidades
+## bem diferentes: 1,0 m/s pintando (passo lateral entre trechos), quase 1,9 m/s
+## no pico de um `ir_ate` — que tem ease, então a velocidade nem é constante
+## DENTRO de uma caminhada. Sem isto o pé arrastava em tudo que não fosse a
+## velocidade de sorte, e o pior momento era o fim de cada caminhada: o corpo
+## quase parado com a perna em cadência cheia.
+##
+## A altura sai da conta de propósito: subir no banquinho não é passada.
+func atualizar_ritmo_passo(delta: float) -> void:
+	if delta <= 0.0:
+		return
+
+	var agora: Vector3 = global_position
+	agora.y = 0.0
+	if _pos_anterior == Vector3.INF:
+		_pos_anterior = agora
+		return
+	var medida: float = agora.distance_to(_pos_anterior) / delta
+	_pos_anterior = agora
+	_velocidade_chao = lerpf(_velocidade_chao, medida,
+		clampf(delta * SUAVIZACAO_RITMO, 0.0, 1.0))
+
+	var player: AnimationPlayer = player_locomocao()
+	if player == null:
+		return
+
+	# Só o clipe de andar acompanha a velocidade; respirar parado tem ritmo
+	# próprio. Os clipes de andar dos dois personagens (e a variante sem braço
+	# do tio) começam por "andar", que é o que amarra os dois lados.
+	var clipe: String = player.current_animation
+	if not clipe.begins_with("andar") or not player.has_animation(clipe):
+		player.speed_scale = 1.0
+		return
+
+	var duracao_ciclo: float = player.get_animation(clipe).get_length()
+	var ritmo: float = _velocidade_chao * duracao_ciclo / maxf(metros_por_ciclo, 0.01)
+	player.speed_scale = clampf(ritmo, RITMO_MINIMO, RITMO_MAXIMO)
+
+
+## Qual `AnimationPlayer` toca a locomoção. O tio tem dois (pernas e braço) e a
+## garotinha um só, então quem responde é o personagem concreto.
+func player_locomocao() -> AnimationPlayer:
+	return null
 
 
 ## Acha a camada procedural e as IK das pernas dentro do modelo.
@@ -170,13 +261,14 @@ func ir_ate(destino: Vector3, duracao: float = 3.0) -> void:
 func posicionar_fora() -> void:
 	position = PONTO_FORA_DA_PORTA
 	rotation.y = angulo_para(PONTO_VAO_DA_PORTA - PONTO_FORA_DA_PORTA)
-	show()
+	if not esconder_sempre:
+		show()
 	parar_locomocao()
 
 
 ## Atravessa o vão andando e segue até `destino`.
 func entrar_pela_porta(destino: Vector3, duracao: float = 2.5) -> void:
-	if not visible:
+	if not visible and not esconder_sempre:
 		posicionar_fora()
 	await ir_ate(PONTO_VAO_DA_PORTA, duracao * 0.45)
 	await ir_ate(destino, duracao * 0.55)

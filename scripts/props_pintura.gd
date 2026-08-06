@@ -39,6 +39,12 @@ var _cor_tinta: Color = Color(0.16, 0.34, 0.68)
 var _tinta_bandeja: StandardMaterial3D
 var _tinta_lata: StandardMaterial3D
 
+## Guardados de `posicionar_para_parede`: o tio precisa saber de que lado do
+## quarto ficar pra molhar o rolo, e em que direção a bandeja está deitada.
+var _normal_parede: Vector3 = Vector3.FORWARD
+var _lado_parede: Vector3 = Vector3.RIGHT
+var _pouso_lata: Vector3 = Vector3.ZERO
+
 
 func _ready() -> void:
 	_criar_bandeja()
@@ -64,21 +70,46 @@ func posicionar_para_parede(parede: ParedePintavel) -> void:
 	meio_chao.y = 0.0
 
 	var lado: Vector3 = parede.eixo_u.normalized()
+	_normal_parede = normal
+	_lado_parede = lado
 	bandeja.position = meio_chao + normal * DISTANCIA_BANDEJA
 	banquinho.position = meio_chao + normal * DISTANCIA_BANQUINHO + lado * 0.9
-	lata.position = meio_chao + normal * DISTANCIA_BANDEJA + lado * -0.55
+	_pouso_lata = meio_chao + normal * DISTANCIA_BANDEJA + lado * -0.55
+	lata.position = _pouso_lata
+	lata.rotation.z = 0.0
 
 	# a bandeja é comprida no sentido da parede
 	bandeja.rotation.y = atan2(lado.x, lado.z)
 
 
-## Onde o tio precisa ficar de pé pra molhar o rolo.
+## Onde o tio fica DE PÉ pra molhar o rolo.
+##
+## Um passo pra dentro do quarto, não em cima da bandeja: `bandeja.position` era
+## o que ele usava antes, e ele parava com os pés dentro do poço de tinta.
 func ponto_de_molhar() -> Vector3:
-	return bandeja.position
+	return bandeja.position + _normal_parede * 0.42
 
 
-## Leva o banquinho pro trecho em que ele está trabalhando — ele carrega o
-## banquinho junto, não pula de um lado da parede pro outro.
+## Onde a tinta está de fato dentro da bandeja — é aqui que o rolo mergulha.
+## Bate com a caixa de tinta de `_criar_bandeja` (poço fundo, atrás).
+func ponto_da_tinta() -> Vector3:
+	return bandeja.position - _normal_parede * 0.09 + Vector3.UP * 0.05
+
+
+## Onde a lata fica pousada. Guardado porque o tio ERGUE a lata pra despejar na
+## bandeja, e precisa saber pra onde devolver.
+func posicao_da_lata() -> Vector3:
+	return _pouso_lata
+
+
+## Direção em que a bandeja está deitada. O rolo escorre pra frente e pra trás
+## nesse eixo — é a rampa, não um mergulho vertical.
+func eixo_da_bandeja() -> Vector3:
+	return _lado_parede
+
+
+## Leva o banquinho pro lugar. Quem chama é `tio.gd` durante a parada em que ele
+## carrega a madeira — não é mais teletransporte pro pé dele a cada quadro.
 func mover_banquinho(ponto_chao: Vector3) -> void:
 	banquinho.position = ponto_chao
 
@@ -125,13 +156,16 @@ func _criar_banquinho() -> void:
 	banquinho.name = "Banquinho"
 	add_child(banquinho)
 
+	# 0,46 × 0,38 e não 0,36 × 0,30: com o assento menor, o tio de pé em cima
+	# deixava um pé pra fora da madeira — a postura dele é mais aberta que o
+	# banquinho era.
 	var mat := _material(MADEIRA_BANQUINHO)
-	_caixa(banquinho, Vector3(0.36, 0.04, 0.30), Vector3(0, ALTURA_BANQUINHO - 0.02, 0), mat)
+	_caixa(banquinho, Vector3(0.46, 0.04, 0.38), Vector3(0, ALTURA_BANQUINHO - 0.02, 0), mat)
 	var altura_perna: float = ALTURA_BANQUINHO - 0.04
 	for sx in [-1.0, 1.0]:
 		for sz in [-1.0, 1.0]:
 			_caixa(banquinho, Vector3(0.04, altura_perna, 0.04),
-				Vector3(sx * 0.15, altura_perna * 0.5, sz * 0.12), mat)
+				Vector3(sx * 0.20, altura_perna * 0.5, sz * 0.16), mat)
 
 
 ## Lata aberta ao lado da bandeja — é de onde a tinta sai.

@@ -590,6 +590,31 @@ sendo um retângulo uniforme por horas, por mais bonita que a coreografia fique.
 - `[x]` ✅ `FRACAO_JA_PINTADA_ABERTURA` foi pra **0,92**, não 0,9: 8% de 84 s são 7 s de cutscene,
   que é o tempo de entender a cena sem ela cansar antes de a garotinha entrar
 
+#### Remedido em 06/08/2026 — a parede foi pra ~101 s
+
+A rodada de animação da Fase E2 (`PROJETO.md` §3.8) acrescentou **duas paradas novas** ao trajeto: o
+tio buscar e plantar o banquinho (~7 por parede, 2,8 s cada) e a primeira ida à bandeja ficar 1,7×
+mais longa porque ele despeja a lata. Antes o banquinho era teletransportado pro pé dele.
+
+| | Fase E (05/08) | Fase E2 (06/08) |
+|---|---|---|
+| Caminho por parede | 224 m | 211 a 224 m (janela e porta saíram da conta) |
+| Duração por parede | 84 s | **98,8 a 104,5 s** |
+| Volta completa | 5,6 min | **~7,1 min** |
+| Fração parada | 26% | **~40%** |
+
+`duracao_pintura_segundos` foi pra **101,0**. Os três modos foram reconferidos e **nenhum mudou** —
+o que mudou foi a conta que sustenta eles, agora escrita em `modo_jogo.gd::TEMPO_SECAGEM`: a regra é
+sobre a parede que a garotinha ENCARA (a norte, segunda da volta, pronta por volta dos 212 s), que
+precisa continuar secando pelos 213 s restantes. Rápido dá 259 s, com 46 s de folga.
+
+⚠️ **A tabela de lap mark acima usa "intervalo entre trechos vizinhos ~10 s" e isso subiu junto.**
+Não foi remedido — quando a G4 for feita, medir de novo antes de escolher limiar.
+
+⚠️ **As quatro paredes deixaram de ter a mesma duração.** Leste e oeste têm ~2 m² a menos (porta e
+janela), então saem 4 a 6% mais rápidas. É pequeno e está certo, mas quem for calibrar ritmo com uma
+parede só precisa saber que as outras não são idênticas.
+
 ---
 
 ## 4. Tabela de constantes — hoje → proposto

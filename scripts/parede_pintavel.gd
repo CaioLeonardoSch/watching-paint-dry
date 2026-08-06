@@ -119,6 +119,17 @@ var origem: Vector3 = Vector3.ZERO
 var eixo_u: Vector3 = Vector3.RIGHT
 var eixo_v: Vector3 = Vector3.DOWN
 
+## Buracos na parede — janela e porta — em METROS no plano (u, v), a mesma
+## medida em que o trajeto do rolo trabalha. `position` é o canto de cima-e-
+## esquerda do buraco, `size` o tamanho dele.
+##
+## Existe porque a parede leste e a oeste são picadas em 3 e 4 peças, mas a
+## máscara é uma superfície contínua de 6 × 3 — do ponto de vista da tinta o
+## buraco não existia, e o rolo passava reto por ele. Na tela isso é o tio
+## esticando o braço para o vazio da janela e o rolo atravessando o vão da
+## porta. Quem preenche é `ciclo_pintura.gd::VARREDURAS`.
+var aberturas: Array[Rect2] = []
+
 var tempo_secagem_segundos: float = 60.0
 
 var _tempo_decorrido: float = 0.0
@@ -141,13 +152,15 @@ func configurar(
 	eixo_v: Vector3,
 	carimbo: ImageTexture,
 	indice_parede: int = 0,
-	pos_janela: Vector3 = Vector3.ZERO
+	pos_janela: Vector3 = Vector3.ZERO,
+	buracos: Array[Rect2] = []
 ) -> void:
 	tempo_secagem_segundos = EstadoJogo.tempo_secagem_atual()
 	_duracao_demao = tempo_secagem_segundos
 	self.origem = origem
 	self.eixo_u = eixo_u
 	self.eixo_v = eixo_v
+	aberturas = buracos
 	# semente derivada do índice: as 4 paredes precisam de nuvens diferentes,
 	# senão o campo de secagem lê como repetição de textura
 	mascara = MascaraTinta.new(largura_m, altura_m, carimbo, 1300 + indice_parede * 71)

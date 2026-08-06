@@ -21,13 +21,17 @@ const NOMES: Dictionary = {
 ## não há mais duração de dia pra escalar. **A pintura não escala com o modo**:
 ## ela leva o que a coreografia leva, igual nos três (SECAGEM §3.9).
 ##
-## ⚠️ O Rápido subiu de 60 s pra 150 s na Fase E, e não é gosto: uma parede
-## agora leva 84 s pra ser pintada e a volta inteira 336 s. Com 60 s, a primeira
-## parede da volta secava em 144 s — **antes de o tio chegar na terceira**, e o
-## jogador ia ver a parede já seca em vez de vê-la secar. Com 150 s ela fecha em
-## 234 s, ainda durante a volta, mas já com a garotinha sentada olhando.
-## Normal e Realista não precisaram mexer: 84 + 300 = 384 s já cai depois dos
-## 336 s da volta.
+## ⚠️ O Rápido subiu de 60 s pra 150 s na Fase E, e não é gosto: com 60 s a
+## primeira parede da volta secava **antes de o tio chegar na terceira**, e o
+## jogador via a parede já seca em vez de vê-la secar.
+##
+## Reconferido em 06/08/2026, quando o banquinho virou objeto carregado e a
+## parede passou de 84 s pra ~101 s (volta de ~7,1 min contra 5,6 min). A regra
+## que importa é sobre a parede que a garotinha ENCARA — a norte, segunda da
+## volta, que fica pronta por volta dos 212 s. Ela precisa continuar secando até
+## o fim da volta, ou seja mais 213 s. Rápido dá 101 + 150 × 1,054 = 259 s, com
+## 46 s de folga; Normal dá 417 s. Os três continuam valendo, e nenhum número
+## mudou aqui — o que mudou foi a conta que sustenta eles.
 const TEMPO_SECAGEM: Dictionary = {
 	Modo.RAPIDO:   150.0,
 	Modo.NORMAL:   300.0,    # 5 minutos

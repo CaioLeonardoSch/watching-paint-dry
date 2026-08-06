@@ -40,20 +40,42 @@ const CABO_MAXIMO: float = 0.70
 const COR_CABO := Color(0.72, 0.70, 0.66)
 const COR_HASTE := Color(0.55, 0.54, 0.52)
 
+## Quanto a espuma escurece e brilha quando está encharcada, contra o rolo já
+## gasto. Rolo cheio de tinta é mais escuro e mais liso que rolo escorrido — é o
+## que deixa a ida à bandeja ter consequência visível, não só coreográfica.
+const ESCURECE_MOLHADO: float = 0.22
+const ASPEREZA_SECA: float = 0.62
+const ASPEREZA_MOLHADA: float = 0.28
+
 var _mat_espuma: StandardMaterial3D
 var _haste: MeshInstance3D
 var _cabo: MeshInstance3D
+var _cor_tinta: Color = Color(0.16, 0.34, 0.68)
+var _molhado: float = 1.0
 
 
 func _ready() -> void:
 	_montar()
 
 
-## A espuma fica da cor da tinta que está passando — molhada, então mais
-## brilhosa que a parede.
+## A espuma fica da cor da tinta que está passando.
 func definir_cor(cor: Color) -> void:
-	if _mat_espuma != null:
-		_mat_espuma.albedo_color = cor
+	_cor_tinta = cor
+	_aplicar_espuma()
+
+
+## 0 = rolo escorrido, 1 = acabou de sair da bandeja. Quem manda durante a
+## pintura é a carga do trajeto; durante a parada, o mergulho.
+func definir_molhado(fracao: float) -> void:
+	_molhado = clampf(fracao, 0.0, 1.0)
+	_aplicar_espuma()
+
+
+func _aplicar_espuma() -> void:
+	if _mat_espuma == null:
+		return
+	_mat_espuma.albedo_color = _cor_tinta.darkened(ESCURECE_MOLHADO * _molhado)
+	_mat_espuma.roughness = lerpf(ASPEREZA_SECA, ASPEREZA_MOLHADA, _molhado)
 
 
 ## Encosta o rolo na parede e aponta o cabo pra onde a mão consegue ficar.
@@ -88,9 +110,8 @@ func encostar(ponto: Vector3, normal: Vector3, direcao_traco: Vector3, mao: Vect
 
 func _montar() -> void:
 	_mat_espuma = StandardMaterial3D.new()
-	_mat_espuma.albedo_color = Color(0.16, 0.34, 0.68)
-	_mat_espuma.roughness = 0.45
 	_mat_espuma.metallic = 0.0
+	_aplicar_espuma()
 
 	# espuma: cilindro deitado no eixo X (CylinderMesh nasce em pé, no Y)
 	var espuma := MeshInstance3D.new()

@@ -195,7 +195,9 @@ estão **completas**, mais uma rodada de refinamento pós-roadmap:
 - **Fase 1 — loop narrativo:** tio pinta as 4 paredes em rodadas coordenadas (3 demãos cada, cor
   ficando mais saturada a cada rodada), dando uma volta completa: Leste, Norte, Oeste, Sul. Ele
   pinta **andando** (`tio.gd::pintar_varrendo`), e a frente de tinta no shader avança junto com
-  ele. Garotinha entra, senta, câmera vira 1ª pessoa dela (`camera_cadeira.gd::ativar()`); depois
+  ele. ⚠️ **Desde 06/08/2026 o jogo é em 1ª pessoa DESDE O PRIMEIRO QUADRO** (ver 3.8): a garotinha
+  começa no cômodo vizinho, entra pela porta, encontra o tio terminando a última parede e senta — a
+  câmera é a cabeça dela o tempo todo, e não existe mais `CameraCutscene`. Depois
   da 3ª demão, UI (`dialogo_pintura.gd`) pergunta se ela gostou — "gostei" encerra o ciclo,
   "trocar" abre paleta (`cor_tinta.gd` + `.tres` em `resources/cores/`) e reinicia com cor nova.
   Azul é a cor inicial da abertura (fora da rotação de conquista); vermelho/laranja/amarelo/verde/
@@ -337,9 +339,12 @@ Pra não caçar. "Quero mexer em X" → o arquivo é este.
 | O que se vê pela janela | `scripts/cenario_externo.gd` |
 | O que se vê pela porta | `scripts/comodo_vizinho.gd` |
 | Personagens (movimento, animação) | `scripts/tio.gd` · `garotinha.gd` + `models/*_modelo.tscn` |
-| O rolo (mesh, cabo que estica, orientação) | `scripts/rolo_pintura.gd` |
+| Locomoção comum, cadência do passo, entrar/sair pela porta | `scripts/personagem.gd` |
+| Altura do quadril e inclinação do torso (offset por cima do clipe) | `scripts/postura_modifier.gd` |
+| O braço que NÃO segura o rolo | `scripts/braco_livre_modifier.gd` |
+| O rolo (mesh, cabo que estica, orientação, espuma escorrida) | `scripts/rolo_pintura.gd` |
 | Bandeja, banquinho, lata | `scripts/props_pintura.gd` (andam com o serviço, ≠ `props_quarto.gd`) |
-| Câmera da cadeira | `scripts/camera_cadeira.gd` |
+| Câmera em 1ª pessoa (cabeça da garotinha andando, depois cadeira) | `scripts/camera_cadeira.gd` |
 | Menu, pausa, opções, diálogo, toast | `menu_principal.gd` · `menu_pausa.gd` · `painel_opcoes.gd` · `dialogo_pintura.gd` · `conquista_toast.gd` |
 | Save de progresso · modo de jogo | `estado_jogo.gd` (autoload) + `dados_salvos.gd` · `modo_jogo.gd` |
 | Volume, tela cheia, idioma | `scripts/opcoes.gd` (autoload) |
@@ -365,6 +370,9 @@ outro na mesma sessão.**
 | `props_quarto.gd::LIMITE_X` / `LIMITE_Z_*` | Tamanhos em `inicializar_quarto.gd` e transforms no `.tscn` | Os props usam a **face interna** da parede (0,1 m pra dentro do centro), não o centro |
 | Vão da janela | `inicializar_quarto.gd`, `props_quarto.gd::_moldura_janela`, transforms de `ParedeOeste*` nas **duas** cenas, e `LuzJanela.area_size` | Cinco lugares |
 | `ciclo_pintura.gd::VARREDURAS` | Tamanho das paredes | `origem`/`eixo_u`/`eixo_v` definem o UV da máscara a partir da posição de mundo. Errar aqui não dá erro, só desalinha a tinta |
+| Vão da porta ou da janela | **`VARREDURAS[i]["aberturas"]`** | Os buracos são repetidos ali em METROS no plano (u, v), convertidos das medidas de `inicializar_quarto.gd` (`v_m = 3 − Y`). Se divergirem, o rolo volta a pintar através do vão — e nenhum número acusa, porque não há geometria ali pra ficar crua |
+| `trajeto_rolo.gd::DURACAO_BANQUINHO` / `DURACAO_BANDEJA` / `FATOR_REPOR_TINTA` | `ciclo_pintura.gd::duracao_pintura_segundos` e `modo_jogo.gd::TEMPO_SECAGEM` | As paradas são ~40% da duração de uma parede. Mexer nelas muda a volta inteira, e é a volta que decide se a parede que a garotinha encara ainda está secando quando o tio termina |
+| `props_pintura.gd::ALTURA_BANQUINHO` | `tio.gd::ALTURA_BANQUINHO` | Dois nomes pro mesmo degrau; divergir faz ele flutuar ou enterrar o pé na madeira |
 
 **⚠️ `get_shader_parameter()` devolve `null` pra uniform que nunca foi setada.** O valor default
 escrito no `.gdshader` **não conta** — ele só existe no shader, não no material. Ler um uniform de
@@ -422,6 +430,14 @@ contra 900 dava painel "cabendo" que no jogo aparecia com os botões cortados fo
 rodadas consertando o que não estava quebrado — inclusive removendo pistas de braço de
 `parado_respirando`, que depois se mediu ter **zero** pistas de braço. Antes de concluir que um
 modifier está morto: (1) medir por silhueta, (2) conferir de que lado a câmera está.
+
+⚠️ **E a "direita" dele não é `eixo_u` da parede.** Ela muda em cada uma das quatro. O tio encara a
+parede, então a frente dele é `−normal`, e num basis do Godot (z = −frente, x = direita) a direita é
+`Vector3.UP.cross(normal)`. Chutar `eixo_u` acertou numa parede e errou nas outras três.
+
+⚠️ **E a câmera precisa ficar quase no PLANO da parede, não dentro do quarto.** Ele encara a parede:
+qualquer câmera "olhando pra parede junto com ele" mostra as costas dele. O único enquadramento que
+serve pra julgar braço, rolo e postura é o **perfil**, rente à superfície.
 
 **⚠️ Métrica de máscara não substitui olhar o render.** Escolhendo a amplitude da falha de
 cobertura, duas medidas feitas em cima da máscara aprovaram valores que na tela eram manchões
@@ -550,6 +566,31 @@ mão, bandeja no chão, banquinho"). Com a máscara, o rolo e o desenho já são
 (`trajeto_rolo.gd::posicao_atual`) — falta o mesh, prendê-lo na mão e ligar o `TwoBoneIK3D` que o
 passo 9 já deixou montado.
 
+### 3.8 Fase E2 — a rodada de animação de 06/08/2026
+
+Pedida pelo Caio depois de olhar a Fase E rodando. Sete itens de animação mais duas coisas maiores.
+
+| O que estava errado | O que passou a acontecer |
+|---|---|
+| O rolo **atravessava janela e porta** como se a parede fosse cheia | A parede é cortada em colunas nas bordas de cada vão, e cada coluna sabe as faixas de parede sólida que tem. A coluna acima da porta não tem rodapé; a abaixo da janela não tem faixa de topo — e isso cai de graça do aparo, sem `if` sobre "que pedaço é este" |
+| Perna sempre na mesma cadência, corpo a velocidades diferentes | `speed_scale` sai da velocidade REAL medida quadro a quadro. Metros por ciclo **medidos do clipe**: tio 0,857 m em 1,000 s, garotinha 0,665 m em 0,833 s |
+| Todo `play()` era corte seco | 0,2 s de blend, e `play` só quando o clipe muda de verdade (`_seguir_rolo` chamava `play` do mesmo clipe TODO quadro) |
+| Torso só inclinava ao agachar | Inclina por altura do rolo (−5° no teto, +14° no rodapé) mais ±4° pela direção da passada — subir é empurrar, descer é puxar |
+| `pintar_braco` era clipe morto no modelo | Voltou a tocar. A IK só reescreve `Braco_D` e `Antebraco_D`; os dois OMBROS sobram pro clipe, e um deles é o esquerdo |
+| Braço esquerdo congelado no rest | `braco_livre_modifier.gd` — contrapeso do braço que trabalha, ligado à direção da passada e à altura |
+| Banquinho teletransportava pro pé dele, e ele atravessava a madeira ao agachar | Ele **busca, agacha, pega, carrega, larga e sobe**. É uma parada de trajeto de 2,8 s, como a ida à bandeja |
+| O rolo ficava pendurado no quadril "na bandeja" | Ele agacha e **escorre o rolo na rampa**, vai e volta. Na primeira ida de cada parede ainda ergue a lata e despeja |
+| Bandeja, lata e banquinho pulavam de canto do quarto | Ele carrega os três numa viagem, com o rolo dentro da bandeja |
+| A garotinha começava dentro do quarto e se teleportava pra fora | O jogo abre **em 1ª pessoa dentro do cômodo vizinho**. Ela entra, encontra o tio terminando a última parede, senta, e a câmera desce junto com o corpo. `CameraCutscene` foi removida |
+
+**O preço, medido:** a parede passou de **84 s pra ~101 s** (leste 104,5 · norte 102,4 · oeste 98,8 ·
+sul 99,7) e a volta de 5,6 pra **~7,1 min**. As paradas são ~40% disso. Foi conferido que os três
+modos continuam válidos — a conta está em `modo_jogo.gd::TEMPO_SECAGEM`.
+
+**Limite conhecido:** ~1% da área do vão da porta recebe tinta, e é **beirada de rolo** no vértice do
+W da coluna vizinha (≤ 11 cm, medido). Rolo de verdade faz isso, e não há geometria ali pra mostrar.
+Encurtar o W pra evitar enfraqueceria a emenda entre trechos, que é onde ele deposita.
+
 ---
 
 ## 4. O que fazer agora
@@ -583,6 +624,7 @@ frente de material/shader que o roadmap original não previa.
 | **C** | Low-poly: assoalho em geometria, props, normal maps fora, SSAO/MSAA, `AreaLight3D` | — | OVERHAUL §4, §6 | ✅ |
 | **D** | Rig de 19 ossos + IK (cotovelo, joelho, coluna) | — | OVERHAUL §5, §5.9 | ✅ (a IK do braço fica dormente até E ter um alvo pra ela) |
 | **E** | Coreografia: W, verticais, banquinho, rodapé, bandeja, rolo na mão | D, G6 | OVERHAUL §5.5, §6 | ✅ (a falha de cobertura abriu só até 0,20 — limite estrutural, ver 3.4) |
+| **E2** | Rodada de animação pedida pelo Caio: pintar ao redor de janela e porta, passada casada com a velocidade, blend nas trocas, torso com peso, braço esquerdo vivo, props carregados de verdade, abertura em 1ª pessoa | E | este arquivo, 3.8 | ✅ |
 | **F** | Refino: som do rolo casado com a mão, passo, porta, o tio olhar pra ela, gravar 60 s | D, E | OVERHAUL §6 | ⬜ |
 | **G1** | **Campo de secagem** — a parede passa a secar desigual e a fase manchada existe | — | SECAGEM §3.1, §5, §5.1 | ✅ |
 | **G2** | Cor (saturação antes de valor) e brilho rasante | G1 | SECAGEM §3.3, §3.4, §5.2 | ✅ (bead inerte até E) |
