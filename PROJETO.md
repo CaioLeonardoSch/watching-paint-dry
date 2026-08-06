@@ -515,7 +515,26 @@ for ler o código depois.
   ler como roxa. Substituído por `ambiente_dia.gd`, luz fixa de meio da tarde. Junto saíram a `Lua`,
   a `LuzNoite` e o `ModoJogo.DURACAO_DIA`
 - Tinta molhada com `roughness` bem baixo (quase espelho) — refletia o céu processual e quebrava a
-  parede em blocos visíveis. Molhado agora é só um pouco mais brilhoso que seco
+  parede em blocos visíveis. Molhado agora é um **verniz por cima** (`CLEARCOAT`), não uma base lisa
+- **`ssr_enabled` (screen-space reflections)** para dar reflexo à tinta molhada (07/08/2026) —
+  **medido, não faz absolutamente nada aqui, e foi descartado.** Da cadeira, parede molhada:
+  73,31 de média e 19,44 de cv com SSR ligado contra 73,29 e 19,44 desligado. Motivo estrutural: a
+  base da tinta é fosca de propósito (`ROUGHNESS` 0,62–0,90) e SSR só entrega em superfície lisa; e
+  o lóbulo do `CLEARCOAT`, que é quem carrega o brilho de molhada, **não é alimentado por SSR**.
+  Custo de GPU sem nenhum retorno visual — não ligar
+- **`ReflectionProbe` interior + horizonte do céu alisado**, para tirar a banda horizontal que o
+  verniz molhado desenha na parede (07/08/2026) — **medido, não resolve.** Média foi de 64,95 pra
+  64,53 e desvio de 18,21 pra 17,32, ou seja ruído. A banda **não é o céu**: é o teto (bege claro)
+  refletido acima da linha do olho e o piso (marrom escuro) abaixo, e a troca cai na altura do olho
+  porque é aí que o raio refletido vira. Refletir o quarto de verdade dá exatamente a mesma banda,
+  porque o quarto TEM teto claro e piso escuro. Quem resolve é baixar a força do verniz — ver
+  `tinta_secando.gdshader::verniz_molhado`
+- **`adjustment_contrast` acima de 1,0 no `WorldEnvironment`** (era 1,08, saiu em 07/08/2026) — o
+  Godot aplica contraste como `0.5 + (cor - 0.5) * contraste` em espaço **linear**, então tudo
+  abaixo de linear 0,037 vira exatamente 0. Num quarto de luz baixa isso é o canal escuro de
+  qualquer cor saturada. Medido na parede norte, demão final: **6 das 7 cores da paleta clipavam**,
+  e azul, laranja e amarelo clipavam em **99,9% dos píxeis**. Não é botão de contraste, é botão de
+  esmagar preto — quem deve dar contraste aqui é a luz
 - Normal map no teto — virava rabisco agressivo sob a luz rasante da lâmpada
 - Normal map e ruído triplanar nas paredes — saíram na Fase C: em low-poly, superfície chapada é a
   proposta, e micro-relevo fingido só denuncia a face plana quando a luz raspa

@@ -48,8 +48,24 @@ const COBERTURA: Array[float] = [0.70, 0.91, 0.973]
 ## pintada" em vez de "laranja molhado". Agora o campo de secagem (G1) dá a
 ## estrutura, a travessia tem cotovelo (saturação antes de valor) e o brilho
 ## rasante entrega o resto, então o véu pode voltar pro valor fiel.
+##
+## **E foi pra 0.24 quando o verniz molhado (CLEARCOAT) entrou.** Medido da
+## cadeira, parede norte azul, contra a mesma parede seca:
+##
+##   | véu  | razão molhada/seca | estrutura (cv %) |
+##   |------|--------------------|------------------|
+##   | 0,32 (antes)  | 2,52 | 7,34 |
+##   | 0,32 (verniz) | 2,47 | 7,59 |
+##   | **0,24**      | **2,13** | **9,38** |
+##   | 0,20          | 1,97 | 10,56 |
+##
+## Os dois números melhoram JUNTOS, e não é coincidência: o véu clareia a parede
+## inteira, então ele afoga o reflexo da lâmpada que o verniz acabou de criar.
+## Baixando o véu, o mesmo reflexo passa a destacar. 2,13 ainda é o dobro de
+## brilho entre molhada e seca — a travessia de cor, que é o conteúdo do jogo,
+## continua grande. Abaixo de 0,20 ela começa a encolher rápido demais.
 const COR_LEITOSA: Color = Color(0.93, 0.93, 0.94)
-const VEU_MOLHADO: float = 0.32
+const VEU_MOLHADO: float = 0.24
 
 @export var nome: String = ""
 @export var cor_alvo: Color = Color(0.16, 0.34, 0.68)
