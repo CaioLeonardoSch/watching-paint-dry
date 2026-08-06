@@ -74,18 +74,34 @@ const ESPESSURA_DEMAO: float = 0.033
 ## do shader não conta), e o null vazava como argumento tipado. Foi assim que
 ## `iniciar_demao` quebrou com "Cannot convert argument 1 from Nil to float".
 ##
-## O máximo é o **ganho visual da falha de cobertura**, e está DESLIGADO de
-## propósito: 0,10 fica abaixo do pior texel do miolo (medido, 0,140), então
-## dentro da parede a cobertura fecha em 1 e só canto de verdade falha.
+## O máximo é o **ganho visual da falha de cobertura**. Ficou em 0,10 (ou seja,
+## desligado) da G3 até a Fase E, porque com passadas de altura inteira e
+## recarga instantânea a falha saía como **barra vertical de ponta quadrada**,
+## uma passada de largura — lia como risco na parede, não como rolo secando. O
+## Caio pegou isso na tela antes de eu pegar na medição.
 ##
-## Não é covardia, é a conclusão da própria Fase G3 aplicada: com passadas de
-## altura inteira e recarga instantânea, a falha sai como **barra vertical de
-## ponta quadrada**, uma passada de largura — lê como risco na parede, não como
-## rolo secando. O Caio pegou isso na tela antes de eu pegar na medição.
-## Reabrir junto com a coreografia da Fase E, que é o que quebra a passada de
-## altura inteira. Ver SECAGEM §5.3 e §5.4.
+## ✅ **Reaberto na Fase E**, que é o que quebrou a passada de altura inteira: o
+## caminho agora é W + verticais curtas + topo + rodapé, e a recarga cai em
+## quebra de bloco, não no meio de um traço.
+##
+## ⚠️ **0,20, e não os 0,72 que SECAGEM §3.7 pede.** Escolhido olhando o RENDER,
+## não a máscara — duas métricas de máscara já mentiram aqui:
+##
+##   | valor | o que a máscara dizia | o que a tela mostrava |
+##   |---|---|---|
+##   | 0,45 | "pior 1% cobre 0,44, ótimo" | manchão branco em ¼ da parede |
+##   | 0,35 | "10,5% abaixo de 0,90, nada morto" | manchas brancas grandes |
+##   | 0,25 | "0,9% abaixo de 0,90" | riscos brancos finos na ponta do W |
+##   | **0,20** | — | variação suave, sem branco |
+##
+## ⚠️ **Limite conhecido, não resolvido:** a amplitude cheia de §3.7 continua
+## inalcançável, e agora se sabe por quê. O canal `rec.g` grava `carga × peso do
+## carimbo`, e o peso cai nas bordas de cada passada. Abrir a faixa expõe a
+## borda macia do carimbo antes de expor a carga — por isso o que aparece são
+## riscos nas emendas, não "rolo secando". Quem consertaria é um canal separado
+## só pra carga (a acumulada tem B e A livres). Ver SECAGEM §5.3 e §5.4.
 const COBERTURA_MIN: float = 0.0
-const COBERTURA_MAX: float = 0.10
+const COBERTURA_MAX: float = 0.20
 
 ## Quanto cada demão nova atrasa a secagem, uniformemente. É real: o substrato
 ## vai selando e absorve menos água a cada camada. Entra como fator explícito
@@ -95,6 +111,13 @@ const ATRASO_POR_DEMAO: float = 0.12
 
 var mascara: MascaraTinta
 var material: ShaderMaterial
+
+## O plano da parede em espaço de mundo, guardado (não só empurrado pro shader)
+## porque a Fase E precisa dele em GDScript: é o que converte "o rolo está em
+## tal UV" em "o tio tem que estar em tal ponto do chão".
+var origem: Vector3 = Vector3.ZERO
+var eixo_u: Vector3 = Vector3.RIGHT
+var eixo_v: Vector3 = Vector3.DOWN
 
 var tempo_secagem_segundos: float = 60.0
 
@@ -122,6 +145,9 @@ func configurar(
 ) -> void:
 	tempo_secagem_segundos = EstadoJogo.tempo_secagem_atual()
 	_duracao_demao = tempo_secagem_segundos
+	self.origem = origem
+	self.eixo_u = eixo_u
+	self.eixo_v = eixo_v
 	# semente derivada do índice: as 4 paredes precisam de nuvens diferentes,
 	# senão o campo de secagem lê como repetição de textura
 	mascara = MascaraTinta.new(largura_m, altura_m, carimbo, 1300 + indice_parede * 71)
@@ -150,6 +176,20 @@ func configurar(
 	material.set_shader_parameter("pos_janela", pos_janela)
 	material.set_shader_parameter("altura_parede", altura_m)
 	material.set_shader_parameter("largura_parede", largura_m)
+
+
+## Ponto da parede, em mundo, a partir de UV — o mesmo UV que o rolo carimba.
+func ponto_mundo(uv: Vector2) -> Vector3:
+	return origem + eixo_u * uv.x + eixo_v * uv.y
+
+
+## Normal apontando PRA DENTRO do quarto — é o lado de onde o tio pinta.
+##
+## Sai de `eixo_u × eixo_v` e não é escolha: com v apontando pra baixo, esse
+## produto já cai pro lado de dentro nas 4 paredes (conferido nas 4 entradas de
+## VARREDURAS). Inverter uma das paredes no futuro inverte isto junto, de graça.
+func normal_interna() -> Vector3:
+	return eixo_u.cross(eixo_v).normalized()
 
 
 ## Aplica o material compartilhado nas peças desta parede.
