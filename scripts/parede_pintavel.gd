@@ -103,6 +103,40 @@ const ESPESSURA_DEMAO: float = 0.033
 const COBERTURA_MIN: float = 0.0
 const COBERTURA_MAX: float = 0.20
 
+## Quanto da marca do rolo a PRIMEIRA demão deixa pra sempre, como fração de
+## `forca_marca` do shader. As demais caem proporcionalmente até zero na última
+## (ver `residuo_marca`).
+##
+## É o botão de "quão homogênea a parede fica quando seca". Medido na cena
+## congelada, contraste local da parede seca contra o piso de uma cor chapada
+## (0,00271): resíduo 0,16 dá 0,00304 (+12%), **0,08 dá 0,00278 (+2,6%)** e 0,0
+## dá exatamente o piso. 0,08 é o bastante pra a 1ª demão sobre reboco cru não
+## parecer tinta de fábrica sem voltar a listrar, e some na 3ª.
+##
+## ⚠️ Este NÃO era o culpado das listras que o Caio fotografou — era o lap mark
+## (ver LIMIAR_LAP_RELATIVO). Com o lap aceso, mexer aqui não mudava nada, o que
+## por um bom tempo apontou pro lugar errado.
+const RESIDUO_PRIMEIRA: float = 0.08
+
+## Quanto tempo precisa separar duas passadas VIZINHAS pra elas formarem lap
+## mark, como fração do tempo de secagem desta demão.
+##
+## ⚠️ **É fração, não segundos, e essa é a correção.** O `limiar_lap` do shader é
+## comparado com `gradiente(instante) × janela_demao`, ou seja com SEGUNDOS. O
+## valor fixo de 1,5 s foi calibrado quando a pintura de uma parede durava 8 s;
+## a Fase E levou a janela pra 84 s e a E2 pra ~101 s, o salto escalou 12× junto,
+## e o lap voltou a acender em toda emenda entre passadas — as listras verticais
+## que o Caio fotografou na parede violeta SECA.
+##
+## 0,28 é onde `k_brilho` fecha no shader (`smoothstep(0.02, 0.28, fracao)`), que
+## é o flash-off: o instante em que a tinta perde o brilho de molhada e começa a
+## formar película. Antes disso não há o que "laparr"; depois disso há.
+##
+## Consequência de graça, e correta: no Realista (7200 s) o limiar vira 2016 s e
+## o lap nunca acende; no Rápido (150 s) vira 42 s, e só emenda entre trechos
+## distantes chega perto. Ver SECAGEM §3.8.
+const LIMIAR_LAP_RELATIVO: float = 0.28
+
 ## Quanto cada demão nova atrasa a secagem, uniformemente. É real: o substrato
 ## vai selando e absorve menos água a cada camada. Entra como fator explícito
 ## de propósito — antes isso saía como efeito colateral do acumulador crescendo,
@@ -118,6 +152,17 @@ var material: ShaderMaterial
 var origem: Vector3 = Vector3.ZERO
 var eixo_u: Vector3 = Vector3.RIGHT
 var eixo_v: Vector3 = Vector3.DOWN
+
+## Buracos na parede — janela e porta — em METROS no plano (u, v), a mesma
+## medida em que o trajeto do rolo trabalha. `position` é o canto de cima-e-
+## esquerda do buraco, `size` o tamanho dele.
+##
+## Existe porque a parede leste e a oeste são picadas em 3 e 4 peças, mas a
+## máscara é uma superfície contínua de 6 × 3 — do ponto de vista da tinta o
+## buraco não existia, e o rolo passava reto por ele. Na tela isso é o tio
+## esticando o braço para o vazio da janela e o rolo atravessando o vão da
+## porta. Quem preenche é `ciclo_pintura.gd::VARREDURAS`.
+var aberturas: Array[Rect2] = []
 
 var tempo_secagem_segundos: float = 60.0
 
@@ -141,13 +186,15 @@ func configurar(
 	eixo_v: Vector3,
 	carimbo: ImageTexture,
 	indice_parede: int = 0,
-	pos_janela: Vector3 = Vector3.ZERO
+	pos_janela: Vector3 = Vector3.ZERO,
+	buracos: Array[Rect2] = []
 ) -> void:
 	tempo_secagem_segundos = EstadoJogo.tempo_secagem_atual()
 	_duracao_demao = tempo_secagem_segundos
 	self.origem = origem
 	self.eixo_u = eixo_u
 	self.eixo_v = eixo_v
+	aberturas = buracos
 	# semente derivada do índice: as 4 paredes precisam de nuvens diferentes,
 	# senão o campo de secagem lê como repetição de textura
 	mascara = MascaraTinta.new(largura_m, altura_m, carimbo, 1300 + indice_parede * 71)
@@ -273,11 +320,15 @@ func iniciar_demao(
 	material.set_shader_parameter("tempo_decorrido", 0.0)
 	# Cada demão deixa a superfície mais uniforme — mas só ATRÁS DO ROLO. Os dois
 	# valores são o que a parede mostra antes e depois desta camada cobrir; o
-	# shader escolhe entre eles pela `cobertura`. Ver `suavidade_anterior` lá.
-	material.set_shader_parameter("suavidade_anterior",
-		suavidade_marca(numero_demao - 1, total_demaos))
-	material.set_shader_parameter("suavidade_demao",
-		suavidade_marca(numero_demao, total_demaos))
+	# shader escolhe entre eles pela `cobertura`. Ver `residuo_anterior` lá.
+	material.set_shader_parameter("residuo_anterior",
+		residuo_marca(numero_demao - 1, total_demaos))
+	material.set_shader_parameter("residuo_demao",
+		residuo_marca(numero_demao, total_demaos))
+	material.set_shader_parameter("marca_fresca", forca_fresca(numero_demao))
+	# ⚠️ TEM que ser reposto a cada demão: o limiar é em segundos e depende da
+	# secagem DESTA demão, que cresce com `ATRASO_POR_DEMAO`.
+	material.set_shader_parameter("limiar_lap", LIMIAR_LAP_RELATIVO * _duracao_demao)
 
 	# Desloca a amostra da mancha desta demão. Sem isto a 2ª demão secaria com
 	# exatamente o mesmo desenho de nuvens da 1ª, e o truque se denunciaria na
@@ -287,17 +338,39 @@ func iniciar_demao(
 		Vector2(randf() * folga, randf() * folga))
 
 
-## Quanto da marca do rolo ainda aparece depois da demão `numero` (0 = primeira).
+## Quanto da marca do rolo SOBRA depois de a demão `numero` secar (0 = primeira),
+## como fração de `forca_marca`.
 ##
-## Fecha em ZERO na última: a recompensa de três demãos é a parede ficar lisa.
-## A curva antiga era `1 / (1 + n * 0.9)`, que parava em 0,36 na terceira — a
-## marca da PRIMEIRA demão continuava aparecendo na parede acabada.
+## ⚠️ Isto substituiu `suavidade_marca` em 06/08/2026. A função antiga devolvia
+## 1,0 / 0,5 / 0,0 e era a marca INTEIRA da demão, não um resíduo — combinada com
+## o `k_valor` do shader, a parede secava **listrada** e só alisava quando a
+## demão seguinte cobria. A queixa do Caio era exatamente essa: o resultado final
+## não fica homogêneo.
 ##
-## `numero` negativo devolve 1,0 de propósito: é o "antes da 1ª demão", quando o
-## que está na parede é reboco cru e nada foi alisado ainda.
-static func suavidade_marca(numero: int, total: int) -> float:
+## Agora quem manda na marca é a umidade do filme (ver `tinta_secando`), e isto
+## aqui é só o quanto fica pra sempre. Fecha em ZERO na última demão: a
+## recompensa de três demãos é a parede ficar lisa de verdade.
+##
+## `numero` negativo devolve o resíduo cheio de propósito — é o "antes da 1ª
+## demão", quando o que está na parede é reboco cru. Na prática dá zero mesmo
+## assim, porque a máscara acumulada ainda está vazia e o relevo é 0.
+static func residuo_marca(numero: int, total: int) -> float:
 	var ultima: float = float(maxi(total - 1, 1))
-	return clampf(1.0 - float(numero) / ultima, 0.0, 1.0)
+	var restante: float = clampf(1.0 - float(numero) / ultima, 0.0, 1.0)
+	return RESIDUO_PRIMEIRA * restante
+
+
+## Quanto a marca da demão `numero` vale enquanto o filme está FRESCO, de 0 a 1.
+##
+## ⚠️ Não é gosto, é compensação. A máscara acumulada guarda o relevo de todas as
+## demãos, e o passa-alta do shader tira o nível mas não a amplitude: medido no
+## render, a variação de uma demão fresca subia 0,022 → 0,035 → 0,047 da 1ª pra
+## 3ª. Sem dividir, a 3ª demão fresca crushava em preto nas emendas de faixa.
+##
+## `1/(n+1)` também é o comportamento certo: cada demão nova cai sobre uma
+## superfície mais lisa, então marca menos que a anterior.
+static func forca_fresca(numero: int) -> float:
+	return 1.0 / float(maxi(numero, 0) + 1)
 
 
 ## Carimba o rastro do rolo. `de`/`para` são UV 0-1 na parede; `instante` é

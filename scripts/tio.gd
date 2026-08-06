@@ -38,6 +38,10 @@ const OSSOS_DO_BRACO: PackedStringArray = [
 const CLIPE_ANDAR_PINTANDO: String = "andar_pintando"
 const CLIPE_PARADO_PINTANDO: String = "parado_pintando"
 
+## Medido no clipe dele (06/08/2026): o pé excursiona 0,429 m, e o ciclo dura
+## 1,000 s. Ver `Personagem.metros_por_ciclo` pro raciocínio.
+const METROS_POR_CICLO: float = 0.857
+
 ## Clipes que precisam de uma versão sem braço, e o nome que ela recebe.
 ##
 ## ⚠️ `parado_respirando` entrou na lista na Fase E, pelo mesmo motivo do
@@ -70,12 +74,45 @@ const VELOCIDADE_LATERAL: float = 1.0
 ## Quão rápido ele sobe/desce do banquinho, em metros por segundo.
 const VELOCIDADE_VERTICAL: float = 0.55
 
+## Inclinação do torso, em graus, nos dois extremos de altura da parede.
+##
+## Antes o torso só se inclinava ao AGACHAR (`agacha * 14`), e o resto da parede
+## era feito com o tronco na vertical — subir o rolo até 3 m e descer até o
+## rodapé tinham exatamente o mesmo peso corporal: nenhum.
+const INCLINACAO_NO_ALTO: float = -5.0
+const INCLINACAO_NO_RODAPE: float = 14.0
+
+## Quanto o torso ainda se inclina POR CAUSA DA PASSADA, além da altura. Subir o
+## rolo é empurrar (corpo vai junto), descer é puxar (corpo volta) — e como isso
+## troca de sinal a cada passada, é o que dá ritmo ao tronco.
+const INCLINACAO_DA_PASSADA: float = 4.0
+
+## Quão rápido torso e braço livre perseguem o alvo. A direção da passada vira
+## ao contrário num único quadro no fim de cada traço; sem filtro o tronco daria
+## um tranco a cada passada.
+const SUAVIZACAO_POSTURA: float = 6.0
+
 @onready var _anim_pernas: AnimationPlayer = $Modelo/AnimationPlayerPernas
 @onready var _anim_braco: AnimationPlayer  = $Modelo/AnimationPlayerBraco
 
 var _rolo: RoloPintura
 var _ik_braco: TwoBoneIK3D
 var _alvo_mao: Node3D
+var _braco_livre: BracoLivreModifier
+
+## Valores de postura já filtrados — ver SUAVIZACAO_POSTURA.
+var _inclinacao_suave: float = 0.0
+var _balanco_suave: float = 0.0
+var _elevacao_suave: float = 0.0
+
+## Pontos de partida dos gestos de parada, guardados quando a parada começa.
+var _posto_de_molhar: Vector3 = Vector3.ZERO
+var _pe_ao_mudar: Vector3 = Vector3.ZERO
+var _banquinho_de: Vector3 = Vector3.ZERO
+var _banquinho_para: Vector3 = Vector3.ZERO
+
+## true enquanto ele atravessa o quarto com bandeja, lata e banquinho na mão.
+var _carregando_mudanca: bool = false
 
 var _trajeto: TrajetoRolo
 var _parede_atual: ParedePintavel
@@ -88,10 +125,14 @@ var _altura_ombro: float = 1.45
 
 func _ready() -> void:
 	super()  # sem isto a camada procedural e as IK das pernas não são achadas
+	metros_por_ciclo = METROS_POR_CICLO
 	_montar_clipes_sem_braco()
 	_ligar_ferramentas()
 	parar_locomocao()
-	set_process(false)
+	# ⚠️ `_process` fica LIGADO sempre: quem casa a cadência da perna com a
+	# velocidade do corpo mora em `personagem.gd` e vale também quando ele só
+	# está atravessando o quarto. Quem decide se há trajeto a seguir é o guarda
+	# dentro de `_process`, não o `set_process`.
 
 
 ## Acha a IK do braço e o alvo dela, e monta o rolo. Mesmo motivo de
@@ -102,6 +143,7 @@ func _ligar_ferramentas() -> void:
 	if modelo != null:
 		_ik_braco = modelo.find_child("IKBracoDireito", true, false) as TwoBoneIK3D
 		_alvo_mao = modelo.find_child("AlvoMaoDireita", true, false) as Node3D
+		_montar_braco_livre(modelo)
 
 	_medir_braco()
 
@@ -112,6 +154,22 @@ func _ligar_ferramentas() -> void:
 	add_child(_rolo)
 	_rolo.top_level = true
 	_rolo.hide()
+
+
+## Pendura o modificador do braço esquerdo no esqueleto.
+##
+## Criado em código, e não no `.tscn`, porque o modelo é convertido do Blender:
+## nó acrescentado à mão lá vira coisa a lembrar de repor a cada re-export. A
+## posição na árvore não importa aqui — ordem de modifier só pesa entre nós que
+## disputam osso, e este mexe no braço ESQUERDO, que nenhum outro toca.
+func _montar_braco_livre(modelo: Node) -> void:
+	var esqueleto := modelo.find_child("Skeleton3D", true, false) as Skeleton3D
+	if esqueleto == null:
+		return
+	_braco_livre = BracoLivreModifier.new()
+	_braco_livre.name = "BracoLivre"
+	_braco_livre.active = false
+	esqueleto.add_child(_braco_livre)
 
 
 func definir_props(props: PropsPintura) -> void:
@@ -175,8 +233,20 @@ func _montar_clipes_sem_braco() -> void:
 		lib.add_animation(nome_novo, clipe)
 
 
+func player_locomocao() -> AnimationPlayer:
+	return _anim_pernas
+
+
+## `play` só quando o clipe muda de verdade. Chamar `play` do que já está
+## tocando reinicia o blend todo quadro — e `_seguir_rolo` chamava isso a cada
+## quadro em que ele estivesse andando.
+func _tocar(clipe: String) -> void:
+	if _anim_pernas.current_animation != clipe:
+		_anim_pernas.play(clipe, BLEND_LOCOMOCAO)
+
+
 func tocar_locomocao() -> void:
-	_anim_pernas.play("andar")
+	_tocar("andar")
 
 
 ## Parado ele respira. O clipe existia desde a Fase D e **nunca era tocado** —
@@ -186,7 +256,7 @@ func tocar_locomocao() -> void:
 ## Pintando, toca a variante sem braço: aí quem manda no braço é a IK do rolo, e
 ## a respiração completa apagaria ela.
 func parar_locomocao() -> void:
-	_anim_pernas.play(_clipe_parado())
+	_tocar(_clipe_parado())
 
 
 func _clipe_parado() -> String:
@@ -226,29 +296,59 @@ func acompanhar_trajeto(trajeto: TrajetoRolo, parede: ParedePintavel, angulo_y: 
 
 	_trajeto = trajeto
 	_parede_atual = parede
-	# o braço agora é IK atrás do rolo, não clipe — os dois no mesmo osso e
-	# quem processa por último ganharia
-	_anim_braco.stop(true)
-	_anim_pernas.play(CLIPE_PARADO_PINTANDO)
+
+	# ⚠️ `pintar_braco` VOLTOU a tocar aqui, e não é contradição com a IK.
+	#
+	# Ele estava parado (`_anim_braco.stop`) desde a Fase E, quando a IK assumiu
+	# o braço direito — um clipe de 1,17 s guardado no modelo que nenhuma linha
+	# de código tocava. Mas as pistas dele são `Ombro_D`, `Braco_D`,
+	# `Antebraco_D` e `Ombro_E`, e a IK só reescreve as DUAS DO MEIO: ela gira
+	# `Braco_D`/`Antebraco_D` pra mão chegar no alvo. Os dois OMBROS sobram pro
+	# clipe. É de graça: o ombro direito trabalha (e a IK compensa, porque ela
+	# resolve depois) e o esquerdo sai do rest.
+	_anim_braco.play("pintar_braco", BLEND_LOCOMOCAO)
+	_tocar(CLIPE_PARADO_PINTANDO)
 	if _ik_braco != null:
 		_ik_braco.active = true
+	if _braco_livre != null:
+		_braco_livre.active = true
 	_rolo.show()
+
+	# ⚠️ Se o trajeto COMEÇA numa faixa alta, a parada que buscaria o banquinho
+	# já ficou pra trás e nunca vai disparar. É o caso da abertura, que pega o
+	# tio em 92% da parede: ele aparecia de pé a 30 cm do chão com a madeira
+	# largada do outro lado do trecho.
+	if _props != null and trajeto.posicao_metros().y < TrajetoRolo.ALCANCE_TOPO:
+		var largura_ini: float = maxf(parede.mascara.largura_m, 0.1)
+		var u_ini: float = trajeto.centro_trecho(trajeto.posicao_metros().x) / largura_ini
+		var sob_o_pe: Vector3 = _pe_no_trecho(parede, u_ini, 0.0)
+		sob_o_pe.y = 0.0
+		_props.mover_banquinho(sob_o_pe)
 
 	if not trajeto.foi_molhar.is_connected(_ao_molhar):
 		trajeto.foi_molhar.connect(_ao_molhar)
+	if not trajeto.mudou_banquinho.is_connected(_ao_mudar_banquinho):
+		trajeto.mudou_banquinho.connect(_ao_mudar_banquinho)
 	if not trajeto.passada.is_connected(_ao_passada):
 		trajeto.passada.connect(_ao_passada)
-	set_process(true)
 	await trajeto.terminou
-	set_process(false)
 	trajeto.foi_molhar.disconnect(_ao_molhar)
+	trajeto.mudou_banquinho.disconnect(_ao_mudar_banquinho)
 	trajeto.passada.disconnect(_ao_passada)
 
 	if _ik_braco != null:
 		_ik_braco.active = false
+	if _braco_livre != null:
+		_braco_livre.active = false
+		_braco_livre.elevacao = 0.0
+		_braco_livre.balanco = 0.0
+	_anim_braco.stop(true)
 	_rolo.hide()
 	definir_agachamento(0.0)
 	definir_inclinacao_torso(0.0)
+	_inclinacao_suave = 0.0
+	_balanco_suave = 0.0
+	_elevacao_suave = 0.0
 	position.y = 0.0
 	_trajeto = null
 	_parede_atual = null
@@ -257,6 +357,10 @@ func acompanhar_trajeto(trajeto: TrajetoRolo, parede: ParedePintavel, angulo_y: 
 
 
 func _process(delta: float) -> void:
+	super(delta)  # cadência da perna casada com a velocidade do corpo
+	if _carregando_mudanca:
+		_posicionar_carga()
+		return
 	if _trajeto == null or _parede_atual == null:
 		return
 	_seguir_rolo(delta)
@@ -265,10 +369,15 @@ func _process(delta: float) -> void:
 ## Um quadro de "estar pintando": onde o corpo vai, que postura faz, e onde o
 ## rolo e a mão ficam.
 func _seguir_rolo(delta: float) -> void:
-	# Indo molhar quem manda no corpo é o Tween de `_ao_molhar` — dois donos
-	# escrevendo `position` no mesmo quadro brigam, e o resultado é o do último.
+	# Durante as paradas quem manda no corpo é o gesto da parada. Os dois leem a
+	# fração da parada direto do trajeto, sem Tween: Tween e relógio da parada
+	# são dois donos do mesmo tempo, e qualquer diferença aparece como o gesto
+	# terminando antes ou depois de o rolo voltar a andar.
 	if _trajeto.na_bandeja:
 		_molhando_o_rolo()
+		return
+	if _trajeto.mexendo_no_banquinho:
+		_carregando_o_banquinho()
 		return
 
 	var largura: float = maxf(_parede_atual.mascara.largura_m, 0.1)
@@ -290,21 +399,31 @@ func _seguir_rolo(delta: float) -> void:
 	position.z = plano_agora.z
 	position.y = move_toward(position.y, alvo_pe.y, VELOCIDADE_VERTICAL * delta)
 
-	if andando:
-		_anim_pernas.play(CLIPE_ANDAR_PINTANDO)
-	elif _anim_pernas.current_animation != CLIPE_PARADO_PINTANDO:
-		_anim_pernas.play(CLIPE_PARADO_PINTANDO)
+	_tocar(CLIPE_ANDAR_PINTANDO if andando else CLIPE_PARADO_PINTANDO)
 
-	# banquinho embaixo do pé, não do outro lado da parede
-	if _props != null and no_banquinho:
-		_props.mover_banquinho(Vector3(alvo_pe.x, 0.0, alvo_pe.z))
-
-	# ── postura: agacha no rodapé, inclina o torso acompanhando o braço ──
+	# ── postura: agacha no rodapé, e o torso acompanha altura E passada ──
 	var agacha: float = 0.0
 	if ponto_m.y > TrajetoRolo.ALCANCE_RODAPE:
 		agacha = smoothstep(TrajetoRolo.ALCANCE_RODAPE, altura, ponto_m.y)
 	definir_agachamento(agacha)
-	definir_inclinacao_torso(agacha * 14.0)
+
+	var filtro: float = clampf(delta * SUAVIZACAO_POSTURA, 0.0, 1.0)
+	var fracao_altura: float = clampf(ponto_m.y / altura, 0.0, 1.0)  # 0 = teto, 1 = chão
+	var alvo_inclinacao: float = lerpf(INCLINACAO_NO_ALTO, INCLINACAO_NO_RODAPE, fracao_altura)
+	# subir a passada é empurrar (o corpo vai junto), descer é puxar (ele volta)
+	alvo_inclinacao -= _trajeto.direcao_atual.y * INCLINACAO_DA_PASSADA
+	_inclinacao_suave = lerpf(_inclinacao_suave, alvo_inclinacao, filtro)
+	definir_inclinacao_torso(_inclinacao_suave)
+
+	# ── braço livre: contrapeso do braço que trabalha ──
+	if _braco_livre != null:
+		# esticar pro alto e agachar são as duas posturas em que ele sai do corpo
+		var alvo_elevacao: float = maxf(1.0 - fracao_altura * 2.2, agacha * 0.8)
+		var alvo_balanco: float = -_trajeto.direcao_atual.y
+		_elevacao_suave = lerpf(_elevacao_suave, clampf(alvo_elevacao, 0.0, 1.0), filtro)
+		_balanco_suave = lerpf(_balanco_suave, alvo_balanco, filtro)
+		_braco_livre.elevacao = _elevacao_suave
+		_braco_livre.balanco = _balanco_suave
 
 	# ── rolo e mão: o rolo vai onde o trajeto disse, a mão vai atrás dele ──
 	var uv: Vector2 = _trajeto.posicao_atual
@@ -329,6 +448,11 @@ func _seguir_rolo(delta: float) -> void:
 	if _alvo_mao != null:
 		_alvo_mao.global_position = mao
 
+	# a espuma escorre junto com a carga — é o mesmo número que faz a cobertura
+	# falhar, então o que se vê no rolo e o que aparece na parede não divergem
+	_rolo.definir_molhado(inverse_lerp(
+		TrajetoRolo.CARGA_MINIMA, TrajetoRolo.CARGA_CHEIA, _trajeto.carga_atual))
+
 
 ## Ponto do chão em frente à parede, no trecho `u_frac`, já afastado o quanto o
 ## corpo precisa. `altura` é o que o banquinho acrescenta.
@@ -346,32 +470,206 @@ func definir_cor_tinta(cor: Color) -> void:
 		_rolo.definir_cor(cor)
 
 
-## Enquanto ele vai à bandeja o rolo desce pra frente do corpo, na altura da
-## mão — em vez de ficar plantado no último ponto da parede.
+## O gesto de molhar o rolo, quadro a quadro, dirigido pela fração da parada.
+##
+## Cinco tempos: andar até a bandeja, agachar, ESCORRER o rolo na rampa (vai e
+## volta, que é como se tira o excesso), levantar, voltar pro posto. Antes disto
+## o rolo só ficava pendurado na altura do quadril enquanto o corpo ia e vinha —
+## a ida à bandeja acontecia, mas a tinta não saía de lugar nenhum.
 func _molhando_o_rolo() -> void:
+	var f: float = _trajeto.fracao_da_parada()
 	var frente: Vector3 = -global_transform.basis.z
-	var ponto: Vector3 = global_position + frente * 0.30 + Vector3.UP * 0.55
+
+	# corpo: vai até a bandeja e volta pro posto
+	var indo: float = _fase(f, 0.05, 0.32)
+	var voltando: float = _fase(f, 0.72, 0.98)
+	var na_bandeja: Vector3 = _props.ponto_de_molhar() if _props != null else _posto_de_molhar
+	na_bandeja.y = 0.0
+	var alvo: Vector3 = _posto_de_molhar.lerp(na_bandeja, indo).lerp(_posto_de_molhar, voltando)
+	position.x = alvo.x
+	position.z = alvo.z
+	position.y = 0.0
+	_tocar(CLIPE_ANDAR_PINTANDO if (indo < 1.0 or voltando > 0.0) else CLIPE_PARADO_PINTANDO)
+
+	# quanto ele está debruçado sobre a bandeja
+	var mergulho: float = _fase(f, 0.30, 0.42) - _fase(f, 0.62, 0.74)
+	definir_agachamento(mergulho * 0.62)
+	definir_inclinacao_torso(mergulho * 20.0)
+
+	var descanso: Vector3 = global_position + frente * 0.30 + Vector3.UP * 0.62
+	var ponto: Vector3 = descanso
+	var direcao: Vector3 = frente
+	if _props != null and mergulho > 0.001:
+		# vai e volta na rampa: é isso que tira o excesso, não um mergulho seco
+		var eixo: Vector3 = _props.eixo_da_bandeja()
+		var poco: Vector3 = _props.ponto_da_tinta() + eixo * sin(f * TAU * 2.5) * 0.08
+		ponto = descanso.lerp(poco, mergulho)
+		direcao = eixo
+
+	var mao_padrao: Vector3 = (global_position + frente * 0.18
+		+ Vector3.UP * lerpf(ALTURA_MAO, 0.52, mergulho))
+	var mao: Vector3 = _rolo.encostar(ponto, Vector3.UP, direcao, mao_padrao)
+	if _alvo_mao != null:
+		_alvo_mao.global_position = mao
+	if _rolo != null:
+		_rolo.definir_molhado(mergulho)
+
+	if _trajeto.repondo_tinta():
+		_despejando_a_lata(f)
+
+
+## A lata sobe, tomba sobre a bandeja e volta pro chão. Acontece só na primeira
+## ida à bandeja de cada parede (`TrajetoRolo.Parada.REPOR`) — é de lá que a
+## tinta da bandeja vem, e sem isto o poço se reabastecia sozinho.
+##
+## Roda ANTES do mergulho na linha do tempo da parada, que é a ordem certa:
+## primeiro enche a bandeja, depois escorre o rolo nela.
+func _despejando_a_lata(f: float) -> void:
+	var lata: Node3D = _props.lata
+	var pousada: Vector3 = _props.posicao_da_lata()
+	var erguida: float = _fase(f, 0.10, 0.24) - _fase(f, 0.40, 0.54)
+	if erguida <= 0.001:
+		lata.global_position = pousada
+		lata.rotation.z = 0.0
+		return
+
+	var sobre_bandeja: Vector3 = _props.ponto_da_tinta() + Vector3.UP * 0.34
+	lata.global_position = pousada.lerp(sobre_bandeja, erguida)
+	# tomba no meio do gesto, não no caminho de subida
+	lata.rotation.z = deg_to_rad(-118.0) * _fase(f, 0.22, 0.32) * (1.0 - _fase(f, 0.36, 0.44))
+
+
+## Guarda de onde ele saiu, pra saber pra onde voltar. Quem conta o tempo é o
+## trajeto — aqui só se registra o ponto de partida do gesto.
+func _ao_molhar() -> void:
+	pincelada.emit()
+	_posto_de_molhar = position
+
+
+## Vai buscar bandeja, lata e banquinho onde estiverem, carrega tudo até a
+## parede nova e larga lá.
+##
+## Uma viagem só, com o rolo DENTRO da bandeja — é como se carrega de verdade, e
+## é o que resolve ter três objetos e duas mãos. Antes `posicionar_para_parede`
+## teletransportava os três, e a garotinha sentada via os objetos pularem de
+## canto do quarto.
+func levar_props(props: PropsPintura, destino: ParedePintavel) -> void:
+	_props = props
+
+	var buscar: Vector3 = props.ponto_de_molhar()
+	buscar.y = 0.0
+	await ir_ate(buscar, 1.4)
+	await agachar_ate(0.5, 0.5)
+
+	_carregando_mudanca = true
+	_rolo.show()
+	await agachar_ate(0.0, 0.4)
+
+	# calcula o destino agora; os props continuam na mão até ele largar
+	props.posicionar_para_parede(destino)
+	var largar: Vector3 = props.ponto_de_molhar()
+	largar.y = 0.0
+	await ir_ate(largar, 1.8)
+	await agachar_ate(0.5, 0.5)
+
+	_carregando_mudanca = false
+	props.posicionar_para_parede(destino)
+	_rolo.hide()
+	await agachar_ate(0.0, 0.4)
+
+
+## Onde os três objetos ficam enquanto ele os carrega: bandeja e lata numa mão,
+## banquinho na outra, rolo deitado dentro da bandeja.
+func _posicionar_carga() -> void:
+	if _props == null:
+		return
+	var lado: Vector3 = global_transform.basis.x
+	var frente: Vector3 = -global_transform.basis.z
+	var mao_bandeja: Vector3 = global_position - lado * 0.32 + frente * 0.12 + Vector3.UP * 0.72
+	_props.bandeja.global_position = mao_bandeja
+	_props.lata.global_position = mao_bandeja + frente * 0.02 + Vector3.UP * 0.03
+	_props.banquinho.global_position = global_position + lado * 0.40 + Vector3.UP * 0.34
+	if _rolo != null:
+		_rolo.global_position = mao_bandeja + Vector3.UP * 0.07
+		_rolo.global_basis = Basis(lado, frente, Vector3.UP)
+
+
+## O gesto de buscar o banquinho e plantar no trecho novo, também dirigido pela
+## fração da parada.
+##
+## Seis tempos: andar até onde a madeira ficou, agachar e pegar, carregar até o
+## trecho novo, agachar e largar, levantar, subir em cima. Antes o banquinho era
+## teletransportado pro pé dele a cada quadro em que a faixa alta estivesse
+## sendo pintada — e ficava plantado ali quando ele descia, então ele atravessava
+## a madeira com a canela ao agachar no rodapé.
+func _carregando_o_banquinho() -> void:
+	if _props == null:
+		return
+	var f: float = _trajeto.fracao_da_parada()
+	var normal: Vector3 = _parede_atual.normal_interna()
+
+	# ⚠️ 0,62 m, não 0,38: ele encara a parede o tempo todo, então o banquinho
+	# fica À FRENTE dele. Com 0,38 a madeira caía entre as pernas — ele parecia
+	# montado nela em vez de agachado pra pegar.
+	var ao_lado_de: Vector3 = _banquinho_de + normal * 0.62
+	var ao_lado_para: Vector3 = _banquinho_para + normal * 0.62
+	ao_lado_de.y = 0.0
+	ao_lado_para.y = 0.0
+
+	# corpo: até a madeira, depois até o trecho novo
+	var ate_madeira: float = _fase(f, 0.02, 0.26)
+	var carregando: float = _fase(f, 0.40, 0.70)
+	var pe: Vector3 = _pe_ao_mudar.lerp(ao_lado_de, ate_madeira).lerp(ao_lado_para, carregando)
+	position.x = pe.x
+	position.z = pe.z
+
+	# abaixar pra pegar, abaixar pra largar
+	var pegando: float = _fase(f, 0.26, 0.36) - _fase(f, 0.40, 0.48)
+	var largando: float = _fase(f, 0.70, 0.78) - _fase(f, 0.80, 0.88)
+	var curvado: float = maxf(pegando, largando)
+	definir_agachamento(curvado * 0.55)
+	definir_inclinacao_torso(curvado * 26.0)
+
+	# sobe no banquinho só depois de ele estar no chão
+	position.y = _fase(f, 0.88, 1.0) * ALTURA_BANQUINHO
+
+	var andando: bool = (ate_madeira > 0.0 and ate_madeira < 1.0) or (carregando > 0.0 and carregando < 1.0)
+	_tocar(CLIPE_ANDAR_PINTANDO if andando else CLIPE_PARADO_PINTANDO)
+
+	# a madeira: no chão, na mão, no chão de novo
+	var na_mao: float = _fase(f, 0.34, 0.42) - _fase(f, 0.74, 0.82)
+	var lado: Vector3 = global_transform.basis.x
+	var carregado: Vector3 = (global_position + lado * 0.42
+		- global_transform.basis.z * 0.12 + Vector3.UP * 0.30)
+	var no_chao: Vector3 = _banquinho_de.lerp(_banquinho_para, carregando)
+	_props.mover_banquinho(no_chao.lerp(carregado, na_mao))
+
+	# e o rolo fica pendurado na outra mão, apontando pro chão
+	var frente: Vector3 = -global_transform.basis.z
+	var ponto: Vector3 = global_position + frente * 0.22 + Vector3.UP * 0.42
 	var mao: Vector3 = _rolo.encostar(ponto, Vector3.UP, frente,
-		global_position + Vector3.UP * ALTURA_MAO + frente * 0.18)
+		global_position + frente * 0.14 + Vector3.UP * 0.86)
 	if _alvo_mao != null:
 		_alvo_mao.global_position = mao
 
 
-## Ele sai da parede e vai molhar o rolo. A pausa quem conta é o trajeto; aqui
-## é só o corpo indo até a bandeja e voltando dentro dessa janela.
-func _ao_molhar() -> void:
-	if _props == null or _trajeto == null:
+## Guarda de onde sai e pra onde vai a madeira. O trecho novo é o que o rolo vai
+## atacar assim que a parada acabar — `centro_trecho` do ponto em que ele parou,
+## que é o fim do bloco anterior, dentro do MESMO trecho.
+func _ao_mudar_banquinho() -> void:
+	if _props == null or _trajeto == null or _parede_atual == null:
 		return
-	var volta: Vector3 = position
-	var ida: Vector3 = _props.ponto_de_molhar()
-	ida.y = 0.0
-	var meio: float = TrajetoRolo.DURACAO_BANDEJA * 0.5
+	var largura: float = maxf(_parede_atual.mascara.largura_m, 0.1)
+	var u_posto: float = _trajeto.centro_trecho(_trajeto.posicao_metros().x) / largura
+	_pe_ao_mudar = position
+	_pe_ao_mudar.y = 0.0
+	_banquinho_de = _props.banquinho.position
+	_banquinho_de.y = 0.0
+	_banquinho_para = _pe_no_trecho(_parede_atual, u_posto, 0.0)
+	_banquinho_para.y = 0.0
 
-	pincelada.emit()
-	definir_agachamento(0.0)
-	definir_inclinacao_torso(0.0)
-	_anim_pernas.play(CLIPE_ANDAR_PINTANDO)
-	var tw := create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	tw.tween_property(self, "position", ida, meio * 0.8)
-	tw.tween_interval(meio * 0.4)
-	tw.tween_property(self, "position", volta, meio * 0.8)
+
+## Rampa 0→1 entre dois instantes de uma parada. Existe pra os gestos serem
+## escritos como uma linha do tempo legível em vez de `if` encadeado.
+static func _fase(f: float, de: float, ate: float) -> float:
+	return smoothstep(de, ate, f)

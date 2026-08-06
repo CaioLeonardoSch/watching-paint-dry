@@ -590,6 +590,31 @@ sendo um retângulo uniforme por horas, por mais bonita que a coreografia fique.
 - `[x]` ✅ `FRACAO_JA_PINTADA_ABERTURA` foi pra **0,92**, não 0,9: 8% de 84 s são 7 s de cutscene,
   que é o tempo de entender a cena sem ela cansar antes de a garotinha entrar
 
+#### Remedido em 06/08/2026 — a parede foi pra ~101 s
+
+A rodada de animação da Fase E2 (`PROJETO.md` §3.8) acrescentou **duas paradas novas** ao trajeto: o
+tio buscar e plantar o banquinho (~7 por parede, 2,8 s cada) e a primeira ida à bandeja ficar 1,7×
+mais longa porque ele despeja a lata. Antes o banquinho era teletransportado pro pé dele.
+
+| | Fase E (05/08) | Fase E2 (06/08) |
+|---|---|---|
+| Caminho por parede | 224 m | 211 a 224 m (janela e porta saíram da conta) |
+| Duração por parede | 84 s | **98,8 a 104,5 s** |
+| Volta completa | 5,6 min | **~7,1 min** |
+| Fração parada | 26% | **~40%** |
+
+`duracao_pintura_segundos` foi pra **101,0**. Os três modos foram reconferidos e **nenhum mudou** —
+o que mudou foi a conta que sustenta eles, agora escrita em `modo_jogo.gd::TEMPO_SECAGEM`: a regra é
+sobre a parede que a garotinha ENCARA (a norte, segunda da volta, pronta por volta dos 212 s), que
+precisa continuar secando pelos 213 s restantes. Rápido dá 259 s, com 46 s de folga.
+
+⚠️ **A tabela de lap mark acima usa "intervalo entre trechos vizinhos ~10 s" e isso subiu junto.**
+Não foi remedido — quando a G4 for feita, medir de novo antes de escolher limiar.
+
+⚠️ **As quatro paredes deixaram de ter a mesma duração.** Leste e oeste têm ~2 m² a menos (porta e
+janela), então saem 4 a 6% mais rápidas. É pequeno e está certo, mas quem for calibrar ritmo com uma
+parede só precisa saber que as outras não são idênticas.
+
 ---
 
 ## 4. Tabela de constantes — hoje → proposto
@@ -1049,6 +1074,41 @@ escolhe entre as duas, então o degrau entra **atrás do rolo** em vez de na par
 
 E a curva virou `1 − numero/(total−1)`: 1,00 · 0,50 · **0,00**. A última demão apaga a marca do rolo
 enquanto passa, que é a recompensa de ter pintado três vezes.
+
+##### ⚠️ Isto NÃO resolveu a queixa, e só se soube em 06/08/2026
+
+O Caio repetiu a mesma reclamação depois da Fase E2: *"a parede não ficou homogênea, ela fica com as
+linhas de tinta muito marcadas"*. A curva acima zera a marca **da 3ª demão**, mas a 1ª e a 2ª secavam
+listradas e ficavam assim até a demão seguinte cobrir — e o pior é que a marca era modulada por
+`k_valor`, que **cresce conforme seca**. Ou seja: a parede ficava lisa molhada e as listras apareciam
+no auge exatamente quando ela terminava de secar. O acabamento é o que mais se olha neste jogo.
+
+**A inversão:** quem manda na marca passou a ser a UMIDADE do filme, não o número da demão.
+
+```
+k_fresca = 1 − smoothstep(0.25, 0.88, fracao)
+marca_nova = marca_base * mix(residuo_demao, marca_fresca, k_fresca)
+```
+
+`suavidade_*` virou `residuo_*` (o que sobra **depois de seca**, `RESIDUO_PRIMEIRA = 0,16` caindo a
+zero na última) e ganhou `marca_fresca` (o que vale **enquanto fresca**).
+
+⚠️ **`marca_fresca` não é gosto, é compensação — e sem ela a 3ª demão fresca crushava em PRETO.** A
+máscara acumulada guarda o relevo de todas as demãos e o passa-alta tira o nível, não a amplitude:
+medido no render, o desvio de uma demão fresca subia 0,022 → 0,035 → 0,047 da 1ª pra 3ª. Com
+`1/(n+1)` ele fica em 0,023 · 0,020 · 0,019. Tem `clamp(±0,45)` de cinto e suspensório.
+
+**Medido no render** (desvio padrão da luminância, recorte central, Azul):
+
+| demão | fresca (fração 0,03) | seca (fração 1,00) | faixa quando seca |
+|---|---|---|---|
+| 1 | 0,0227 | **0,0063** | 0,041 |
+| 2 | 0,0204 | **0,0049** | 0,030 |
+| 3 | 0,0194 | **0,0045** | 0,019 |
+
+Fresca marca ~4× mais que seca, e cada demão fecha mais lisa que a anterior — que é literalmente o
+que o Caio descreveu: *"secar para uma parede homogênea, então passar a nova demão por cima com
+marcas visíveis e ficar homogênea, assim por diante"*.
 
 #### ⚠️ O passa-alta da marca estava comendo o próprio sinal
 
@@ -1823,3 +1883,50 @@ Novas, específicas desta rodada:
   — em particular os modos de GI por objeto (`STATIC` × `DYNAMIC`), que é o que 6.5 depende
 - [FastNoiseLite — class ref](https://docs.godotengine.org/en/4.7/classes/class_fastnoiselite.html)
   — a mancha de substrato de 3.1(b)
+
+##### ⚠️ E ainda NÃO era a marca — era o lap mark, de novo (06/08/2026)
+
+O Caio mandou um print da parede violeta **seca** com as listras verticais e as
+duas emendas de faixa bem visíveis: *"ainda não deu certo"*. A inversão da marca
+acima estava certa e não resolveu, porque a marca não era a causa.
+
+**Isolando termo a termo numa cena CONGELADA** (contraste local horizontal num
+passo de meia passada de rolo, contra o piso de uma parede de cor chapada):
+
+| variante | contraste médio |
+|---|---|
+| parede de cor chapada (piso) | 0,00268 |
+| tudo ligado | **0,00523** |
+| sem a marca do rolo | 0,00523 (nada muda) |
+| cobertura forçada em 1 | 0,00519 (nada muda) |
+| **sem o lap mark** | **0,00271** — o piso |
+
+O lap era a listra **inteira**.
+
+**A causa é de aritmética, não de arte.** `limiar_lap` é comparado com
+`gradiente(instante) × janela_demao`, ou seja com SEGUNDOS. O valor de 1,5 s foi
+calibrado em §5.5 quando a pintura de uma parede durava **8 s**. A Fase E levou a
+janela pra 84 s e a E2 pra ~101 s — **o salto escalou 12× junto** e o limiar fixo
+virou baixo demais. O lap voltou a marcar toda emenda entre passadas, exatamente
+como na G3, só que agora na parede seca e sem ninguém notar que a causa era a
+mesma de antes.
+
+**O conserto é o que a §3.8 (G4) já pedia:** o limiar deixou de ser absoluto e
+virou `LIMIAR_LAP_RELATIVO × duracao_secagem_da_demao`, com 0,28 — que é onde
+`k_brilho` fecha no shader, o flash-off. Antes do flash-off não há película pra
+"lapar"; depois há. Sai de graça o comportamento por modo que a §3.9 previa:
+Realista vira 2016 s (nunca acende), Rápido vira 42 s.
+
+Com isso a parede seca cai exatamente no piso da cor chapada, e aí sim o resíduo
+da marca ficou mensurável: 0,16 dá +12% sobre o piso, **0,08 dá +2,6%**, 0,0 dá o
+piso. `RESIDUO_PRIMEIRA` ficou em 0,08.
+
+⚠️ **A lição de método:** enquanto o lap estava aceso, mexer no resíduo da marca
+não mudava NADA — o que me fez concluir três vezes que "não é a marca" e mesmo
+assim continuar procurando perto dela. O que destravou foi renderizar cada termo
+do shader isolado na tela e comparar com o piso de uma cor chapada, em vez de
+comparar variantes entre si.
+
+⚠️ **E duas medições foram jogadas fora antes disso** por não congelar a cena: o
+`ciclo_pintura` repintava a parede no meio do teste, e TODAS as variantes davam o
+mesmo número. O aviso já estava escrito em `parede_pintavel.gd::VARIACAO_CONCLUSAO`.

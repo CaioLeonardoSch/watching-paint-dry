@@ -941,6 +941,35 @@ nenhum número acusou.
 sobreposição vira duas linhas horizontais retas de 6 m com o dobro de tinta — linha reta perfeita lê
 como bug, não como pintura.
 
+#### Fase E2 — a rodada de animação de 06/08/2026
+
+Pedida pelo Caio olhando a Fase E rodando. Detalhe e tabela completa em `PROJETO.md` §3.8; aqui
+ficam só as consequências pra este plano.
+
+- `[x]` **Pintar ao redor de janela e porta.** A parede é cortada em COLUNAS nas bordas de cada vão
+  (`_cortes_em_u`), e dentro de uma coluna a altura de parede sólida é constante (`_faixas_solidas`).
+  As três faixas de altura são as mesmas de sempre, só **aparadas** pela faixa sólida — é isso que
+  faz a coluna acima da porta não ter rodapé, sem nenhum `if` sobre qual pedaço é qual.
+- `[x]` **O banquinho virou objeto.** Ele busca, agacha, pega, carrega, larga e sobe — uma parada de
+  trajeto, mesma máquina da ida à bandeja (`Parada.BANQUINHO`, 2,8 s).
+- `[x]` **A bandeja virou gesto.** Ele agacha e escorre o rolo na rampa; na primeira ida de cada
+  parede ergue a lata e despeja (`Parada.REPOR`, 1,7× mais longa).
+- `[x]` **Os props viajam com ele** entre paredes, numa viagem só, rolo dentro da bandeja.
+- `[x]` **O corpo:** cadência do passo casada com a velocidade real (metros por ciclo MEDIDOS do
+  clipe), blend de 0,2 s nas trocas, torso com peso por altura e por direção da passada,
+  `pintar_braco` de volta nos dois ombros, e um modifier novo pro braço esquerdo.
+- `[x]` **A abertura virou 1ª pessoa do primeiro quadro.** `CameraCutscene` removida.
+
+⚠️ **Isto reabre a conta de §5.6 de novo.** A parede foi de 84 s pra **~101 s** e a volta de 5,6 pra
+**~7,1 min** — as paradas são ~40% da duração. A estimativa original de "3 a 5 min" agora está a
+mais de 2× de distância. A escolha foi **manter os gestos e assumir a volta mais longa**: o assunto
+do jogo é lentidão, e o que se ganhou (o tio manuseando as coisas em vez de teletransportá-las) é
+exatamente o que o §5 deste plano queria dizer com "parecer esforço, não pose trocada".
+
+⚠️ **O número de passadas é decidido por COLUNA, não por trecho.** Fazendo por trecho, o
+arredondamento pra cima acontece uma vez por trecho: a parede leste saiu com 232 m de caminho contra
+223 m da norte, tendo 2 m² **a menos** de parede.
+
 ### Fase G — Secagem natural + proporção do quarto
 
 Documento próprio: **`PLANO-SECAGEM-E-QUARTO.md`**. Não depende de D nem de E (só o item 3.9 de lá
@@ -997,7 +1026,7 @@ passaram a ter dono explícito. Os critérios das Fases G estão em `PLANO-SECAG
 | 1 | Pausar durante a pintura: **a tinta corresponde exatamente ao que o rolo tocou**, incluindo o formato do W e a falha onde passou de leve | Fase E (W) + G3 (falha) |
 | 2 | A 2ª demão **visivelmente cobre falhas** da 1ª — comparar screenshot antes/depois | **G3** (hoje impossível: `cor_anterior` é cor chapada) |
 | 3 | Existe pelo menos um momento em que ele **olha pro que está pintando** e a cabeça acompanha | Fase F (`LookAtModifier3D` já montado) |
-| 4 | Ele **agacha** pro rodapé e **sobe no banquinho** pro topo, e os pés não atravessam nada | Fase D (camada procedural) + E |
+| 4 | Ele **agacha** pro rodapé e **sobe no banquinho** pro topo, e os pés não atravessam nada | Fase D (camada procedural) + E — ⚠️ o "não atravessam nada" só passou na **E2**: até lá o banquinho era teletransportado pro pé dele e ficava plantado ali, e ele atravessava a madeira com a canela ao descer pra pintar o meio |
 | 5 | Durante a secagem a parede fica **manchada** numa fase intermediária | **G1** — ⚠️ o critério original dizia "e a mancha coincide com onde ele passou duas vezes". **Isso não se sustenta**: a espessura sozinha dá 0,7% de variação e é periódica. A mancha passa a vir de espessura **+ substrato + ar + altura** |
 | 6 | Nenhum normal map procedural sobrou nas paredes | ✅ Fase C |
 | 7 | Zero warnings no build (warning é erro neste projeto) | todas |
