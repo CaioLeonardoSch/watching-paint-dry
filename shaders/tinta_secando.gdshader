@@ -96,11 +96,25 @@ const float PESO_AMBIENTE  = 0.18;
 // Duas passadas separadas por um quinto de segundo não formam lap mark nenhum:
 // lap de verdade é tinta que já começou a formar película, o que leva minutos.
 //
-// 1,5 fica acima do máximo medido (1,250), então com o trajeto de hoje o lap
-// não acende em lugar nenhum — que é o comportamento correto pra um zigue-zague
-// sem revisita. Quem faz ele voltar a ter função é a coreografia da Fase E, e a
-// G4 troca este número absoluto por um relativo à secagem local (SECAGEM §3.8).
-uniform float limiar_lap = 1.5;
+// ⚠️⚠️ **E voltou a acender em 06/08/2026, pelo motivo mais bobo possível.**
+// `salto` é medido em SEGUNDOS: ele é o gradiente de `rec.r` (que é 0-1)
+// multiplicado por `janela_demao`. Quando a janela era 8 s, o salto máximo da
+// parede era 1,250 e o limiar de 1,5 ficava logo acima. A Fase E levou a janela
+// pra 84 s e a E2 pra ~101 s — **o salto escalou junto, 12×**, e o limiar fixo
+// virou baixo demais. O lap voltou a marcar toda emenda entre passadas e a
+// desenhar as mesmas listras verticais de antes, agora na parede SECA.
+//
+// Medido isolando o termo na cena congelada: com o lap ligado o contraste local
+// da parede seca é 0,00523; desligando ele cai pra 0,00271, que é exatamente o
+// piso de uma parede de cor chapada (0,00268). Ou seja: o lap era a listra
+// INTEIRA. Marca do rolo e cobertura não mudavam nada.
+//
+// Por isso o limiar deixou de ser absoluto e passou a ser uma FRAÇÃO DO TEMPO DE
+// SECAGEM — que é o que a G4 já pedia (SECAGEM §3.8), e que é a física certa:
+// lap mark é tinta nova sobre tinta que já começou a formar película, e "já
+// começou" só quer dizer alguma coisa em relação a quanto ela demora pra secar.
+// Quem calcula é `parede_pintavel.gd::LIMIAR_LAP_RELATIVO`.
+uniform float limiar_lap = 42.0;
 
 // Quanto a queda de cobertura na borda de baixo vira bead. A cobertura cai de
 // ~0,6 pra 0 ao longo da borda, e o gradiente é medido num passo de carimbo.

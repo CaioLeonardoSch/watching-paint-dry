@@ -107,11 +107,35 @@ const COBERTURA_MAX: float = 0.20
 ## `forca_marca` do shader. As demais caem proporcionalmente até zero na última
 ## (ver `residuo_marca`).
 ##
-## É o botão de "quão homogênea a parede fica quando seca". 0,0 deixa as três
-## demãos secando perfeitamente lisas; subir demais traz de volta a queixa que
-## esta rodada veio consertar. 0,16 é o suficiente pra a 1ª demão sobre reboco
-## cru não parecer tinta de fábrica, e some na 3ª.
-const RESIDUO_PRIMEIRA: float = 0.16
+## É o botão de "quão homogênea a parede fica quando seca". Medido na cena
+## congelada, contraste local da parede seca contra o piso de uma cor chapada
+## (0,00271): resíduo 0,16 dá 0,00304 (+12%), **0,08 dá 0,00278 (+2,6%)** e 0,0
+## dá exatamente o piso. 0,08 é o bastante pra a 1ª demão sobre reboco cru não
+## parecer tinta de fábrica sem voltar a listrar, e some na 3ª.
+##
+## ⚠️ Este NÃO era o culpado das listras que o Caio fotografou — era o lap mark
+## (ver LIMIAR_LAP_RELATIVO). Com o lap aceso, mexer aqui não mudava nada, o que
+## por um bom tempo apontou pro lugar errado.
+const RESIDUO_PRIMEIRA: float = 0.08
+
+## Quanto tempo precisa separar duas passadas VIZINHAS pra elas formarem lap
+## mark, como fração do tempo de secagem desta demão.
+##
+## ⚠️ **É fração, não segundos, e essa é a correção.** O `limiar_lap` do shader é
+## comparado com `gradiente(instante) × janela_demao`, ou seja com SEGUNDOS. O
+## valor fixo de 1,5 s foi calibrado quando a pintura de uma parede durava 8 s;
+## a Fase E levou a janela pra 84 s e a E2 pra ~101 s, o salto escalou 12× junto,
+## e o lap voltou a acender em toda emenda entre passadas — as listras verticais
+## que o Caio fotografou na parede violeta SECA.
+##
+## 0,28 é onde `k_brilho` fecha no shader (`smoothstep(0.02, 0.28, fracao)`), que
+## é o flash-off: o instante em que a tinta perde o brilho de molhada e começa a
+## formar película. Antes disso não há o que "laparr"; depois disso há.
+##
+## Consequência de graça, e correta: no Realista (7200 s) o limiar vira 2016 s e
+## o lap nunca acende; no Rápido (150 s) vira 42 s, e só emenda entre trechos
+## distantes chega perto. Ver SECAGEM §3.8.
+const LIMIAR_LAP_RELATIVO: float = 0.28
 
 ## Quanto cada demão nova atrasa a secagem, uniformemente. É real: o substrato
 ## vai selando e absorve menos água a cada camada. Entra como fator explícito
@@ -302,6 +326,9 @@ func iniciar_demao(
 	material.set_shader_parameter("residuo_demao",
 		residuo_marca(numero_demao, total_demaos))
 	material.set_shader_parameter("marca_fresca", forca_fresca(numero_demao))
+	# ⚠️ TEM que ser reposto a cada demão: o limiar é em segundos e depende da
+	# secagem DESTA demão, que cresce com `ATRASO_POR_DEMAO`.
+	material.set_shader_parameter("limiar_lap", LIMIAR_LAP_RELATIVO * _duracao_demao)
 
 	# Desloca a amostra da mancha desta demão. Sem isto a 2ª demão secaria com
 	# exatamente o mesmo desenho de nuvens da 1ª, e o truque se denunciaria na

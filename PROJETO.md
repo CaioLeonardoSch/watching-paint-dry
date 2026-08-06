@@ -374,6 +374,7 @@ outro na mesma sessão.**
 | `trajeto_rolo.gd::DURACAO_BANQUINHO` / `DURACAO_BANDEJA` / `FATOR_REPOR_TINTA` | `ciclo_pintura.gd::duracao_pintura_segundos` e `modo_jogo.gd::TEMPO_SECAGEM` | As paradas são ~40% da duração de uma parede. Mexer nelas muda a volta inteira, e é a volta que decide se a parede que a garotinha encara ainda está secando quando o tio termina |
 | `props_pintura.gd::ALTURA_BANQUINHO` | `tio.gd::ALTURA_BANQUINHO` | Dois nomes pro mesmo degrau; divergir faz ele flutuar ou enterrar o pé na madeira |
 | `parede_pintavel.gd::residuo_marca` / `forca_fresca` | `tinta_secando.gdshader::residuo_*` e `marca_fresca` | A marca do rolo segue a UMIDADE, não o número da demão. `forca_fresca` = `1/(n+1)` compensa o relevo acumulado — sem ela a 3ª demão fresca crusha em preto. Ver SECAGEM §5.3 |
+| **Duração da pintura de uma parede** (`TrajetoRolo.duracao_estimada`) | **`parede_pintavel.gd::LIMIAR_LAP_RELATIVO`** | `limiar_lap` é comparado com `gradiente(instante) × janela_demao`, ou seja **com segundos**. Todo aumento da janela escala o salto junto. Um limiar ABSOLUTO calibrado numa duração quebra silenciosamente na seguinte — foi assim que o lap voltou a listrar a parede duas vezes (G3 e E2). Por isso ele é fração da secagem, nunca segundo fixo |
 
 **⚠️ `get_shader_parameter()` devolve `null` pra uniform que nunca foi setada.** O valor default
 escrito no `.gdshader` **não conta** — ele só existe no shader, não no material. Ler um uniform de
@@ -585,11 +586,19 @@ Pedida pelo Caio depois de olhar a Fase E rodando. Sete itens de animação mais
 | A garotinha começava dentro do quarto e se teleportava pra fora | O jogo abre **em 1ª pessoa dentro do cômodo vizinho**. Ela entra, encontra o tio terminando a última parede, senta, e a câmera desce junto com o corpo. `CameraCutscene` foi removida |
 
 **E o acabamento (06/08/2026, mesma rodada).** Queixa do Caio, repetida: *"a parede não ficou
-homogênea, ela fica com as linhas de tinta muito marcadas"*. A marca do rolo era modulada por
-`k_valor`, que **cresce conforme seca** — a parede ficava lisa molhada e listrada seca, o oposto do
-certo. Invertido: agora quem manda é a umidade do filme. Medido no render, o desvio da luminância cai
-de 0,023 (fresca) pra 0,006 (seca) na 1ª demão, e a seca fecha em 0,0045 na 3ª. Detalhe e a
-armadilha do relevo acumulado em `PLANO-SECAGEM-E-QUARTO.md` §5.3.
+homogênea, ela fica com as linhas de tinta muito marcadas"*. **Duas causas, uma atrás da outra.**
+
+1. A marca do rolo era modulada por `k_valor`, que **cresce conforme seca** — a parede ficava lisa
+   molhada e listrada seca, o oposto do certo. Invertido: agora quem manda é a umidade do filme.
+2. ⚠️ **E isso não resolveu.** A listra de verdade era o **lap mark**, aceso porque `limiar_lap` é
+   medido em SEGUNDOS e foi calibrado quando uma parede levava 8 s pra ser pintada; com ~101 s o
+   salto escalou 12× e o limiar fixo virou baixo demais. Isolando na cena congelada: com o lap
+   ligado o contraste da parede seca é 0,00523, sem ele 0,00271 — **exatamente** o piso de uma
+   parede de cor chapada (0,00268). O limiar virou fração da secagem (`LIMIAR_LAP_RELATIVO`), que é
+   o que a G4 já pedia.
+
+Detalhe, a tabela de isolamento e as duas medições jogadas fora por não congelar a cena estão em
+`PLANO-SECAGEM-E-QUARTO.md` §5.5.
 
 **O preço, medido:** a parede passou de **84 s pra ~101 s** (leste 104,5 · norte 102,4 · oeste 98,8 ·
 sul 99,7) e a volta de 5,6 pra **~7,1 min**. As paradas são ~40% disso. Foi conferido que os três

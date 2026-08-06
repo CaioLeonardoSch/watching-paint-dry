@@ -1883,3 +1883,50 @@ Novas, específicas desta rodada:
   — em particular os modos de GI por objeto (`STATIC` × `DYNAMIC`), que é o que 6.5 depende
 - [FastNoiseLite — class ref](https://docs.godotengine.org/en/4.7/classes/class_fastnoiselite.html)
   — a mancha de substrato de 3.1(b)
+
+##### ⚠️ E ainda NÃO era a marca — era o lap mark, de novo (06/08/2026)
+
+O Caio mandou um print da parede violeta **seca** com as listras verticais e as
+duas emendas de faixa bem visíveis: *"ainda não deu certo"*. A inversão da marca
+acima estava certa e não resolveu, porque a marca não era a causa.
+
+**Isolando termo a termo numa cena CONGELADA** (contraste local horizontal num
+passo de meia passada de rolo, contra o piso de uma parede de cor chapada):
+
+| variante | contraste médio |
+|---|---|
+| parede de cor chapada (piso) | 0,00268 |
+| tudo ligado | **0,00523** |
+| sem a marca do rolo | 0,00523 (nada muda) |
+| cobertura forçada em 1 | 0,00519 (nada muda) |
+| **sem o lap mark** | **0,00271** — o piso |
+
+O lap era a listra **inteira**.
+
+**A causa é de aritmética, não de arte.** `limiar_lap` é comparado com
+`gradiente(instante) × janela_demao`, ou seja com SEGUNDOS. O valor de 1,5 s foi
+calibrado em §5.5 quando a pintura de uma parede durava **8 s**. A Fase E levou a
+janela pra 84 s e a E2 pra ~101 s — **o salto escalou 12× junto** e o limiar fixo
+virou baixo demais. O lap voltou a marcar toda emenda entre passadas, exatamente
+como na G3, só que agora na parede seca e sem ninguém notar que a causa era a
+mesma de antes.
+
+**O conserto é o que a §3.8 (G4) já pedia:** o limiar deixou de ser absoluto e
+virou `LIMIAR_LAP_RELATIVO × duracao_secagem_da_demao`, com 0,28 — que é onde
+`k_brilho` fecha no shader, o flash-off. Antes do flash-off não há película pra
+"lapar"; depois há. Sai de graça o comportamento por modo que a §3.9 previa:
+Realista vira 2016 s (nunca acende), Rápido vira 42 s.
+
+Com isso a parede seca cai exatamente no piso da cor chapada, e aí sim o resíduo
+da marca ficou mensurável: 0,16 dá +12% sobre o piso, **0,08 dá +2,6%**, 0,0 dá o
+piso. `RESIDUO_PRIMEIRA` ficou em 0,08.
+
+⚠️ **A lição de método:** enquanto o lap estava aceso, mexer no resíduo da marca
+não mudava NADA — o que me fez concluir três vezes que "não é a marca" e mesmo
+assim continuar procurando perto dela. O que destravou foi renderizar cada termo
+do shader isolado na tela e comparar com o piso de uma cor chapada, em vez de
+comparar variantes entre si.
+
+⚠️ **E duas medições foram jogadas fora antes disso** por não congelar a cena: o
+`ciclo_pintura` repintava a parede no meio do teste, e TODAS as variantes davam o
+mesmo número. O aviso já estava escrito em `parede_pintavel.gd::VARIACAO_CONCLUSAO`.
