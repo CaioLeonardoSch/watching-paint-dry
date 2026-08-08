@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://d17nw2y3wgueo"
-path="res://.godot/imported/arvore_pinheiro_StylizedTree_baseColor.png-23e03111b45a905c7bc20ff293bf5160.ctex"
+path.s3tc="res://.godot/imported/arvore_pinheiro_StylizedTree_baseColor.png-23e03111b45a905c7bc20ff293bf5160.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "f36e8ed3222c950c3a6e441731dda215"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://models/arvore_pinheiro_StylizedTree_baseColor.png"
-dest_files=["res://.godot/imported/arvore_pinheiro_StylizedTree_baseColor.png-23e03111b45a905c7bc20ff293bf5160.ctex"]
+dest_files=["res://.godot/imported/arvore_pinheiro_StylizedTree_baseColor.png-23e03111b45a905c7bc20ff293bf5160.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0
