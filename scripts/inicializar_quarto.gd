@@ -214,73 +214,23 @@ func _criar_lampada() -> void:
 ## Cadeira onde a garotinha senta, em PONTO_CADEIRA_GAROTINHA (0, 0, -1),
 ## virada pro norte (pra parede da tinta).
 ##
-## Cadeira de cozinha, tudo primitiva: assento, dois montantes traseiros que
-## sobem do chão até o topo do encosto, ripas verticais entre eles, e as pernas
-## da frente. Cor chapada — o veio procedural que existia aqui saiu junto com o
-## das paredes (Fase C): em low-poly, é a ripa que faz ler como cadeira de
-## madeira, não a textura.
+## **Modelo de terceiro desde 08/08/2026** (ver `CREDITOS.md`) — antes eram 15
+## caixas primitivas montando assento, montantes, ripas, pernas e travessas. Ela
+## fica no meio da tela o jogo inteiro, então é onde um modelo de verdade rende
+## mais por peça trocada.
+##
+## O `.glb` já sai do Blender com a base em Y = 0, centrado em X/Z e com o
+## ENCOSTO no +Z — ou seja, quem senta nela olha pro norte, que é onde está a
+## parede da tinta. Por isso aqui não há rotação nenhuma.
+##
+## ⚠️ **O assento dele está a 0,492 m, não nos 0,45 das primitivas.** Quem
+## depende disso é `garotinha.gd` — `ALTURA_ASSENTO`, `AGACHAMENTO_SENTADA` e
+## `PES_SENTADA` — e os quatro números PRECISAM continuar batendo, senão ela
+## senta no ar ou afunda na madeira. Trocando a cadeira de novo: medir o assento
+## no Blender (faces viradas pra cima, a de maior área) e propagar os três.
 func _criar_cadeira() -> void:
-	var cadeira := Node3D.new()
+	var cena: PackedScene = load("res://models/cadeira_madeira.glb")
+	var cadeira: Node3D = cena.instantiate()
 	cadeira.name = "Cadeira"
 	add_child(cadeira)
 	cadeira.position = Vector3(0, 0, -1.0)
-
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.38, 0.24, 0.14)
-	mat.roughness    = 0.72
-
-	# tom um tico mais claro no assento, como madeira gasta de uso
-	var mat_assento := StandardMaterial3D.new()
-	mat_assento.albedo_color = Color(0.44, 0.29, 0.17)
-	mat_assento.roughness    = 0.66
-
-	var alt_assento: float = 0.45
-	var meia_largura: float = 0.21
-	var z_tras: float = 0.19
-	var z_frente: float = -0.19
-	var alt_encosto: float = 0.52   # do assento até o topo do encosto
-
-	_peca_cadeira(cadeira, mat_assento, Vector3(0.46, 0.05, 0.44), Vector3(0, alt_assento, 0))
-
-	# Montantes traseiros: sobem do chão até o alto do encosto numa peça só —
-	# é o que dá a silhueta de cadeira, em vez de um painel solto atrás.
-	var altura_montante: float = alt_assento + alt_encosto
-	for dx in [-meia_largura, meia_largura]:
-		_peca_cadeira(cadeira, mat, Vector3(0.05, altura_montante, 0.05),
-			Vector3(dx, altura_montante * 0.5, z_tras))
-
-	# Pernas da frente, mais curtas (só até o assento)
-	for dx in [-meia_largura, meia_largura]:
-		_peca_cadeira(cadeira, mat, Vector3(0.05, alt_assento, 0.05),
-			Vector3(dx, alt_assento * 0.5, z_frente))
-
-	# Travessa de cima, ligando os montantes
-	var topo: float = alt_assento + alt_encosto - 0.04
-	_peca_cadeira(cadeira, mat, Vector3(0.44, 0.07, 0.05), Vector3(0, topo, z_tras))
-	# Travessa de baixo do encosto, deixando um vão aberto acima do assento
-	var base_encosto: float = alt_assento + 0.14
-	_peca_cadeira(cadeira, mat, Vector3(0.44, 0.05, 0.05), Vector3(0, base_encosto, z_tras))
-
-	# Ripas verticais no encosto
-	var altura_ripa: float = topo - base_encosto
-	for dx in [-0.105, 0.0, 0.105]:
-		_peca_cadeira(cadeira, mat, Vector3(0.045, altura_ripa, 0.03),
-			Vector3(dx, (base_encosto + topo) * 0.5, z_tras))
-
-	# Travessa entre as pernas, perto do chão — trava a estrutura e some com a
-	# sensação de "quatro palitos soltos"
-	for dz in [z_frente, z_tras]:
-		_peca_cadeira(cadeira, mat, Vector3(0.40, 0.035, 0.035), Vector3(0, 0.13, dz))
-	for dx in [-meia_largura, meia_largura]:
-		_peca_cadeira(cadeira, mat, Vector3(0.035, 0.035, 0.38), Vector3(dx, 0.13, 0))
-
-
-func _peca_cadeira(pai: Node3D, mat: Material, tamanho: Vector3, pos: Vector3) -> MeshInstance3D:
-	var peca := MeshInstance3D.new()
-	pai.add_child(peca)
-	var box := BoxMesh.new()
-	box.size      = tamanho
-	peca.mesh     = box
-	peca.position = pos
-	peca.set_surface_override_material(0, mat)
-	return peca

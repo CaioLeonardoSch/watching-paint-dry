@@ -60,50 +60,24 @@ func _criar_jardim() -> void:
 	chao.set_surface_override_material(0, mat)
 
 
+## Árvore. **Modelo de terceiro desde 08/08/2026** (ver `CREDITOS.md`) — antes
+## era um cilindro com três esferas em cima e material procedural com normal map.
+##
+## O modelo tem 5,0 m em `escala` 1,0, quase o mesmo da versão procedural (~4,5),
+## então as escalas que os chamadores já passavam continuam valendo.
 func _criar_arvore(pos: Vector3, escala: float = 1.0) -> void:
-	var arvore := Node3D.new()
+	var cena: PackedScene = load("res://models/arvore_pinheiro.glb")
+	var arvore: Node3D = cena.instantiate()
 	add_child(arvore)
 	arvore.position = pos
-
-	var tronco := MeshInstance3D.new()
-	arvore.add_child(tronco)
-	var cilindro := CylinderMesh.new()
-	cilindro.top_radius    = 0.15 * escala
-	cilindro.bottom_radius = 0.22 * escala
-	cilindro.height        = 3.0 * escala
-	tronco.mesh     = cilindro
-	tronco.position = Vector3(0, 1.5 * escala, 0)
-
-	# Casca de árvore: relevo forte, sulcos verticais (UV esticada em Y)
-	var ruido_tronco  := MateriaisProcedurais.criar_textura_ruido(0.3, 256)
-	var normal_tronco := MateriaisProcedurais.criar_normal_ruido(1.8, 4.0, 256)
-	var mat_tronco    := MateriaisProcedurais.criar_material_texturizado(
-		Color(0.35, 0.24, 0.15), 0.95, ruido_tronco, Vector3(1.0, 4.0, 1.0), normal_tronco, 2.0)
-	tronco.set_surface_override_material(0, mat_tronco)
-
-	# Copa: 3 esferas sobrepostas, deslocadas — evita cara de "bolinha única".
-	# Deslocamento máximo (offset + raio) fica bem dentro do tronco pra não
-	# vazar pra fora do pé da árvore quando ela está perto de alguma parede.
-	# Folhagem: relevo alto quebra a silhueta lisa de esfera
-	var ruido_copa  := MateriaisProcedurais.criar_textura_ruido(0.5, 256)
-	var normal_copa := MateriaisProcedurais.criar_normal_ruido(3.5, 3.5, 256)
-	var mat_copa    := MateriaisProcedurais.criar_material_texturizado(
-		Color(0.25, 0.45, 0.22), 0.9, ruido_copa, Vector3(1.5, 1.5, 1.5), normal_copa, 1.8)
-	var pontos_copa: Array[Vector3] = [
-		Vector3(0, 3.5, 0) * escala,
-		Vector3(0.35, 3.2, 0.25) * escala,
-		Vector3(-0.3, 3.3, -0.25) * escala,
-	]
-	var raios_copa: Array[float] = [1.0 * escala, 0.75 * escala, 0.7 * escala]
-	for i in pontos_copa.size():
-		var folha := MeshInstance3D.new()
-		arvore.add_child(folha)
-		var esfera := SphereMesh.new()
-		esfera.radius = raios_copa[i]
-		esfera.height = raios_copa[i] * 2.0
-		folha.mesh     = esfera
-		folha.position = pontos_copa[i]
-		folha.set_surface_override_material(0, mat_copa)
+	arvore.scale    = Vector3.ONE * escala
+	# Giro derivado da POSIÇÃO, não de um RNG: 17 árvores do mesmo modelo em fila
+	# viram padrão visível, e um gerador com estado amarraria o resultado à ordem
+	# das chamadas. Assim cada árvore tem sempre o mesmo giro, independente de
+	# quem criou primeiro.
+	arvore.rotation.y = _giro_do_lugar(pos)
+	_tingir(arvore, Color(1.0, 1.0, 1.0).lerp(
+		Color(0.82, 1.0, 0.78), _ruido_do_lugar(pos, 31.7)))
 
 
 func _criar_rua() -> void:
@@ -146,33 +120,30 @@ func _criar_vizinhanca() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 8801
 
-	var cores_corpo: Array[Color] = [
-		Color(0.75, 0.65, 0.50),   # reboco cru
-		Color(0.82, 0.78, 0.70),   # bege claro
-		Color(0.66, 0.70, 0.66),   # verde acinzentado
-		Color(0.80, 0.72, 0.66),   # terracota lavado
-		Color(0.72, 0.74, 0.80),   # azul acinzentado
-	]
-	var cores_telhado: Array[Color] = [
-		Color(0.40, 0.22, 0.18),   # telha de barro
-		Color(0.30, 0.26, 0.26),   # fibrocimento escuro
-		Color(0.46, 0.28, 0.20),   # barro mais claro
+	# Tons de fachada, agora como MULTIPLICADOR do albedo do modelo (ver
+	# `_criar_casa`), não como cor chapada. Todos perto do branco de propósito:
+	# o que se quer é uma rua onde nenhuma casa é igual à vizinha, não cinco
+	# casas de cores diferentes — isso viraria fileira de casinha de brinquedo.
+	var tons: Array[Color] = [
+		Color(1.00, 0.97, 0.92),   # puxa pro creme
+		Color(0.93, 0.96, 1.00),   # puxa pro frio
+		Color(0.97, 1.00, 0.94),   # puxa pro verde
+		Color(1.00, 0.94, 0.90),   # puxa pro terracota
+		Color(0.95, 0.94, 0.97),   # levemente lavada
 	]
 
 	# Do outro lado da rua, alinhadas pela calçada
 	for z in [-27.0, -18.0, -9.0, 0.0, 9.0, 18.0, 27.0]:
 		_criar_casa(
 			Vector3(PAREDE_OESTE_X - 11.5 - rng.randf_range(0.0, 1.2), 0.0, z),
-			cores_corpo[rng.randi() % cores_corpo.size()],
-			cores_telhado[rng.randi() % cores_telhado.size()],
+			tons[rng.randi() % tons.size()],
 			rng.randf_range(0.85, 1.15))
 
 	# Vizinhos do lado de cá — só nas pontas, longe do que a janela enquadra
 	for z in [-21.0, 17.0]:
 		_criar_casa(
 			Vector3(PAREDE_OESTE_X - 4.0, 0.0, z),
-			cores_corpo[rng.randi() % cores_corpo.size()],
-			cores_telhado[rng.randi() % cores_telhado.size()],
+			tons[rng.randi() % tons.size()],
 			rng.randf_range(0.9, 1.1))
 
 	# Árvores da calçada, ritmadas — o alinhamento é o que dá "rua" em vez de
@@ -184,92 +155,65 @@ func _criar_vizinhanca() -> void:
 		_criar_arvore(Vector3(PAREDE_OESTE_X - 6.2, 0.0, z), rng.randf_range(0.8, 1.1))
 
 
-func _criar_casa(
-	pos: Vector3,
-	cor_corpo: Color = Color(0.75, 0.65, 0.5),
-	cor_telhado: Color = Color(0.4, 0.22, 0.18),
-	escala: float = 1.0
-) -> void:
-	var casa := Node3D.new()
+## Casa da vizinhança. **Modelo de terceiro desde 08/08/2026** (ver
+## `CREDITOS.md`) — antes era caixa + prisma de telhado + janelas de caixinha,
+## tudo com material procedural.
+##
+## `tom` multiplica o albedo do modelo inteiro. Não é capricho: a versão
+## procedural sorteava cor de corpo E de telhado justamente porque **casa
+## repetida entrega o loop da rua na hora**, e trocar por um modelo único
+## reabriria esse buraco. Multiplicar perto do branco desloca o tom sem destruir
+## a paleta que o autor pintou.
+##
+## A fachada (porta e varanda) sai do Blender virada pro −Z. Aqui ela é girada
+## pra olhar o +X, que é o lado da rua e o lado de onde a janela do quarto vê.
+func _criar_casa(pos: Vector3, tom: Color = Color.WHITE, escala: float = 1.0) -> void:
+	var cena: PackedScene = load("res://models/casa_vizinha.glb")
+	var casa: Node3D = cena.instantiate()
 	add_child(casa)
 	casa.position = pos
 	casa.scale    = Vector3.ONE * escala
-
-	var corpo := MeshInstance3D.new()
-	casa.add_child(corpo)
-	var box := BoxMesh.new()
-	box.size = Vector3(5.0, 3.0, 6.0)
-	corpo.mesh     = box
-	corpo.position = Vector3(0, 1.5, 0)
-
-	# Reboco externo da casa — grão médio, mais grosso que parede interna
-	var ruido_corpo  := MateriaisProcedurais.criar_textura_ruido(0.1, 512)
-	var normal_corpo := MateriaisProcedurais.criar_normal_ruido(1.6, 2.0, 512)
-	var mat_corpo    := MateriaisProcedurais.criar_material_texturizado(
-		cor_corpo, 0.9, ruido_corpo, Vector3(2.0, 2.0, 2.0), normal_corpo, 1.0)
-	corpo.set_surface_override_material(0, mat_corpo)
-
-	var telhado := MeshInstance3D.new()
-	casa.add_child(telhado)
-	var prisma := PrismMesh.new()
-	prisma.size          = Vector3(5.4, 1.6, 6.4)
-	prisma.left_to_right = 0.5  # cume centrado
-	telhado.mesh     = prisma
-	telhado.position = Vector3(0, 3.8, 0)
-
-	# Telha: relevo forte e direcional (UV apertada em Z sugere as ondas)
-	var ruido_telhado  := MateriaisProcedurais.criar_textura_ruido(0.4, 256)
-	var normal_telhado := MateriaisProcedurais.criar_normal_ruido(2.2, 3.0, 256)
-	var mat_telhado    := MateriaisProcedurais.criar_material_texturizado(
-		cor_telhado, 0.85, ruido_telhado, Vector3(2.0, 2.0, 6.0), normal_telhado, 1.5)
-	telhado.set_surface_override_material(0, mat_telhado)
-
-	_criar_janelas_casa(casa)
+	# −Z do nó apontando pro +X do mundo, mais um desvio pequeno derivado do lugar:
+	# fila de casas perfeitamente alinhada também lê como cópia.
+	casa.rotation.y = PI * 0.5 + (_ruido_do_lugar(pos, 57.3) - 0.5) * 0.16
+	_tingir(casa, tom)
 
 
-## Janelas e porta da fachada voltada pra cá (+X, o lado da rua).
+## Pseudoaleatório determinístico a partir de um ponto do mundo, em 0-1.
 ##
-## O vidro é OPACO de propósito: painel escuro chapado, sem transparência.
-## Vidro de verdade aqui só entregaria que a casa é uma caixa vazia por dentro
-## — janela de casa vista da rua é um retângulo escuro refletindo céu, e é
-## exatamente essa leitura que serve.
-func _criar_janelas_casa(casa: Node3D) -> void:
-	var x: float = 2.51   # rente à face +X do corpo (5.0 de largura)
-	var mat_moldura := _material_liso(Color(0.90, 0.88, 0.84), 0.7)
-	var mat_vidro   := _material_liso(Color(0.16, 0.20, 0.26), 0.15)
-	mat_vidro.metallic          = 0.25
-	mat_vidro.metallic_specular = 0.8
-
-	for z in [-1.7, 1.7]:
-		_caixa_casa(casa, Vector3(0.06, 1.1, 1.3), Vector3(x, 1.6, z), mat_moldura)
-		_caixa_casa(casa, Vector3(0.04, 0.94, 1.14), Vector3(x + 0.02, 1.6, z), mat_vidro)
-		# cruz da janela, igual à do quarto
-		_caixa_casa(casa, Vector3(0.06, 0.05, 1.14), Vector3(x + 0.03, 1.6, z), mat_moldura)
-		_caixa_casa(casa, Vector3(0.06, 0.94, 0.05), Vector3(x + 0.03, 1.6, z), mat_moldura)
-
-	# Porta da frente, entre as duas janelas
-	_caixa_casa(casa, Vector3(0.06, 2.1, 0.95), Vector3(x, 1.05, 0.0), mat_moldura)
-	_caixa_casa(casa, Vector3(0.05, 1.98, 0.84), Vector3(x + 0.02, 1.0, 0.0),
-		_material_liso(Color(0.34, 0.20, 0.14), 0.6))
+## Substitui passar um `RandomNumberGenerator` por toda a cadeia de criação. A
+## vantagem não é economia de código: com RNG, o valor de cada peça depende da
+## ORDEM em que ela foi criada, então mexer numa lista embaralha a decoração
+## inteira. Assim cada lugar tem sempre o mesmo sorteio.
+static func _ruido_do_lugar(pos: Vector3, semente: float) -> float:
+	return fposmod(sin(pos.x * 12.9898 + pos.z * 78.233 + semente) * 43758.5453, 1.0)
 
 
-func _caixa_casa(pai: Node3D, tamanho: Vector3, pos: Vector3, mat: Material) -> void:
-	var no := MeshInstance3D.new()
-	pai.add_child(no)
-	var box := BoxMesh.new()
-	box.size    = tamanho
-	no.mesh     = box
-	no.position = pos
-	no.set_surface_override_material(0, mat)
+static func _giro_do_lugar(pos: Vector3) -> float:
+	return _ruido_do_lugar(pos, 4.7) * TAU
 
 
-## Material chapado, sem ruído nem normal — pra peça pequena vista de longe o
-## detalhe procedural só vira sujeira.
-func _material_liso(cor: Color, aspereza: float) -> StandardMaterial3D:
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = cor
-	mat.roughness    = aspereza
-	return mat
+## Multiplica o albedo de todas as superfícies de um galho da árvore de nós.
+##
+## Duplica o material por instância — sem isso, tingir uma casa tingiria todas,
+## porque o `.glb` compartilha o mesmo recurso entre as instâncias. São ~11 casas
+## e ~17 árvores, então o custo de não compartilhar material é irrelevante aqui.
+func _tingir(raiz: Node, tom: Color) -> void:
+	if tom == Color.WHITE:
+		return
+	for no in _todos_meshes(raiz):
+		var malha: Mesh = no.mesh
+		if malha == null:
+			continue
+		for i in malha.get_surface_count():
+			var base: Material = malha.surface_get_material(i)
+			if base == null:
+				continue
+			var copia: StandardMaterial3D = base.duplicate() as StandardMaterial3D
+			if copia == null:
+				continue
+			copia.albedo_color = copia.albedo_color * tom
+			no.set_surface_override_material(i, copia)
 
 
 ## Luz de preenchimento SÓ do lado de fora.
@@ -314,5 +258,5 @@ func _criar_decoracao_distante() -> void:
 		var escala: float = rng.randf_range(0.7, 1.3)
 		_criar_arvore(Vector3(x, 0.0, z), escala)
 
-	_criar_casa(Vector3(PAREDE_OESTE_X - 35.0, 0.0, -18.0))
-	_criar_casa(Vector3(PAREDE_OESTE_X - 55.0, 0.0, 22.0))
+	_criar_casa(Vector3(PAREDE_OESTE_X - 35.0, 0.0, -18.0), Color(0.96, 0.97, 1.00), 1.05)
+	_criar_casa(Vector3(PAREDE_OESTE_X - 55.0, 0.0, 22.0), Color(1.00, 0.96, 0.93), 0.95)

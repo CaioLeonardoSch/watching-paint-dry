@@ -10,6 +10,11 @@ no fim.
 Um asset só entra na lista quando entra no jogo de verdade. Coisa baixada e descartada na avaliação
 não é listada — se voltar atrás, listar junto.
 
+**Alterações estão declaradas asset a asset**, porque a CC BY 4.0 exige indicar se houve mudança
+(cláusula 3.a.1.B), não só creditar. Todos foram convertidos para glTF/`.glb` e reposicionados
+(origem na base, centrados, orientação acertada) — isso é adequação técnica, e está declarado uma
+vez aqui em vez de repetido em cada entrada. Mudança de textura ou geometria está dita no item.
+
 ## Modelos 3D
 
 ### Cadeira da garotinha
@@ -20,6 +25,9 @@ não é listada — se voltar atrás, listar junto.
 - Fonte: https://sketchfab.com/models/2a61dd227db34fa4b400fb6bccb34937
 - Onde: a cadeira em `PONTO_CADEIRA_GAROTINHA`, substituindo as primitivas de
   `inicializar_quarto.gd::_criar_cadeira()`
+- **Alterado:** as três texturas foram reduzidas de 4096 × 4096 para 512 × 512. Geometria intacta.
+  Motivo: o `.glb` saía com **63 MB** por causa delas, e a cadeira ocupa ~200 px de tela. Ficou em
+  1 MB
 
 ### Escada do tio
 
@@ -28,6 +36,8 @@ não é listada — se voltar atrás, listar junto.
 - Licença: ⚠️ **CC Attribution-ShareAlike 4.0** (CC BY-SA 4.0)
 - Fonte: https://sketchfab.com/models/430f5651a39c46258abb30a22f7b5634
 - Onde: o banquinho que o tio carrega e sobe (`props_pintura.gd`)
+- **Alterado: nada** além da conversão de formato — nem textura, nem geometria, nem material. É de
+  propósito, ver o aviso abaixo
 
 ⚠️ **A cláusula ShareAlike é diferente das outras e precisa de decisão consciente.** Usar o modelo
 como está exige só atribuição. Mas **qualquer modificação** dele — remodelar, decimar, trocar o
@@ -42,7 +52,9 @@ equivalente CC BY puro antes de mexer nele.
 - Autor: **MrAeterna**
 - Licença: **CC Attribution 4.0** (CC BY 4.0)
 - Fonte: https://sketchfab.com/models/b3a6cff40d02411e8cf35ca18eb14f02
-- Onde: `cenario_externo.gd`
+- Onde: `cenario_externo.gd`, ~11 instâncias com escala, giro e tom variando por posição
+- **Alterado:** só o `albedo_color` de cada instância, multiplicado por um tom perto do branco pra
+  as casas da rua não ficarem idênticas. Malha e texturas intactas
 
 ### Árvore (vista pela janela)
 
@@ -50,7 +62,9 @@ equivalente CC BY puro antes de mexer nele.
 - Autor: **Batuhan13**
 - Licença: **CC Attribution 4.0** (CC BY 4.0)
 - Fonte: https://sketchfab.com/models/deadcadc915545a7b4701dbe6eb419e8
-- Onde: `cenario_externo.gd`
+- Onde: `cenario_externo.gd`, ~17 instâncias com escala, giro e tom variando por posição
+- **Alterado:** as três texturas foram reduzidas de 2048 × 2048 para 512 × 512, e o `albedo_color`
+  de cada instância é multiplicado por um tom perto do branco. Malha intacta
 
 ## Licenças que este projeto NÃO aceita
 

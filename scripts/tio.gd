@@ -61,7 +61,7 @@ const DISTANCIA_PAREDE: float = 0.66
 
 ## Ganho de altura ao subir no banquinho. **Tem que bater com
 ## `PropsPintura.ALTURA_BANQUINHO`**, senão ele flutua ou enterra o pé.
-const ALTURA_BANQUINHO: float = 0.30
+const ALTURA_BANQUINHO: float = 0.305
 
 ## Altura do punho, em repouso de trabalho. O cabo do rolo faz o resto do
 ## alcance — é por isso que ele pinta 3 m de parede sem escada.
