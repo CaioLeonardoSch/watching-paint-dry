@@ -16,24 +16,36 @@ class_name Garotinha
 
 signal sentou
 
-## Altura do assento da cadeira, de `inicializar_quarto.gd::_criar_cadeira`
-## (`alt_assento` 0,45 + metade da espessura 0,05). Se a cadeira mudar, muda aqui.
-const ALTURA_ASSENTO: float = 0.475
+## Altura do assento da cadeira, de `inicializar_quarto.gd::_criar_cadeira`.
+##
+## **MEDIDA no modelo, não somada à mão.** Era 0,475 (0,45 do assento primitivo
+## + metade da espessura 0,05); a cadeira virou modelo de terceiro em 08/08/2026
+## e o assento dela está em **0,492** — medido no Blender pelas faces viradas
+## pra cima, pegando a de maior área (0,173 m², que só pode ser o assento).
+##
+## Se a cadeira mudar de novo, os TRÊS números abaixo mudam junto.
+const ALTURA_ASSENTO: float = 0.492
 
 ## Quanto o quadril desce pra pousar no assento, como fração de `queda_maxima`
 ## do `PosturaModifier` (0,20 m no modelo dela).
 ##
 ## Conta: o quadril dela em pé está em 0,55 e a articulação tem que ficar logo
-## acima do assento (0,475), ou seja ~0,50 — são 5 cm, que é 0,25 de 0,20 m. A
-## raiz do personagem **não sobe**: quem levanta o corpo é a perna dobrando, e
+## acima do assento (0,492), ou seja ~0,517 — são 3,3 cm, que é 0,165 de 0,20 m.
+## A raiz do personagem **não sobe**: quem levanta o corpo é a perna dobrando, e
 ## era justamente o Tween de `position:y` que fazia ela afundar no chão antes.
-const AGACHAMENTO_SENTADA: float = 0.25
+##
+## Era 0,25 quando o assento estava em 0,475. Assento mais alto = menos
+## agachamento, e a proporção é direta.
+const AGACHAMENTO_SENTADA: float = 0.165
 
 ## Onde os pés vão parar quando ela senta, a partir do repouso: pra frente
 ## (−Z é a frente do modelo) e **pra cima**, porque a canela dela tem 24 cm e o
-## assento está a 47,5 — ela não alcança o chão. O pé balançando no ar é o
+## assento está a 49,2 — ela não alcança o chão. O pé balançando no ar é o
 ## detalhe que entrega a idade dela sem dizer nada.
-const PES_SENTADA: Vector3 = Vector3(0.0, 0.21, -0.24)
+##
+## O Y subiu de 0,21 pra 0,227 junto com o assento: são os mesmos 1,7 cm, senão
+## o pé desce em relação à cadeira e o balanço encolhe.
+const PES_SENTADA: Vector3 = Vector3(0.0, 0.227, -0.24)
 
 const DURACAO_SENTAR: float = 1.1
 

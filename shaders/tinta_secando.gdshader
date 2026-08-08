@@ -156,6 +156,57 @@ uniform float residuo_demao = 0.0;
 // Quem preenche é `parede_pintavel.gd::forca_fresca`.
 uniform float marca_fresca = 1.0;
 
+// ── Verniz molhado (CLEARCOAT) ─────────────────────────────────────────
+//
+// Tinta molhada é DUAS superfícies, não uma mais lisa: o pigmento fosco
+// embaixo e um filme de água/ligante liso por cima. O `CLEARCOAT` do Godot é
+// exatamente esse modelo — lóbulo especular próprio, por cima, sem tocar na
+// rugosidade da base.
+//
+// ⚠️ Isto substituiu o ganho de SPECULAR modulado por ângulo rasante. Medido em
+// 06/08/2026 numa parede chapada: o termo inteiro valia **+5,6%** de luminância
+// de frente e **+10,5%** no raspão extremo. E os 65% dele que estavam atrás de
+// `pow(1 - dot(N,V), 4)` eram praticamente inalcançáveis — esse fator só passa
+// de 0,5 acima de ~81° da normal, e da cadeira ele mede **0,000**. Na prática o
+// jogador pagava o termo e recebia só o piso de 0,35.
+//
+// Consequência: "molhado" era comunicado clareando a parede 2,83× (véu leitoso
+// + k_valor), que é o mesmo verbo visual de "ainda não pintei direito" — a
+// queixa que já tinha derrubado o VEU_MOLHADO de 0,55 pra 0,32 na G2.
+//
+// ⚠️ E NÃO é baixar o ROUGHNESS da base, que o PROJETO.md §3.6 registra como
+// revertido. Mas o clearcoat **não escapa de graça** do mesmo problema, e isso
+// custou uma rodada: o lóbulo dele também amostra o reflexo do ambiente, e o
+// que a parede devolve é o TETO (bege claro) acima da linha do olho e o PISO
+// (marrom escuro) abaixo. A troca cai exatamente na altura do olho, porque é aí
+// que o raio refletido vira — e com o verniz liso a parede fica **bicolor**.
+//
+// Não adianta borrar: subir `rugosidade_verniz` espalha a troca num degradê
+// largo, o contraste total continua. Também não é o céu — alisar o horizonte do
+// céu procedural e pôr uma `ReflectionProbe` interior no quarto mexeram a média
+// de 64,95 pra 64,53, ou seja nada. É o quarto mesmo.
+//
+// O que abre a janela é o **pico** (reflexo da lâmpada, luz DIRETA) cair mais
+// devagar que a **banda** (reflexo do ambiente) quando a força desce. Medido da
+// cadeira, banda normalizada pela parede seca:
+//
+//   | força | banda | pico  |
+//   |-------|-------|-------|
+//   | 0,85  | 1,250 | 9,38× |
+//   | 0,55  | 1,195 | 7,64× |
+//   | 0,35  | 1,132 | 6,85× |
+//   | **0,22** | **1,087** | **5,96×** |
+//   | 0,10  | 1,043 | 4,60× |
+//
+// Em 0,22 a banda vira falloff de luz (+8,7%, que o olho lê como sombra normal)
+// e o reflexo da lâmpada ainda é 6× a média da parede — um ponto brilhante e
+// inconfundível. É esse ponto que faz ler "molhado", não a parede clarear.
+uniform float verniz_molhado = 0.22;
+// Rugosidade do filme líquido. Alta de propósito: o Godot remapeia isto pra
+// 0,001–0,1 no lóbulo de luz DIRETA, então mesmo 0,55 mantém o reflexo da
+// lâmpada nítido — mas borra o reflexo do AMBIENTE, que é a banda.
+uniform float rugosidade_verniz = 0.55;
+
 // Faixa da carga gravada que conta como "coberto".
 //
 // ⚠️ `cobertura_min` tem que ser **zero ou positivo**, e isso não é estética.
@@ -485,28 +536,31 @@ void fragment() {
 	// pode ter: o jogador move a cabeça e descobre coisa. Pintor de verdade
 	// confere a borda molhada exatamente assim, olhando a parede de raspão.
 	//
-	// ⚠️ Risco conhecido e JÁ REVERTIDO uma vez: roughness baixo demais faz a
-	// parede refletir o céu procedural e quebrar em blocos visíveis (está no
-	// PROJETO.md 3.6). Por isso o piso é 0.36 e não menos, e o ganho de molhado
-	// vai no SPECULAR modulado pelo ângulo rasante — de frente a parede
-	// continua fosca, e o brilho só aparece quando a câmera olha ao longo dela.
-	// Mesmo efeito, sem o risco.
-	//
-	// NORMAL e VIEW estão os dois em espaço de visão no fragment() do Godot 4,
-	// e VIEW aponta do fragmento pra câmera. Então dot = 1 é de frente e 0 é de
-	// raspão; a potência 4 concentra o ganho nos ângulos bem rasantes.
-	float rasante = pow(1.0 - clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0), 4.0);
+	// ⚠️ A BASE é pigmento, e pigmento é fosco molhado ou seco. Ela nunca fica
+	// lisa — o que muda com a secagem é o VERNIZ por cima (ver `verniz_molhado`
+	// e o CLEARCOAT lá embaixo). Baixar a rugosidade da base pra fingir molhado
+	// já foi tentado e revertido: a parede passa a refletir o céu procedural e
+	// quebra em blocos visíveis (PROJETO.md §3.6).
 	float molhado = 1.0 - k_brilho;
 
-	float rug_pintada = mix(0.36, 0.90, k_brilho);
+	// A base ainda ganha um tico de lisura molhada — o filme preenche a
+	// microtextura do reboco de verdade — mas longe do que faria reflexo.
+	float rug_pintada = mix(0.62, 0.90, k_brilho);
 	ROUGHNESS = mix(0.92, rug_pintada, cobertura);
 	// O peso da mancha vai pro brilho, o dobro do que foi pra cor: é assim que
 	// parede secando se parece de perto. Atenuado por `nitidez` pelo mesmo
 	// motivo do lap mark — de longe o pixel cobre manchas demais pra resolver.
 	ROUGHNESS += mancha * 0.14 * k_mancha * cobertura * nitidez;
 	ROUGHNESS -= bead * 0.10;                            // o bead é mais liso
-	ROUGHNESS = clamp(ROUGHNESS, 0.30, 1.0);             // piso duro, ver acima
+	ROUGHNESS = clamp(ROUGHNESS, 0.55, 1.0);             // piso duro, ver acima
 	ROUGHNESS = mix(ROUGHNESS, ROUGHNESS * 0.93, lap);   // lap mark brilha um pouco mais
 	METALLIC  = 0.0;                                     // tinta não é metal
-	SPECULAR  = mix(0.30, 0.30 + 0.32 * molhado * (0.35 + 0.65 * rasante), cobertura);
+	SPECULAR  = 0.30;                                    // o molhado não mora mais aqui
+
+	// ── O filme líquido ────────────────────────────────────────────
+	// Fecha junto com `k_brilho`, ou seja no flash-off, e só existe onde o rolo
+	// já passou. O bead — a beirada onde a tinta escorreu e engrossou — é a
+	// parte mais líquida de todas, então leva um extra.
+	CLEARCOAT = clamp(verniz_molhado * molhado * cobertura + bead * 0.35 * verniz_molhado, 0.0, 1.0);
+	CLEARCOAT_ROUGHNESS = mix(rugosidade_verniz, 0.55, k_brilho);
 }

@@ -21,10 +21,21 @@ const PLASTICO_BANDEJA := Color(0.20, 0.22, 0.25)
 const MADEIRA_BANQUINHO := Color(0.55, 0.40, 0.27)
 const METAL_LATA := Color(0.68, 0.66, 0.62)
 
-## Altura do assento do banquinho. É o que o tio ganha de alcance ao subir —
+## Altura em que o tio pisa ao subir no banquinho. É o que ele ganha de alcance —
 ## `tio.gd::ALTURA_BANQUINHO` tem que bater com isto, senão ele flutua ou
 ## enterra o pé na madeira.
-const ALTURA_BANQUINHO: float = 0.30
+##
+## **MEDIDA no modelo desde 08/08/2026**, não escolhida. O banquinho virou uma
+## escada de pintor de verdade (ver `_criar_banquinho`), e o PRIMEIRO DEGRAU dela
+## está em 0,305 — medido no Blender pelas faces viradas pra cima. Era 0,30 no
+## banquinho primitivo, ou seja 5 mm de diferença: toda a coreografia da Fase E
+## (`ALCANCE_TOPO`, subir, descer, carregar) continua valendo sem um retoque.
+##
+## ⚠️ Ele pisa no primeiro degrau, **não no topo**. A escada tem 1,00 m e o topo
+## dela está em 1,00; subir lá poria a mão dele acima da parede e quebraria o
+## alcance todo. Se algum dia quiser usar o topo, é recalibrar `ALCANCE_TOPO` e
+## a altura da passada junto — não é trocar este número sozinho.
+const ALTURA_BANQUINHO: float = 0.305
 
 ## Distância da parede em que a bandeja e o banquinho ficam. A bandeja fica um
 ## pouco mais longe: ele pisa no banquinho, então esse tem que estar rente.
@@ -80,6 +91,22 @@ func posicionar_para_parede(parede: ParedePintavel) -> void:
 
 	# a bandeja é comprida no sentido da parede
 	bandeja.rotation.y = atan2(lado.x, lado.z)
+
+	# A escada tem lado: os degraus ficam de um lado só. Virados pra parede, o tio
+	# subiria por trás dela — então eles olham pra DENTRO do quarto, que é de onde
+	# ele chega.
+	#
+	# ⚠️ O sinal aqui foi decidido RENDERIZANDO, não deduzindo, e é por isso que
+	# esta linha merece comentário. A conta "certa no papel" seria
+	# `atan2(-normal.x, -normal.z)`, porque com `rotation.y = θ` a frente do nó
+	# (−Z) vira `(-sin θ, 0, -cos θ)`. Só que o `.glb` não chega com transformada
+	# identidade: o nó do Sketchfab carrega uma rotação própria embutida, herdada
+	# do import original mais o giro de orientação aplicado na exportação. O que
+	# vale é o resultado composto, e ele inverte o sinal esperado.
+	#
+	# Ou seja: **não confie na dedução se trocar o modelo da escada** — ponha uma
+	# câmera dentro do quarto olhando pra ela e veja de que lado estão os degraus.
+	banquinho.rotation.y = atan2(normal.x, normal.z)
 
 
 ## Onde o tio fica DE PÉ pra molhar o rolo.
@@ -150,22 +177,28 @@ func _criar_bandeja() -> void:
 	_caixa(bandeja, Vector3(0.38, 0.02, 0.12), Vector3(0, 0.035, -0.09), _tinta_bandeja)
 
 
-## Banquinho baixo de madeira, 4 pernas.
+## Escada de pintor. **Modelo de terceiro desde 08/08/2026** (ver `CREDITOS.md`)
+## — antes era um banquinho de 5 caixas.
+##
+## O degrau em que o tio pisa é o PRIMEIRO, a 0,305 (ver `ALTURA_BANQUINHO`), e
+## o primeiro degrau tem 0,043 m² de área: sobra madeira pros dois pés dele, que
+## era exatamente o problema que fez o banquinho primitivo crescer de 0,36 × 0,30
+## pra 0,46 × 0,38 na Fase E.
+##
+## O `.glb` sai do Blender com a base em Y = 0, centrado em X/Z e com os DEGRAUS
+## virados pro −Z. Quem gira pra eles ficarem de frente pro quarto (e não pra
+## parede, o que deixaria o tio subindo pelo lado errado) é
+## `posicionar_para_parede`.
+##
+## ⚠️ Licença **CC BY-SA** — este é o único asset do jogo com cláusula
+## ShareAlike. Ele entra sem nenhuma alteração de geometria ou material de
+## propósito: modificar gera obra derivada que teria de ser redistribuída sob a
+## mesma licença. Se for pra restilizar, trocar o modelo antes. Ver `CREDITOS.md`.
 func _criar_banquinho() -> void:
-	banquinho = Node3D.new()
+	var cena: PackedScene = load("res://models/escada_pintor.glb")
+	banquinho = cena.instantiate()
 	banquinho.name = "Banquinho"
 	add_child(banquinho)
-
-	# 0,46 × 0,38 e não 0,36 × 0,30: com o assento menor, o tio de pé em cima
-	# deixava um pé pra fora da madeira — a postura dele é mais aberta que o
-	# banquinho era.
-	var mat := _material(MADEIRA_BANQUINHO)
-	_caixa(banquinho, Vector3(0.46, 0.04, 0.38), Vector3(0, ALTURA_BANQUINHO - 0.02, 0), mat)
-	var altura_perna: float = ALTURA_BANQUINHO - 0.04
-	for sx in [-1.0, 1.0]:
-		for sz in [-1.0, 1.0]:
-			_caixa(banquinho, Vector3(0.04, altura_perna, 0.04),
-				Vector3(sx * 0.20, altura_perna * 0.5, sz * 0.16), mat)
 
 
 ## Lata aberta ao lado da bandeja — é de onde a tinta sai.
